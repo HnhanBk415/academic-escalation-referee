@@ -1,0 +1,65 @@
+from enum import StrEnum
+
+
+class ActorRole(StrEnum):
+    STUDENT = "STUDENT"
+    LECTURER = "LECTURER"
+
+
+class DocumentStatus(StrEnum):
+    PENDING = "PENDING"
+    INGESTING = "INGESTING"
+    ACTIVE = "ACTIVE"
+    FAILED = "FAILED"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class QuestionStatus(StrEnum):
+    SUBMITTED = "SUBMITTED"
+    ANSWERED = "ANSWERED"
+    CLARIFICATION_REQUIRED = "CLARIFICATION_REQUIRED"
+    ESCALATED = "ESCALATED"
+
+
+class Route(StrEnum):
+    ANSWER = "ANSWER"
+    CLARIFY = "CLARIFY"
+    ESCALATE = "ESCALATE"
+
+
+class UncertaintyType(StrEnum):
+    NONE = "NONE"
+    MISSING_FACT = "MISSING_FACT"
+    OUT_OF_POLICY = "OUT_OF_POLICY"
+    AUTHORITY_REQUIRED = "AUTHORITY_REQUIRED"
+    CONFLICTING_EVIDENCE = "CONFLICTING_EVIDENCE"
+    SUSPICIOUS_INPUT = "SUSPICIOUS_INPUT"
+    AI_UNAVAILABLE = "AI_UNAVAILABLE"
+
+
+class CaseStatus(StrEnum):
+    UNDER_REVIEW = "UNDER_REVIEW"
+    WAITING_FOR_STUDENT = "WAITING_FOR_STUDENT"
+    FORWARDED = "FORWARDED"
+    CANCELLED = "CANCELLED"
+    DECIDED = "DECIDED"
+
+
+class DecisionValue(StrEnum):
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    NEED_MORE_INFO = "NEED_MORE_INFO"
+    FORWARDED = "FORWARDED"
+
+
+class ScopeType(StrEnum):
+    STUDENT = "STUDENT"
+    GROUP = "GROUP"
+    COURSE = "COURSE"
+
+
+class ExceptionStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    REVOKED = "REVOKED"
+
