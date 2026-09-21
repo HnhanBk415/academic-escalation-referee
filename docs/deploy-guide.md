@@ -32,16 +32,23 @@ Hệ thống AER yêu cầu PostgreSQL hỗ trợ extension `pgvector` với vec
 1. Truy cập [supabase.com](https://supabase.com) và tạo tài khoản miễn phí.
 2. Bấm **New Project**, chọn Organization, đặt tên project (ví dụ: `aer-db`), nhập mật khẩu Database.
 3. Chọn Region gần nhất (ví dụ: `Singapore (ap-southeast-1)`).
-4. Sau khi tạo xong, vào menu **Database** > **Extensions** > tìm `vector` và bật (Enable).
-5. Vào **Project Settings** > **Database** > mục **Connection string**:
-   - Chọn tab **URI** (hoặc Mode: **Session** hoặc **Transaction**).
+4. Bật extension `pgvector`:
+   - Bấm vào icon **Database** (hình chiếc đĩa/trụ ở thanh menu ngoài cùng bên trái) > chọn **Extensions** > tìm `vector` và bật (Enable).
+   - *Hoặc* bấm vào icon **SQL Editor** (`>_` ở cột bên trái) và chạy lệnh:
+     ```sql
+     create extension if not exists vector;
+     ```
+5. Lấy chuỗi kết nối (Connection string):
+   - Ngay trên thanh Header trên cùng (cạnh chữ `aer-db / main PRODUCTION`), bấm vào **nút màu xanh `Connect`**.
+   - Popup mở ra, chọn mục **URI** (hoặc chọn tab **Connection String** > **URI**).
+   - Chọn Type: **Session** (port 5432) hoặc **Direct connection**.
    - Chuỗi kết nối có dạng:
      ```
-     postgresql://postgres:[YOUR-PASSWORD]@db.xxxx.supabase.co:5432/postgres
+     postgresql://postgres.[project-ref]:[YOUR-PASSWORD]@...supabase.com:5432/postgres
      ```
-   - **Lưu ý quan trọng**: Với SQLAlchemy AsyncPG, đổi tiền tố `postgresql://` thành `postgresql+asyncpg://`. Ví dụ:
+   - **Lưu ý quan trọng**: Đổi tiền tố `postgresql://` thành `postgresql+asyncpg://` và thay `[YOUR-PASSWORD]` bằng mật khẩu bạn đã đặt lúc tạo project. Ví dụ:
      ```
-     postgresql+asyncpg://postgres:[YOUR-PASSWORD]@db.xxxx.supabase.co:5432/postgres
+     postgresql+asyncpg://postgres.[project-ref]:MyPassword123@...supabase.com:5432/postgres
      ```
 
 ### Lựa chọn B: Neon (Serverless Postgres)
