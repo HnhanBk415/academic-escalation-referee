@@ -20,6 +20,11 @@ Chọn đúng một route:
 
 ANSWER phải có ít nhất một citation label tồn tại trong evidence. Không bịa citation."""
 
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+_RETRY_DELAY_SECONDS = 2
+_MAX_EVIDENCE_CHARS = 300
+_MAX_EVIDENCE_CHARS_ON_RETRY = 160
+
 
 class GeminiProvider:
     def __init__(self, settings: Settings) -> None:
@@ -64,7 +69,41 @@ class GeminiProvider:
         evidence: list[dict],
         applicable_exceptions: list[dict],
     ) -> RefereeDecision:
-        prompt = json.dumps(
+        prompt = self._decision_prompt(
+            question,
+            actor_context,
+            self._compact_evidence(evidence, _MAX_EVIDENCE_CHARS),
+            applicable_exceptions,
+        )
+        try:
+            response = await self._generate_decision(prompt)
+        except Exception as error:
+            if not self._is_retryable(error):
+                raise
+            # A 503/timeout is transient. Retry once with the same evidence labels
+            # but bounded excerpts, so the retry remains grounded and lighter.
+            await asyncio.sleep(_RETRY_DELAY_SECONDS)
+            retry_prompt = self._decision_prompt(
+                question,
+                actor_context,
+                self._compact_evidence(evidence, _MAX_EVIDENCE_CHARS_ON_RETRY),
+                applicable_exceptions,
+            )
+            response = await self._generate_decision(retry_prompt)
+        if isinstance(response.parsed, RefereeDecision):
+            return response.parsed
+        if response.parsed:
+            return RefereeDecision.model_validate(response.parsed)
+        raise RuntimeError("Gemini did not return a structured RefereeDecision")
+
+    def _decision_prompt(
+        self,
+        question: str,
+        actor_context: dict,
+        evidence: list[dict],
+        applicable_exceptions: list[dict],
+    ) -> str:
+        return json.dumps(
             {
                 "student_question": question,
                 "actor_context": actor_context,
@@ -74,8 +113,10 @@ class GeminiProvider:
             ensure_ascii=False,
             default=str,
         )
+
+    async def _generate_decision(self, prompt: str):  # type: ignore[no-untyped-def]
         async with self._semaphore:
-            response = await asyncio.wait_for(
+            return await asyncio.wait_for(
                 self.client.aio.models.generate_content(
                     model=self.settings.gemini_chat_model,
                     contents=prompt,
@@ -90,11 +131,21 @@ class GeminiProvider:
                 ),
                 timeout=self.settings.ai_request_timeout_seconds,
             )
-        if isinstance(response.parsed, RefereeDecision):
-            return response.parsed
-        if response.parsed:
-            return RefereeDecision.model_validate(response.parsed)
-        raise RuntimeError("Gemini did not return a structured RefereeDecision")
+
+    @staticmethod
+    def _is_retryable(error: Exception) -> bool:
+        return (
+            isinstance(error, TimeoutError)
+            or getattr(error, "code", None) in _RETRYABLE_STATUS_CODES
+        )
+
+    @staticmethod
+    def _compact_evidence(evidence: list[dict], max_characters: int) -> list[dict]:
+        compact: list[dict] = []
+        for item in evidence:
+            excerpt = str(item.get("content", ""))[:max_characters]
+            compact.append({**item, "content": excerpt})
+        return compact
 
     async def health(self) -> AIHealth:
         return AIHealth(
@@ -103,4 +154,3 @@ class GeminiProvider:
             model=self.settings.gemini_chat_model,
             detail="configured" if self.settings.gemini_api_key else "missing API key",
         )
-

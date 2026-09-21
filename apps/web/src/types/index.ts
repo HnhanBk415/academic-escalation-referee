@@ -1,5 +1,12 @@
 export type Route = "ANSWER" | "CLARIFY" | "ESCALATE";
 
+export interface AIHealth {
+  mode: string;
+  available: boolean;
+  model: string;
+  detail: string | null;
+}
+
 export interface Citation {
   label: string;
   chunk_id: string;

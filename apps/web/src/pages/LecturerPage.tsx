@@ -15,6 +15,7 @@ export function LecturerPage() {
   const [decision, setDecision] = useState<Decision>("APPROVED");
   const [reason, setReason] = useState("");
   const [exceptionContent, setExceptionContent] = useState("Nhóm được phép có tối đa 6 thành viên.");
+  const [createException, setCreateException] = useState(true);
   const [validFrom, setValidFrom] = useState(new Date().toISOString().slice(0, 10));
   const [validUntil, setValidUntil] = useState("2027-01-31");
   const [statusFilter, setStatusFilter] = useState("");
@@ -42,6 +43,7 @@ export function LecturerPage() {
     try {
       setSelected(await api<CaseDetail>(`/api/v1/cases/${caseId}`));
       setReason("");
+      setCreateException(true);
       setNotice("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Không thể mở case.");
@@ -56,7 +58,7 @@ export function LecturerPage() {
     setBusy(true);
     setError("");
     setNotice("");
-    const createsException = decision === "APPROVED";
+    const createsException = decision === "APPROVED" && createException;
     try {
       await postJson(
         `/api/v1/cases/${selected.id}/decision`,
@@ -76,7 +78,7 @@ export function LecturerPage() {
         },
         { "Idempotency-Key": `${selected.id}-${decision}-${Date.now()}` }
       );
-      setNotice("Decision recorded and student result updated.");
+      setNotice("Đã lưu quyết định và cập nhật kết quả cho sinh viên.");
       await loadData();
       setSelected(await api<CaseDetail>(`/api/v1/cases/${selected.id}`));
     } catch (caught) {
@@ -96,7 +98,7 @@ export function LecturerPage() {
         actor_id: "lecturer-01",
         reason: cancelReason
       });
-      setNotice("Case cancelled.");
+      setNotice("Đã hủy case.");
       await loadData();
       setSelected(await api<CaseDetail>(`/api/v1/cases/${selected.id}`));
     } catch (caught) {
@@ -115,7 +117,7 @@ export function LecturerPage() {
         actor_id: "lecturer-01",
         reason: revokeReason
       });
-      setNotice("Exception revoked. Future questions return to general policy.");
+      setNotice("Đã revoke exception. Câu hỏi sau sẽ áp dụng policy chung.");
       await loadData();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Không thể revoke.");
@@ -128,16 +130,16 @@ export function LecturerPage() {
     <div className="page">
       <PageHeader
         eyebrow="Lecturer console"
-        title="Decisions, with context."
-        description="Review the exact question, actor scope and supporting policy before deciding."
+        title="Quyết định với đầy đủ context"
+        description="Review câu hỏi, scope actor và policy evidence trước khi quyết định."
         actions={
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="">All cases</option>
-            <option value="UNDER_REVIEW">Under review</option>
-            <option value="WAITING_FOR_STUDENT">Waiting for student</option>
-            <option value="FORWARDED">Forwarded</option>
-            <option value="DECIDED">Decided</option>
-            <option value="CANCELLED">Cancelled</option>
+            <option value="">Tất cả case</option>
+            <option value="UNDER_REVIEW">Đang review</option>
+            <option value="WAITING_FOR_STUDENT">Chờ sinh viên</option>
+            <option value="FORWARDED">Đã chuyển tiếp</option>
+            <option value="DECIDED">Đã quyết định</option>
+            <option value="CANCELLED">Đã hủy</option>
           </select>
         }
       />
@@ -148,7 +150,7 @@ export function LecturerPage() {
       <div className="lecturer-layout">
         <section className="panel case-queue">
           <div className="panel-title">
-            <span>Case queue</span>
+            <span>Danh sách case</span>
             <strong>{cases.length}</strong>
           </div>
           <div className="case-list">
@@ -163,15 +165,15 @@ export function LecturerPage() {
                 <span>{item.reason_code}</span>
               </button>
             ))}
-            {!cases.length && <div className="queue-empty">No cases in this view.</div>}
+            {!cases.length && <div className="queue-empty">Không có case trong bộ lọc này.</div>}
           </div>
         </section>
 
         <section className="panel case-detail">
           {!selected && (
             <div className="empty-state compact">
-              <h2>Select a case</h2>
-              <p>The evidence packet and decision controls will appear here.</p>
+              <h2>Chọn một case</h2>
+              <p>Evidence packet và phần quyết định sẽ xuất hiện tại đây.</p>
             </div>
           )}
           {selected && (
@@ -182,7 +184,7 @@ export function LecturerPage() {
                   <h2>{selected.original_question}</h2>
                 </div>
                 <button className="text-button danger-text" onClick={cancelSelected} disabled={busy || selected.status === "DECIDED" || selected.status === "CANCELLED"}>
-                  Cancel case
+                  Hủy case
                 </button>
               </div>
               <div className="context-grid">
@@ -200,7 +202,7 @@ export function LecturerPage() {
 
               {!["DECIDED", "CANCELLED"].includes(selected.status) && (
                 <form className="decision-form" onSubmit={submitDecision}>
-                  <div className="section-label">Human decision</div>
+                  <div className="section-label">Quyết định của giảng viên</div>
                   <div className="decision-tabs">
                     {(["APPROVED", "REJECTED", "NEED_MORE_INFO", "FORWARDED"] as Decision[]).map((value) => (
                       <button type="button" key={value} className={decision === value ? "active" : ""} onClick={() => setDecision(value)}>
@@ -209,11 +211,16 @@ export function LecturerPage() {
                     ))}
                   </div>
                   <label>
-                    Reason <em>required</em>
-                    <textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Record the human rationale…" />
+                    Lý do <em>bắt buộc</em>
+                    <textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Ghi lại căn cứ quyết định…" />
                   </label>
                   {decision === "APPROVED" && (
                     <div className="exception-form">
+                      <label className="checkbox-label">
+                        <input type="checkbox" checked={createException} onChange={(event) => setCreateException(event.target.checked)} />
+                        Tạo exception sau khi approve
+                      </label>
+                      {createException && <>
                       <div className="exception-scope">
                         <span>Exception scope</span>
                         <strong>GROUP · {selected.group_id}</strong>
@@ -226,10 +233,11 @@ export function LecturerPage() {
                         <label>Valid from<input type="date" value={validFrom} onChange={(event) => setValidFrom(event.target.value)} /></label>
                         <label>Valid until<input type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} /></label>
                       </div>
+                      </>}
                     </div>
                   )}
                   <button className="primary-button" disabled={busy || reason.trim().length < 3 || (decision === "APPROVED" && !selected.group_id)}>
-                    {busy ? "Recording…" : "Confirm decision"}
+                    {busy ? "Đang lưu…" : "Xác nhận quyết định"}
                   </button>
                 </form>
               )}

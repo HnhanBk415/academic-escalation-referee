@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     gemini_chat_model: str = "gemini-3.6-flash"
     gemini_embed_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 768
-    ai_request_timeout_seconds: float = 20
+    ai_request_timeout_seconds: float = 30
     ai_max_concurrency: int = 1
 
     rag_top_k: int = 8

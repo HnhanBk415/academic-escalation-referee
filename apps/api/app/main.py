@@ -12,7 +12,6 @@ from app.api.router import root_router
 from app.core.config import get_settings
 from app.core.errors import AppError, app_error_handler
 
-
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 
 
