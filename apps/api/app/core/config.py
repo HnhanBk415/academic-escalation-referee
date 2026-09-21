@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://localhost:8000"])
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def clean_database_url(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.strip().replace("\r", "").replace("\n", "")
+        return v
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Any) -> list[str]:
