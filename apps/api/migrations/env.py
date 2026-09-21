@@ -35,8 +35,10 @@ def do_run_migrations(connection) -> None:  # type: ignore[no-untyped-def]
 
 
 async def run_async_migrations() -> None:
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = get_settings().database_url.strip().replace("\r", "").replace("\n", "")
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

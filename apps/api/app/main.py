@@ -12,7 +12,6 @@ from app.api.router import root_router
 from app.core.config import get_settings
 from app.core.errors import AppError, app_error_handler
 
-
 WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 
 
@@ -35,6 +34,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -54,9 +54,16 @@ def create_app() -> FastAPI:
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_web(full_path: str):  # type: ignore[no-untyped-def]
-        if full_path.startswith(("api/", "health/")) or not (WEB_DIST / "index.html").is_file():
-            raise HTTPException(status_code=404, detail="Not found")
-        return FileResponse(WEB_DIST / "index.html")
+        if (WEB_DIST / "index.html").is_file() and not full_path.startswith(("api/", "health/")):
+            return FileResponse(WEB_DIST / "index.html")
+        if full_path == "":
+            return {
+                "status": "ok",
+                "service": "Academic Escalation Referee API",
+                "docs": "/docs",
+                "health": "/health",
+            }
+        raise HTTPException(status_code=404, detail="Not found")
 
     return app
 
