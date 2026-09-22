@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { AuditPage }    from "./pages/AuditPage";
@@ -8,7 +8,7 @@ import { VerifyPage }   from "./pages/VerifyPage";
 import { api }          from "./api/client";
 import type { AIHealth } from "./types";
 
-const navItems: Array<{ path: string; label: string; icon: JSX.Element }> = [
+const navItems: Array<{ path: string; label: string; icon: ReactNode }> = [
   {
     path: "/student",
     label: "Gửi câu hỏi",

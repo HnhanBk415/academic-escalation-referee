@@ -1,0 +1,10 @@
+.git
+.venv
+**/node_modules
+**/dist
+**/*.pyc
+**/__pycache__
+**/*.tsbuildinfo
+backend/.venv
+aer.db
+aer-local.db
