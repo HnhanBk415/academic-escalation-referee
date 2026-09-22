@@ -11,6 +11,8 @@ export function Stepper({ status }: { status: CaseStatus | string }) {
     activeStep = 3; // Step 4 is complete
   } else if (status === "pending_lecturer" || status === "UNDER_REVIEW" || status === "ESCALATED") {
     activeStep = 2; // Step 3 is waiting
+  } else if (status === "clarify" || status === "CLARIFICATION_REQUIRED") {
+    activeStep = 2; // Step 3 is waiting for clarification
   } else if (status === "approved" || status === "DECIDED") {
     activeStep = 3; // Completed
   }

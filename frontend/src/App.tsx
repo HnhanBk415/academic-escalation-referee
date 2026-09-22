@@ -59,11 +59,14 @@ export function App() {
     }
   };
 
-  // Smooth UX Transition from Screen 1 to Screen 2
   const handleQuestionSubmitted = (questionId: string) => {
     setSelectedQuestionId(questionId);
-    setActiveTab("history");
     refreshCounts();
+  };
+
+  const handleNavigateToHistory = (questionId: string) => {
+    setSelectedQuestionId(questionId);
+    setActiveTab("history");
   };
 
   return (
@@ -82,7 +85,10 @@ export function App() {
       {/* Main Content Area */}
       <main className="flex-1 h-screen overflow-hidden flex flex-col min-w-0 bg-[#F8FAFC]">
         {activeTab === "submit" && (
-          <StudentSubmitView onSubmitted={handleQuestionSubmitted} />
+          <StudentSubmitView
+            onSubmitted={handleQuestionSubmitted}
+            onViewHistory={handleNavigateToHistory}
+          />
         )}
         {activeTab === "history" && (
           <StudentHistoryView initialSelectedId={selectedQuestionId} />

@@ -1,6 +1,6 @@
 import React from "react";
 
-export type CaseStatus = "auto_replied" | "pending_lecturer" | "approved";
+export type CaseStatus = "auto_replied" | "pending_lecturer" | "approved" | "clarify";
 export type EscalationTag = "OUT_OF_POLICY" | "INSUFFICIENT_EVIDENCE" | string;
 
 export function StatusBadge({ status }: { status: CaseStatus | string }) {
@@ -15,6 +15,13 @@ export function StatusBadge({ status }: { status: CaseStatus | string }) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-amber-50 text-amber-800 border border-amber-200">
         CHUYỂN TIẾP · CHỜ DUYỆT
+      </span>
+    );
+  }
+  if (status === "clarify" || status === "CLARIFICATION_REQUIRED" || status === "CLARIFY") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-sky-50 text-sky-800 border border-sky-200">
+        CẦN LÀM RÕ
       </span>
     );
   }
