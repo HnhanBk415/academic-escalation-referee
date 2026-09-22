@@ -10,17 +10,17 @@ DOCUMENTS = (
     {
         "id": "dadn-hk242-rubric",
         "title": "Hướng dẫn chấm bài môn Đồ án Đa ngành",
-        "source_path": "data/sample-documents/dadn-2026/dadn-rubric.pdf",
+        "source_path": "data/sample-documents/dadn-rubric.pdf",
     },
     {
         "id": "dadn-hk242-course-plan",
         "title": "Kế hoạch môn học Đồ án Đa ngành HK242",
-        "source_path": "data/sample-documents/dadn-2026/dadn-course-plan.pdf",
+        "source_path": "data/sample-documents/dadn-course-plan.pdf",
     },
     {
         "id": "dadn-hk242-work-plan",
         "title": "Kế hoạch làm việc Đồ án Đa ngành HK242",
-        "source_path": "data/sample-documents/dadn-2026/dadn-work-plan.pdf",
+        "source_path": "data/sample-documents/dadn-work-plan.pdf",
     },
 )
 

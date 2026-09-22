@@ -28,6 +28,7 @@ COPY --from=builder /install /usr/local
 COPY --from=builder /build/app ./app
 COPY --from=builder /build/alembic.ini ./alembic.ini
 COPY --from=builder /build/migrations ./migrations
+COPY --from=builder /build/scripts ./scripts
 
 # Non-root user
 RUN adduser --disabled-password --gecos "" aer
@@ -35,7 +36,9 @@ USER aer
 
 EXPOSE 8000
 
-# Run migrations then start server
+# Run migrations, seed demo data, then start server
 CMD ["sh", "-c", \
   "python -m alembic upgrade head && \
+   python -m app.db.seed && \
    python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]
+

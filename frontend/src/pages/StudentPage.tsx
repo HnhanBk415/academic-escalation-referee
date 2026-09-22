@@ -17,13 +17,14 @@ const dadnExamples = [
   "Tỷ lệ điểm giữa kỳ, quá trình, báo cáo tổng kết và demo là bao nhiêu?",
   "Yêu cầu nộp mô tả tổng quan đề tài là gì?",
   "Các nhóm cần thực hiện theo những mốc công việc nào?",
+  "Nhóm em xin phép có 6 thành viên được không?",
 ];
 
 const demoActors = {
-  "student-a1":    { label: "Nguyễn Văn An · Nhóm A",    courseId: "CO3001",     courseLabel: "CO3001 · Đồ án chuyên ngành" },
-  "student-b1":    { label: "Trần Thị Bình · Nhóm B",    courseId: "CO3001",     courseLabel: "CO3001 · Đồ án chuyên ngành" },
-  "student-dadn-a1": { label: "Lê Văn Cường · DADN/A",  courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành · HK242" },
-  "student-dadn-b1": { label: "Phạm Thị Dung · DADN/B", courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành · HK242" },
+  "student-dadn-a1": { label: "Lê Văn Cường · DADN/A",  courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành (HK242)" },
+  "student-dadn-b1": { label: "Phạm Thị Dung · DADN/B", courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành (HK242)" },
+  "student-a1":      { label: "Nguyễn Văn An · Nhóm A", courseId: "CO3001",     courseLabel: "CO3001 · Đồ án chuyên ngành" },
+  "student-b1":      { label: "Trần Thị Bình · Nhóm B", courseId: "CO3001",     courseLabel: "CO3001 · Đồ án chuyên ngành" },
 } as const;
 type DemoActorId = keyof typeof demoActors;
 
@@ -49,8 +50,8 @@ function getStep(busy: boolean, result: QuestionResponse | null) {
 }
 
 export function StudentPage() {
-  const [actorId, setActorId]       = useState<DemoActorId>("student-a1");
-  const [question, setQuestion]     = useState(co3001Examples[0]);
+  const [actorId, setActorId]       = useState<DemoActorId>("student-dadn-a1");
+  const [question, setQuestion]     = useState(dadnExamples[0]);
   const [result, setResult]         = useState<QuestionResponse | null>(null);
   const [clarification, setClarification] = useState("");
   const [busy, setBusy]             = useState(false);

@@ -36,6 +36,8 @@ services:
       CORS_ORIGINS: "http://localhost,http://web"
     ports:
       - "8000:8000"
+    volumes:
+      - ./data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 10s

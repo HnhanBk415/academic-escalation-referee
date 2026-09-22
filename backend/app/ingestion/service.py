@@ -14,7 +14,15 @@ from app.models import Document, DocumentChunk
 from app.schemas.documents import IngestResponse
 from app.services.ids import new_id
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+def _find_repo_root() -> Path:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "data" / "sample-documents").is_dir():
+            return parent
+    return current.parents[2] if len(current.parents) > 2 else current.parent
+
+
+REPOSITORY_ROOT = _find_repo_root()
 ALLOWED_DOCUMENT_ROOT = (REPOSITORY_ROOT / "data" / "sample-documents").resolve()
 
 

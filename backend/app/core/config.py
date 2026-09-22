@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal, Union
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,21 +28,25 @@ class Settings(BaseSettings):
     rag_min_score: float = 0.15
     prompt_version: str = "referee-v1"
     public_base_url: str = "http://localhost:8000"
-    cors_origins: list[str] = Field(
-        default_factory=lambda: [
-            "http://localhost:5173",   # Vite dev server
-            "http://localhost:3000",   # alternative dev port
-            "http://localhost",        # Docker nginx on port 80
-            "http://localhost:80",
-        ]
+    cors_origins_raw: str = Field(
+        default="http://localhost:5173,http://localhost:3000,http://localhost,http://localhost:80",
+        validation_alias=AliasChoices("cors_origins", "CORS_ORIGINS", "cors_origins_raw"),
     )
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def assemble_cors_origins(cls, v: Union[str, list[str]]) -> list[str]:
-        if isinstance(v, str):
-            return [i.strip() for i in v.split(",") if i.strip()]
-        return v
+    @property
+    def cors_origins(self) -> list[str]:
+        if not self.cors_origins_raw:
+            return []
+        raw = self.cors_origins_raw.strip()
+        if raw.startswith("[") and raw.endswith("]"):
+            try:
+                import json
+                items = json.loads(raw)
+                return [str(i).strip() for i in items if str(i).strip()]
+            except Exception:
+                pass
+        return [i.strip() for i in raw.split(",") if i.strip()]
+
 
 
 @lru_cache
