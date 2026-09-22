@@ -44,10 +44,19 @@ export function App() {
   };
 
   useEffect(() => {
-    api<AIHealth>("/health/ai")
-      .then(setAi)
-      .catch(() => setAi(null));
-    refreshCounts();
+    const checkHealth = async () => {
+      try {
+        const health = await api<AIHealth>("/health/ai");
+        setAi(health);
+        refreshCounts();
+      } catch {
+        setAi(null);
+      }
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSelectRole = (newRole: Role) => {
