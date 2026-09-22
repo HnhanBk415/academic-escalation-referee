@@ -142,7 +142,6 @@ class GeminiProvider:
                         max_output_tokens=500,
                         response_mime_type="application/json",
                         response_schema=RefereeDecision,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
                     ),
                 ),
                 timeout=self.settings.ai_request_timeout_seconds,
