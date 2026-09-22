@@ -13,7 +13,8 @@ node_modules/
 build/
 *.egg-info/
 .DS_Store
-apps/api/*.db
+*.db
+**/*.db
 harness/reports/*.json
 
 # Internal academic source documents are ingested locally and must not be committed.
