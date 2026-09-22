@@ -33,9 +33,12 @@ export function StudentSubmitView({
 
     const fullQuestion = subject.trim() ? `${subject.trim()}: ${body.trim()}` : body.trim();
 
+    const courseId = topic.includes("CO3001") ? "CO3001" : "DADN-HK242";
+    const effectiveActorId = courseId === "CO3001" ? "student-a1" : actorId;
+
     try {
       const res = await postJson<QuestionResponse>("/api/questions", {
-        actor_id: actorId,
+        actor_id: effectiveActorId,
         course_id: courseId,
         text: fullQuestion,
       });
