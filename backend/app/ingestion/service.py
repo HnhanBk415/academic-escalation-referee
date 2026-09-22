@@ -7,6 +7,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
+from app.ai.fake import FakeProvider
 from app.core.config import get_settings
 from app.core.enums import DocumentStatus
 from app.core.errors import AppError
@@ -57,33 +58,45 @@ async def ingest_document(
     path = resolve_source_path(document.source_path)
     raw = path.read_bytes()
     content_hash = hashlib.sha256(raw).hexdigest()
-    existing_count = await session.scalar(
-        select(func.count()).select_from(DocumentChunk).where(
-            DocumentChunk.document_id == document.id
+    model_name = (
+        "deterministic-fake-v1"
+        if isinstance(provider, FakeProvider)
+        else get_settings().gemini_embed_model
+    )
+    dimensions = get_settings().embedding_dimensions
+
+    existing_chunks = (
+        await session.scalars(
+            select(DocumentChunk).where(DocumentChunk.document_id == document.id)
+        )
+    ).all()
+    is_model_match = (
+        bool(existing_chunks)
+        and all(
+            chunk.embedding is not None
+            and len(chunk.embedding) == dimensions
+            and (chunk.chunk_metadata or {}).get("embedding_model") == model_name
+            for chunk in existing_chunks
         )
     )
+
     if (
         document.status == DocumentStatus.ACTIVE
         and document.content_hash == content_hash
-        and existing_count
+        and is_model_match
     ):
         return IngestResponse(
             document_id=document.id,
             status=DocumentStatus.ACTIVE,
-            chunk_count=existing_count,
+            chunk_count=len(existing_chunks),
             content_hash=content_hash,
-            embedding_dimensions=get_settings().embedding_dimensions,
+            embedding_dimensions=dimensions,
             idempotent=True,
         )
 
     document.status = DocumentStatus.INGESTING
     await session.flush()
     try:
-        model_name = (
-            get_settings().gemini_embed_model
-            if get_settings().ai_mode == "gemini"
-            else "deterministic-fake-v1"
-        )
         indexed_chunks = (
             await session.scalars(
                 select(DocumentChunk)

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.base import AIProvider
 from app.ai.factory import build_ai_provider
 from app.ai.fake import FakeProvider
+from app.core.config import get_settings
 from app.core.enums import ActorRole, DocumentStatus
 from app.db.session import SessionLocal
 from app.models import Actor, Course, Document, DocumentChunk, Group, GroupMembership
@@ -24,11 +25,11 @@ Yêu cầu thay đổi điểm hoặc phúc khảo phải được chuyển cho 
 
 
 async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -> None:
-    embedding_provider = provider or FakeProvider()
+    embedding_provider = provider or build_ai_provider()
     embedding_model = (
         "deterministic-fake-v1"
         if isinstance(embedding_provider, FakeProvider)
-        else "gemini-embedding-001"
+        else get_settings().gemini_embed_model
     )
     actors = [
         Actor(id="student-a1", display_name="Student A1", role=ActorRole.STUDENT),
@@ -124,27 +125,37 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
         )
         await session.flush()
 
-    if await session.get(DocumentChunk, "chunk-group-policy-v1-0") is None:
+    policy_chunk = await session.get(DocumentChunk, "chunk-group-policy-v1-0")
+    if (
+        policy_chunk is None
+        or (policy_chunk.chunk_metadata or {}).get("embedding_model") != embedding_model
+        or policy_chunk.embedding is None
+    ):
         embedding = (await embedding_provider.embed([POLICY_TEXT]))[0]
-        session.add(
-            DocumentChunk(
-                id="chunk-group-policy-v1-0",
-                document_id=document_id,
-                course_id="CO3001",
-                chunk_index=0,
-                heading="Thành viên và ngoại lệ",
-                page_number=1,
-                content=POLICY_TEXT,
-                content_hash=content_hash,
-                embedding=embedding,
-                chunk_metadata={
-                    "seeded": True,
-                    "language": "vi",
-                    "embedding_dimensions": 768,
-                    "embedding_model": embedding_model,
-                },
+        metadata = {
+            "seeded": True,
+            "language": "vi",
+            "embedding_dimensions": 768,
+            "embedding_model": embedding_model,
+        }
+        if policy_chunk is None:
+            session.add(
+                DocumentChunk(
+                    id="chunk-group-policy-v1-0",
+                    document_id=document_id,
+                    course_id="CO3001",
+                    chunk_index=0,
+                    heading="Thành viên và ngoại lệ",
+                    page_number=1,
+                    content=POLICY_TEXT,
+                    content_hash=content_hash,
+                    embedding=embedding,
+                    chunk_metadata=metadata,
+                )
             )
-        )
+        else:
+            policy_chunk.embedding = embedding
+            policy_chunk.chunk_metadata = metadata
 
     rubric_hash = hashlib.sha256(RUBRIC_TEXT.encode("utf-8")).hexdigest()
     if await session.get(Document, "project-rubric-v1") is None:
@@ -163,27 +174,38 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             )
         )
         await session.flush()
-    if await session.get(DocumentChunk, "chunk-project-rubric-v1-0") is None:
+
+    rubric_chunk = await session.get(DocumentChunk, "chunk-project-rubric-v1-0")
+    if (
+        rubric_chunk is None
+        or (rubric_chunk.chunk_metadata or {}).get("embedding_model") != embedding_model
+        or rubric_chunk.embedding is None
+    ):
         embedding = (await embedding_provider.embed([RUBRIC_TEXT]))[0]
-        session.add(
-            DocumentChunk(
-                id="chunk-project-rubric-v1-0",
-                document_id="project-rubric-v1",
-                course_id="CO3001",
-                chunk_index=0,
-                heading="Cơ cấu điểm và phúc khảo",
-                page_number=1,
-                content=RUBRIC_TEXT,
-                content_hash=rubric_hash,
-                embedding=embedding,
-                chunk_metadata={
-                    "seeded": True,
-                    "language": "vi",
-                    "embedding_dimensions": 768,
-                    "embedding_model": embedding_model,
-                },
+        metadata = {
+            "seeded": True,
+            "language": "vi",
+            "embedding_dimensions": 768,
+            "embedding_model": embedding_model,
+        }
+        if rubric_chunk is None:
+            session.add(
+                DocumentChunk(
+                    id="chunk-project-rubric-v1-0",
+                    document_id="project-rubric-v1",
+                    course_id="CO3001",
+                    chunk_index=0,
+                    heading="Cơ cấu điểm và phúc khảo",
+                    page_number=1,
+                    content=RUBRIC_TEXT,
+                    content_hash=rubric_hash,
+                    embedding=embedding,
+                    chunk_metadata=metadata,
+                )
             )
-        )
+        else:
+            rubric_chunk.embedding = embedding
+            rubric_chunk.chunk_metadata = metadata
     await session.commit()
 
 

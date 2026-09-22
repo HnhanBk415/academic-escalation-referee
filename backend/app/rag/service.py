@@ -197,9 +197,20 @@ async def retrieve_evidence(
             items = await _portable_vector_search(
                 session, course_id, vector, settings.rag_top_k
             )
-    except Exception:
+    except Exception as exc:
+        print(f"[RAG Error] Vector search failed ({exc}), falling back to keyword search", flush=True)
         items = await _keyword_fallback(
             session, course_id, question, settings.rag_top_k
         )
     relevant = [item for item in items if float(item["score"]) >= settings.rag_min_score]
+    if not relevant:
+        keyword_items = await _keyword_fallback(
+            session, course_id, question, settings.rag_top_k
+        )
+        keyword_relevant = [
+            item for item in keyword_items if float(item["score"]) >= settings.rag_min_score
+        ]
+        if keyword_relevant:
+            print(f"[RAG Fallback] Keyword fallback retrieved {len(keyword_relevant)} chunks.", flush=True)
+            return _deduplicate(keyword_relevant, settings.rag_context_chunks)
     return _deduplicate(relevant, settings.rag_context_chunks)
