@@ -8,11 +8,32 @@ from app.api.deps import get_ai_provider
 from app.db.session import get_session
 from app.ingestion.service import ingest_document
 from app.schemas.documents import DocumentCreate, DocumentResponse, IngestResponse
-from app.services.documents import get_document_response, register_document
+from app.services.documents import (
+    get_document_response,
+    list_documents_response,
+    register_document,
+)
 
 router = APIRouter()
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 ProviderDependency = Annotated[AIProvider, Depends(get_ai_provider)]
+
+
+@router.get("", response_model=list[DocumentResponse])
+async def list_documents(
+    session: SessionDependency,
+    course_id: str | None = None,
+) -> list[DocumentResponse]:
+    return await list_documents_response(session, course_id=course_id)
+
+
+@router.post("/sync", response_model=list[IngestResponse])
+async def sync_documents(
+    session: SessionDependency,
+    provider: ProviderDependency,
+) -> list[IngestResponse]:
+    from app.ingestion.service import scan_and_sync_documents
+    return await scan_and_sync_documents(session, provider=provider)
 
 
 @router.post("", response_model=DocumentResponse, status_code=201)

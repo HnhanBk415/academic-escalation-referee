@@ -66,3 +66,16 @@ async def get_document_response(
     if document is None:
         raise AppError("DOCUMENT_NOT_FOUND", "Không tìm thấy tài liệu.", status_code=404)
     return await document_response(session, document)
+
+
+async def list_documents_response(
+    session: AsyncSession,
+    course_id: str | None = None,
+) -> list[DocumentResponse]:
+    query = select(Document)
+    if course_id:
+        query = query.where(Document.course_id == course_id)
+    query = query.order_by(Document.created_at.asc())
+    docs = (await session.scalars(query)).all()
+    return [await document_response(session, doc) for doc in docs]
+

@@ -1,4 +1,6 @@
 import hashlib
+import re
+from datetime import date
 from pathlib import Path
 
 from sqlalchemy import delete, func, select
@@ -162,3 +164,95 @@ async def ingest_document(
             document.status = DocumentStatus.FAILED
             await session.commit()
         raise
+
+
+KNOWN_DOCUMENT_MAP = {
+    "dadn-rubric.pdf": ("dadn-hk242-rubric", "Hướng dẫn chấm bài môn Đồ án Đa ngành", "DADN-HK242"),
+    "dadn-course-plan.pdf": ("dadn-hk242-course-plan", "Kế hoạch môn học Đồ án Đa ngành HK242", "DADN-HK242"),
+    "dadn-work-plan.pdf": ("dadn-hk242-work-plan", "Kế hoạch làm việc Đồ án Đa ngành HK242", "DADN-HK242"),
+}
+
+EXTENSION_MAP = {
+    ".pdf": "PDF",
+    ".md": "MARKDOWN",
+    ".txt": "TXT",
+}
+
+
+async def scan_and_sync_documents(
+    session: AsyncSession,
+    provider: AIProvider,
+    default_course_id: str = "DADN-HK242",
+) -> list[IngestResponse]:
+    """
+    Scans the data/sample-documents directory for all PDF/MD/TXT files,
+    registers any missing Document entities, and ingests them into the vector database.
+    """
+    if not ALLOWED_DOCUMENT_ROOT.is_dir():
+        print(f"[Auto-Scan] Directory not found: {ALLOWED_DOCUMENT_ROOT}", flush=True)
+        return []
+
+    results: list[IngestResponse] = []
+    files = sorted(ALLOWED_DOCUMENT_ROOT.iterdir(), key=lambda p: p.name)
+    for file_path in files:
+        if not file_path.is_file() or file_path.name.startswith((".", "~")):
+            continue
+        ext = file_path.suffix.lower()
+        if ext not in EXTENSION_MAP:
+            continue
+
+        doc_type = EXTENSION_MAP[ext]
+        filename = file_path.name
+        if filename in KNOWN_DOCUMENT_MAP:
+            doc_id, title, course_id = KNOWN_DOCUMENT_MAP[filename]
+        else:
+            clean_stem = re.sub(r"[^a-zA-Z0-9_-]", "-", file_path.stem.lower()).strip("-")
+            doc_id = f"doc-{clean_stem}" if clean_stem else f"doc-{new_id('doc')}"
+            title = file_path.stem.replace("-", " ").replace("_", " ").title()
+            course_id = default_course_id
+
+        raw = file_path.read_bytes()
+        content_hash = hashlib.sha256(raw).hexdigest()
+        rel_path = f"data/sample-documents/{filename}"
+
+        doc = await session.get(Document, doc_id)
+        if doc is None:
+            doc = Document(
+                id=doc_id,
+                course_id=course_id,
+                title=title,
+                document_type=doc_type,
+                source_path=rel_path,
+                version="1.0",
+                status=DocumentStatus.ACTIVE,
+                effective_from=date(2025, 1, 1),
+                effective_until=date(2030, 12, 31),
+                content_hash=content_hash,
+            )
+            session.add(doc)
+            await session.commit()
+            print(f"[Auto-Scan] Registered new document: {doc_id} ('{filename}')", flush=True)
+        else:
+            needs_update = False
+            if doc.effective_until is None or doc.effective_until < date(2030, 1, 1):
+                doc.effective_until = date(2030, 12, 31)
+                needs_update = True
+            if doc.status != DocumentStatus.ACTIVE and doc.status != DocumentStatus.INGESTING:
+                doc.status = DocumentStatus.ACTIVE
+                needs_update = True
+            if doc.content_hash != content_hash:
+                doc.content_hash = content_hash
+                needs_update = True
+            if needs_update:
+                await session.commit()
+
+        try:
+            res = await ingest_document(session, doc_id, provider=provider)
+            results.append(res)
+            status_text = "up-to-date" if res.idempotent else f"ingested ({res.chunk_count} chunks)"
+            print(f"[Auto-Scan] Document '{filename}' ({doc_id}) is {status_text}.", flush=True)
+        except Exception as exc:
+            print(f"[Auto-Scan Error] Failed to ingest '{filename}': {exc}", flush=True)
+
+    return results
+

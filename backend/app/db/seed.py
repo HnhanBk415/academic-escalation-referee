@@ -101,95 +101,9 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
         if existing is None:
             session.add(GroupMembership(actor_id=actor_id, group_id=group_id))
 
-    dadn_docs = [
-        {
-            "id": "dadn-hk242-rubric",
-            "title": "Hướng dẫn chấm bài môn Đồ án Đa ngành",
-            "source_path": "data/sample-documents/dadn-rubric.pdf",
-        },
-        {
-            "id": "dadn-hk242-course-plan",
-            "title": "Kế hoạch môn học Đồ án Đa ngành HK242",
-            "source_path": "data/sample-documents/dadn-course-plan.pdf",
-        },
-        {
-            "id": "dadn-hk242-work-plan",
-            "title": "Kế hoạch làm việc Đồ án Đa ngành HK242",
-            "source_path": "data/sample-documents/dadn-work-plan.pdf",
-        },
-    ]
-    for doc_info in dadn_docs:
-        doc = await session.get(Document, doc_info["id"])
-        doc_content = doc_info["title"]
-        doc_hash = hashlib.sha256(doc_content.encode("utf-8")).hexdigest()
-        if doc is None:
-            session.add(
-                Document(
-                    id=doc_info["id"],
-                    course_id="DADN-HK242",
-                    title=doc_info["title"],
-                    document_type="PDF",
-                    source_path=doc_info["source_path"],
-                    version="1.0",
-                    status=DocumentStatus.ACTIVE,
-                    effective_from=date(2025, 2, 1),
-                    effective_until=date(2027, 12, 31),
-                    content_hash=doc_hash,
-                )
-            )
-            await session.commit()
-
-        chunk_exists = await session.scalar(
-            select(func.count()).select_from(DocumentChunk).where(
-                DocumentChunk.document_id == doc_info["id"]
-            )
-        )
-        if not chunk_exists:
-            try:
-                from app.ingestion.service import ingest_document
-                await ingest_document(session, doc_info["id"], provider=embedding_provider)
-                print(f"[Seed] Ingested PDF {doc_info['id']}", flush=True)
-            except Exception as exc:
-                print(f"[Seed Fallback] {doc_info['id']}: {exc}", flush=True)
-                doc = await session.get(Document, doc_info["id"])
-                if doc is None:
-                    session.add(
-                        Document(
-                            id=doc_info["id"],
-                            course_id="DADN-HK242",
-                            title=doc_info["title"],
-                            document_type="PDF",
-                            source_path=doc_info["source_path"],
-                            version="1.0",
-                            status=DocumentStatus.ACTIVE,
-                            effective_from=date(2025, 2, 1),
-                            effective_until=date(2027, 12, 31),
-                            content_hash=doc_hash,
-                        )
-                    )
-                    await session.commit()
-                embedding = (await embedding_provider.embed([doc_content]))[0]
-                session.add(
-                    DocumentChunk(
-                        id=f"chunk-{doc_info['id']}-0",
-                        document_id=doc_info["id"],
-                        course_id="DADN-HK242",
-                        chunk_index=0,
-                        heading=doc_info["title"],
-                        page_number=1,
-                        content=doc_content,
-                        content_hash=doc_hash,
-                        embedding=embedding,
-                        chunk_metadata={
-                            "seeded": True,
-                            "language": "vi",
-                            "embedding_dimensions": 768,
-                            "embedding_model": embedding_model,
-                        },
-                    )
-                )
-                await session.commit()
-
+    from app.ingestion.service import scan_and_sync_documents
+    print("[Seed] Scanning data/sample-documents/ for PDFs and documents...", flush=True)
+    await scan_and_sync_documents(session, provider=embedding_provider)
 
     document_id = "group-policy-v1"
     content_hash = hashlib.sha256(POLICY_TEXT.encode("utf-8")).hexdigest()
