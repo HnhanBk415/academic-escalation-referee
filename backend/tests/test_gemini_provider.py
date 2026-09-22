@@ -14,6 +14,11 @@ class FakeGeminiModels:
     def __init__(self) -> None:
         self.embed_kwargs = None
         self.generate_kwargs = None
+        self.get_calls: list[str] = []
+
+    async def get(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.get_calls.append(kwargs["model"])
+        return SimpleNamespace(name=kwargs["model"])
 
     async def embed_content(self, **kwargs):  # type: ignore[no-untyped-def]
         self.embed_kwargs = kwargs
@@ -40,6 +45,15 @@ class FakeGeminiModels:
 
 class RetryableProviderError(Exception):
     code = 503
+
+
+class MissingModelError(Exception):
+    code = 404
+
+
+class MissingModelGeminiModels(FakeGeminiModels):
+    async def get(self, **kwargs):  # type: ignore[no-untyped-def]
+        raise MissingModelError()
 
 
 class FlakyGeminiModels(FakeGeminiModels):
@@ -94,6 +108,34 @@ async def test_missing_gemini_key_builds_safe_unavailable_provider():
     health = await provider.health()
     assert health.available is False
     assert health.mode == "gemini"
+
+
+@pytest.mark.asyncio
+async def test_gemini_health_checks_configured_models():
+    provider = GeminiProvider(gemini_settings())
+    models = FakeGeminiModels()
+    provider.client = SimpleNamespace(aio=SimpleNamespace(models=models))
+
+    health = await provider.health()
+
+    assert health.available is True
+    assert health.detail == "connected"
+    assert models.get_calls == [
+        provider.settings.gemini_chat_model,
+        provider.settings.gemini_embed_model,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_gemini_health_reports_missing_model():
+    provider = GeminiProvider(gemini_settings())
+    models = MissingModelGeminiModels()
+    provider.client = SimpleNamespace(aio=SimpleNamespace(models=models))
+
+    health = await provider.health()
+
+    assert health.available is False
+    assert health.detail == "Configured Gemini model is unavailable"
 
 
 @pytest.mark.asyncio

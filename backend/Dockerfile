@@ -36,9 +36,9 @@ USER aer
 
 EXPOSE 8000
 
-# Run migrations, seed demo data, then start server
+# Keep API availability independent from Gemini/document ingestion. Seeding is
+# an explicit deployment step so a provider outage cannot prevent startup.
 CMD ["sh", "-c", \
   "python -m alembic upgrade head && \
-   python -m app.db.seed && \
    python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]
 

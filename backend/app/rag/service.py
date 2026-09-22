@@ -70,7 +70,7 @@ def _deduplicate(items: list[dict], limit: int) -> list[dict]:
 
 async def _candidate_chunks(session: AsyncSession, course_id: str) -> list[tuple]:
     today = date.today()
-    return list(
+    candidates = list(
         (
             await session.execute(
                 select(DocumentChunk, Document)
@@ -84,6 +84,11 @@ async def _candidate_chunks(session: AsyncSession, course_id: str) -> list[tuple
             )
         ).all()
     )
+    return [
+        (chunk, document)
+        for chunk, document in candidates
+        if not (chunk.chunk_metadata or {}).get("superseded", False)
+    ]
 
 
 async def _postgres_vector_search(
@@ -91,6 +96,7 @@ async def _postgres_vector_search(
     course_id: str,
     vector: list[float],
     limit: int,
+    embedding_model: str,
 ) -> list[dict]:
     vector_literal = "[" + ",".join(str(value) for value in vector) + "]"
     statement = text(
@@ -105,6 +111,8 @@ async def _postgres_vector_search(
           AND (d.effective_from IS NULL OR d.effective_from <= CURRENT_DATE)
           AND (d.effective_until IS NULL OR d.effective_until >= CURRENT_DATE)
           AND dc.embedding IS NOT NULL
+          AND dc.metadata->>'embedding_model' = :embedding_model
+          AND COALESCE((dc.metadata->>'superseded')::boolean, false) = false
         ORDER BY dc.embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
         """
@@ -112,7 +120,12 @@ async def _postgres_vector_search(
     rows = (
         await session.execute(
             statement,
-            {"embedding": vector_literal, "course_id": course_id, "limit": limit},
+            {
+                "embedding": vector_literal,
+                "course_id": course_id,
+                "limit": limit,
+                "embedding_model": embedding_model,
+            },
         )
     ).mappings()
     return [dict(row) for row in rows]
@@ -126,7 +139,12 @@ async def _portable_vector_search(
 ) -> list[dict]:
     items: list[dict] = []
     for chunk, document in await _candidate_chunks(session, course_id):
-        if not chunk.embedding or len(chunk.embedding) != len(vector):
+        metadata = chunk.chunk_metadata or {}
+        if (
+            not chunk.embedding
+            or len(chunk.embedding) != len(vector)
+            or metadata.get("embedding_model") != get_settings().gemini_embed_model
+        ):
             continue
         items.append(
             {
@@ -191,14 +209,22 @@ async def retrieve_evidence(
         bind = session.get_bind()
         if bind.dialect.name == "postgresql":
             items = await _postgres_vector_search(
-                session, course_id, vector, settings.rag_top_k
+                session,
+                course_id,
+                vector,
+                settings.rag_top_k,
+                settings.gemini_embed_model,
             )
         else:
             items = await _portable_vector_search(
                 session, course_id, vector, settings.rag_top_k
             )
     except Exception as exc:
-        print(f"[RAG Error] Vector search failed ({exc}), falling back to keyword search", flush=True)
+        print(
+            f"[RAG Error] Vector search failed ({exc}), "
+            "falling back to keyword search",
+            flush=True,
+        )
         items = await _keyword_fallback(
             session, course_id, question, settings.rag_top_k
         )
@@ -211,6 +237,10 @@ async def retrieve_evidence(
             item for item in keyword_items if float(item["score"]) >= settings.rag_min_score
         ]
         if keyword_relevant:
-            print(f"[RAG Fallback] Keyword fallback retrieved {len(keyword_relevant)} chunks.", flush=True)
+            print(
+                f"[RAG Fallback] Keyword fallback retrieved "
+                f"{len(keyword_relevant)} chunks.",
+                flush=True,
+            )
             return _deduplicate(keyword_relevant, settings.rag_context_chunks)
     return _deduplicate(relevant, settings.rag_context_chunks)

@@ -11,6 +11,19 @@ if (-not (Test-Path ".env")) {
 
 if (-not $SkipDocker) {
     docker compose up -d postgres
+    Write-Host "Waiting for PostgreSQL to become ready..."
+    $databaseReady = $false
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+        docker compose exec -T postgres pg_isready -U aer -d aer *> $null
+        if ($LASTEXITCODE -eq 0) {
+            $databaseReady = $true
+            break
+        }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $databaseReady) {
+        throw "PostgreSQL did not become ready within 60 seconds."
+    }
 }
 else {
     Write-Host "Skipping Docker. Using DATABASE_URL from .env."

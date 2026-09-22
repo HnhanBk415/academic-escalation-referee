@@ -35,6 +35,15 @@ from app.schemas.referee import RefereeDecision
 from app.services.audit import add_audit_event
 from app.services.ids import new_id
 
+
+def _provider_failure_snapshot(error: Exception) -> dict[str, str]:
+    snapshot = {"failure_type": type(error).__name__}
+    code = getattr(error, "code", None) or getattr(error, "status_code", None)
+    if code is not None:
+        snapshot["provider_code"] = str(code)
+    return snapshot
+
+
 AUTHORITY_TOKENS = (
     "6 thành viên",
     "sáu thành viên",
@@ -355,7 +364,13 @@ async def submit_question(
             ai_failed = True
             # Keep operational diagnostics useful without persisting provider
             # messages, prompts, or document content in the audit trail.
-            ai_failure_snapshot = {"failure_type": type(error).__name__}
+            ai_failure_snapshot = _provider_failure_snapshot(error)
+            print(
+                f"[AI Failure] request_id={request_id} "
+                f"type={ai_failure_snapshot['failure_type']} "
+                f"provider_code={ai_failure_snapshot.get('provider_code', 'unknown')}",
+                flush=True,
+            )
             decision = _safe_ai_failure()
     duration_ms = round((perf_counter() - started) * 1000)
 

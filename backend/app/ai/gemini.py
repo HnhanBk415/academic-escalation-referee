@@ -24,6 +24,7 @@ _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _RETRY_DELAY_SECONDS = 2
 _MAX_EVIDENCE_CHARS = 300
 _MAX_EVIDENCE_CHARS_ON_RETRY = 160
+_HEALTH_TIMEOUT_SECONDS = 10
 
 
 class GeminiProvider:
@@ -42,7 +43,11 @@ class GeminiProvider:
     ) -> list[list[float]]:
         if not texts:
             return []
-        print(f"[Gemini Embed] Calling {self.settings.gemini_embed_model} for {len(texts)} item(s) (task={task_type})...", flush=True)
+        print(
+            f"[Gemini Embed] Calling {self.settings.gemini_embed_model} "
+            f"for {len(texts)} item(s) (task={task_type})...",
+            flush=True,
+        )
         async with self._semaphore:
             response = await asyncio.wait_for(
                 self.client.aio.models.embed_content(
@@ -61,7 +66,11 @@ class GeminiProvider:
             raise RuntimeError("Gemini returned an unexpected embedding count")
         if any(len(vector) != self.settings.embedding_dimensions for vector in vectors):
             raise RuntimeError("Gemini returned an unexpected embedding dimension")
-        print(f"[Gemini Embed] Successfully generated {len(vectors)} vector(s) of dimension {self.settings.embedding_dimensions}", flush=True)
+        print(
+            f"[Gemini Embed] Successfully generated {len(vectors)} vector(s) "
+            f"of dimension {self.settings.embedding_dimensions}",
+            flush=True,
+        )
         return vectors
 
     async def decide(
@@ -72,7 +81,9 @@ class GeminiProvider:
         applicable_exceptions: list[dict],
     ) -> RefereeDecision:
         print(
-            f"[Gemini Chat] Calling {self.settings.gemini_chat_model} for question: '{question[:60]}' with {len(evidence)} evidence chunk(s)...",
+            f"[Gemini Chat] Calling {self.settings.gemini_chat_model} "
+            f"for question: '{question[:60]}' "
+            f"with {len(evidence)} evidence chunk(s)...",
             flush=True,
         )
         prompt = self._decision_prompt(
@@ -106,7 +117,9 @@ class GeminiProvider:
         )
         if decision:
             print(
-                f"[Gemini Chat] => Route: {decision.route}, Reason: {decision.reason_code}, Answer: {str(decision.answer)[:60]}",
+                f"[Gemini Chat] => Route: {decision.route}, "
+                f"Reason: {decision.reason_code}, "
+                f"Answer: {str(decision.answer)[:60]}",
                 flush=True,
             )
             return decision
@@ -163,9 +176,47 @@ class GeminiProvider:
         return compact
 
     async def health(self) -> AIHealth:
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(
+                    self.client.aio.models.get(model=self.settings.gemini_chat_model),
+                    self.client.aio.models.get(model=self.settings.gemini_embed_model),
+                ),
+                timeout=min(
+                    self.settings.ai_request_timeout_seconds,
+                    _HEALTH_TIMEOUT_SECONDS,
+                ),
+            )
+        except Exception as error:
+            detail = self._health_failure_detail(error)
+            print(
+                f"[Gemini Health] {type(error).__name__}: {detail}",
+                flush=True,
+            )
+            return AIHealth(
+                mode="gemini",
+                available=False,
+                model=self.settings.gemini_chat_model,
+                detail=detail,
+            )
         return AIHealth(
             mode="gemini",
-            available=bool(self.settings.gemini_api_key),
+            available=True,
             model=self.settings.gemini_chat_model,
-            detail="configured" if self.settings.gemini_api_key else "missing API key",
+            detail="connected",
         )
+
+    @staticmethod
+    def _health_failure_detail(error: Exception) -> str:
+        if isinstance(error, TimeoutError):
+            return "Gemini health check timed out"
+        code = getattr(error, "code", None) or getattr(error, "status_code", None)
+        if code == 404:
+            return "Configured Gemini model is unavailable"
+        if code in {401, 403}:
+            return "Gemini API key was rejected"
+        if code == 429:
+            return "Gemini quota or rate limit was reached"
+        if code in _RETRYABLE_STATUS_CODES:
+            return f"Gemini is temporarily unavailable (HTTP {code})"
+        return f"Gemini connection failed ({type(error).__name__})"

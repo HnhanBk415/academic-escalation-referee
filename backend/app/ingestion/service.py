@@ -3,7 +3,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
@@ -13,9 +13,10 @@ from app.core.enums import DocumentStatus
 from app.core.errors import AppError
 from app.ingestion.chunking import chunk_text
 from app.ingestion.extractors import extract_text
-from app.models import Document, DocumentChunk
+from app.models import Document, DocumentChunk, RetrievalEvidence
 from app.schemas.documents import IngestResponse
 from app.services.ids import new_id
+
 
 def _find_repo_root() -> Path:
     current = Path(__file__).resolve()
@@ -27,6 +28,14 @@ def _find_repo_root() -> Path:
 
 REPOSITORY_ROOT = _find_repo_root()
 ALLOWED_DOCUMENT_ROOT = (REPOSITORY_ROOT / "data" / "sample-documents").resolve()
+
+
+def stable_chunk_id(document_id: str, chunk_index: int) -> str:
+    readable = f"chunk-{document_id}-{chunk_index}"
+    if len(readable) <= 64:
+        return readable
+    digest = hashlib.sha256(f"{document_id}:{chunk_index}".encode()).hexdigest()[:32]
+    return f"chunk_{digest}"
 
 
 def resolve_source_path(source_path: str) -> Path:
@@ -97,31 +106,6 @@ async def ingest_document(
     document.status = DocumentStatus.INGESTING
     await session.flush()
     try:
-        indexed_chunks = (
-            await session.scalars(
-                select(DocumentChunk)
-                .join(Document, Document.id == DocumentChunk.document_id)
-                .where(
-                    Document.status == DocumentStatus.ACTIVE,
-                    Document.id != document.id,
-                )
-            )
-        ).all()
-        dimensions = get_settings().embedding_dimensions
-        mismatched_doc_ids = set()
-        for indexed in indexed_chunks:
-            metadata = indexed.chunk_metadata or {}
-            indexed_model = metadata.get("embedding_model")
-            indexed_dimensions = metadata.get("embedding_dimensions")
-            if (indexed_model and indexed_model != model_name) or (indexed_dimensions and indexed_dimensions != dimensions):
-                mismatched_doc_ids.add(indexed.document_id)
-        if mismatched_doc_ids:
-            print(f"[Ingestion] Purging {len(mismatched_doc_ids)} stale document(s) with outdated embedding model...", flush=True)
-            await session.execute(
-                delete(DocumentChunk).where(DocumentChunk.document_id.in_(mismatched_doc_ids))
-            )
-            await session.flush()
-
         text = extract_text(path, document.document_type)
         chunks = chunk_text(text)
         if not chunks:
@@ -136,29 +120,65 @@ async def ingest_document(
                 f"Embedding phải có đúng {dimensions} chiều.",
                 status_code=502,
             )
-        await session.execute(
-            delete(DocumentChunk).where(DocumentChunk.document_id == document.id)
-        )
+        existing_by_index = {chunk.chunk_index: chunk for chunk in existing_chunks}
         for index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=True)):
             chunk_hash = hashlib.sha256(chunk.content.encode("utf-8")).hexdigest()
-            session.add(
-                DocumentChunk(
-                    id=new_id("chunk"),
-                    document_id=document.id,
-                    course_id=document.course_id,
-                    chunk_index=index,
-                    heading=chunk.heading,
-                    page_number=chunk.page_number,
-                    content=chunk.content,
-                    content_hash=chunk_hash,
-                    embedding=vector,
-                    chunk_metadata={
-                        "embedding_model": model_name,
-                        "embedding_dimensions": dimensions,
-                        "source_path": document.source_path,
-                    },
+            metadata = {
+                "embedding_model": model_name,
+                "embedding_dimensions": dimensions,
+                "source_path": document.source_path,
+                "superseded": False,
+            }
+            stored_chunk = existing_by_index.get(index)
+            if stored_chunk is None:
+                session.add(
+                    DocumentChunk(
+                        id=stable_chunk_id(document.id, index),
+                        document_id=document.id,
+                        course_id=document.course_id,
+                        chunk_index=index,
+                        heading=chunk.heading,
+                        page_number=chunk.page_number,
+                        content=chunk.content,
+                        content_hash=chunk_hash,
+                        embedding=vector,
+                        chunk_metadata=metadata,
+                    )
+                )
+            else:
+                # Keep the chunk id stable so historical RetrievalEvidence rows
+                # and citations remain valid across a re-index.
+                stored_chunk.course_id = document.course_id
+                stored_chunk.heading = chunk.heading
+                stored_chunk.page_number = chunk.page_number
+                stored_chunk.content = chunk.content
+                stored_chunk.content_hash = chunk_hash
+                stored_chunk.embedding = vector
+                stored_chunk.chunk_metadata = metadata
+
+        stale_chunks = [
+            chunk for index, chunk in existing_by_index.items() if index >= len(chunks)
+        ]
+        if stale_chunks:
+            stale_ids = [chunk.id for chunk in stale_chunks]
+            referenced_ids = set(
+                await session.scalars(
+                    select(RetrievalEvidence.chunk_id).where(
+                        RetrievalEvidence.chunk_id.in_(stale_ids)
+                    )
                 )
             )
+            for stale_chunk in stale_chunks:
+                if stale_chunk.id not in referenced_ids:
+                    await session.delete(stale_chunk)
+                    continue
+                # Retain cited historical content but remove it from future
+                # retrieval candidates.
+                stale_chunk.embedding = None
+                stale_chunk.chunk_metadata = {
+                    **(stale_chunk.chunk_metadata or {}),
+                    "superseded": True,
+                }
         document.content_hash = content_hash
         document.status = DocumentStatus.ACTIVE
         await session.commit()
@@ -180,9 +200,31 @@ async def ingest_document(
 
 
 KNOWN_DOCUMENT_MAP = {
-    "dadn-rubric.pdf": ("dadn-hk242-rubric", "Hướng dẫn chấm bài môn Đồ án Đa ngành", "DADN-HK242"),
-    "dadn-course-plan.pdf": ("dadn-hk242-course-plan", "Kế hoạch môn học Đồ án Đa ngành HK242", "DADN-HK242"),
-    "dadn-work-plan.pdf": ("dadn-hk242-work-plan", "Kế hoạch làm việc Đồ án Đa ngành HK242", "DADN-HK242"),
+    "group-policy-v1.md": (
+        "group-policy-v1",
+        "Quy định nhóm đồ án CO3001",
+        "CO3001",
+    ),
+    "project-rubric-v1.md": (
+        "project-rubric-v1",
+        "Rubric đánh giá đồ án CO3001",
+        "CO3001",
+    ),
+    "dadn-rubric.pdf": (
+        "dadn-hk242-rubric",
+        "Hướng dẫn chấm bài môn Đồ án Đa ngành",
+        "DADN-HK242",
+    ),
+    "dadn-course-plan.pdf": (
+        "dadn-hk242-course-plan",
+        "Kế hoạch môn học Đồ án Đa ngành HK242",
+        "DADN-HK242",
+    ),
+    "dadn-work-plan.pdf": (
+        "dadn-hk242-work-plan",
+        "Kế hoạch làm việc Đồ án Đa ngành HK242",
+        "DADN-HK242",
+    ),
 }
 
 EXTENSION_MAP = {
@@ -252,9 +294,6 @@ async def scan_and_sync_documents(
                 needs_update = True
             if doc.status != DocumentStatus.ACTIVE and doc.status != DocumentStatus.INGESTING:
                 doc.status = DocumentStatus.ACTIVE
-                needs_update = True
-            if doc.content_hash != content_hash:
-                doc.content_hash = content_hash
                 needs_update = True
             if needs_update:
                 await session.commit()
