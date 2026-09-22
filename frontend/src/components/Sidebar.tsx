@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
+import { api } from "../api/client";
 import {
   IconChevronRight,
   IconClipboard,
   IconInbox,
   IconMessageSquare,
+  IconRotateCcw,
   IconScale,
   IconScroll,
   IconShield,
@@ -31,6 +33,23 @@ export function Sidebar({
   queueCount = 0,
   aiOnline = true,
 }: SidebarProps) {
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetDemo = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn reset toàn bộ câu hỏi và đưa dữ liệu demo về trạng thái ban đầu không?")) {
+      return;
+    }
+    setResetting(true);
+    try {
+      await api("/api/demo/reset", { method: "POST" });
+      alert("Đã reset dữ liệu thành công! Hệ thống sẽ tải lại dữ liệu sạch.");
+      window.location.reload();
+    } catch (err) {
+      alert("Có lỗi xảy ra khi reset: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setResetting(false);
+    }
+  };
   return (
     <aside className="w-[260px] flex-shrink-0 h-screen flex flex-col bg-[#0B0F17] text-slate-300 border-r border-slate-800 select-none">
       {/* Brand Header */}
@@ -145,6 +164,17 @@ export function Sidebar({
             active={activeTab === "verify"}
             onClick={() => onSelectTab("verify")}
           />
+          <button
+            type="button"
+            disabled={resetting}
+            onClick={handleResetDemo}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-slate-400 hover:text-amber-300 hover:bg-amber-950/20 transition-all border border-dashed border-slate-800 hover:border-amber-700/50 mt-2"
+          >
+            <span className={resetting ? "animate-spin text-amber-400" : "text-amber-400"}>
+              <IconRotateCcw size={15} />
+            </span>
+            <span className="flex-1 text-left">{resetting ? "Đang reset..." : "Reset Data Demo"}</span>
+          </button>
         </div>
       </nav>
 
