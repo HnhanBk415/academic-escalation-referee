@@ -1,9 +1,13 @@
 services:
+
+  # ── PostgreSQL + pgvector ─────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
+    container_name: aer-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: aer
-      POSTGRES_USER: aer
+      POSTGRES_DB:       aer
+      POSTGRES_USER:     aer
       POSTGRES_PASSWORD: aer
     ports:
       - "${AER_POSTGRES_PORT:-5433}:5432"
@@ -14,6 +18,42 @@ services:
       retries: 10
     volumes:
       - aer-postgres:/var/lib/postgresql/data
+
+  # ── FastAPI Backend ───────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aer-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://aer:aer@postgres:5432/aer"
+      PUBLIC_BASE_URL: "http://localhost"
+      CORS_ORIGINS: "http://localhost,http://web"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # ── React Frontend (Nginx) ────────────────────────────────
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aer-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${AER_WEB_PORT:-80}:80"
 
 volumes:
   aer-postgres:

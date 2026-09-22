@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Push-Location "apps/api"
+Push-Location "backend"
 try {
     if ($ForceClearDemoHistory) {
         py -3.13 scripts/reindex_demo.py --force-clear-demo-history

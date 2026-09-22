@@ -83,6 +83,8 @@ async def run(args: argparse.Namespace) -> int:
             latency_ms = round((perf_counter() - started) * 1000, 2)
             result = {
                 "case_id": case["id"],
+                "category": case.get("category"),
+                "label": case.get("label"),
                 "input": case["question"],
                 **evaluation,
                 "latency_ms": latency_ms,
@@ -91,8 +93,9 @@ async def run(args: argparse.Namespace) -> int:
             }
             results.append(result)
             status = "PASS" if result["passed"] else "FAIL"
+            label_suffix = f" [{case.get('label')}]" if case.get("label") else ""
             print(
-                f"[{index:02}/{len(cases):02}] {status:<4} {case['id']} "
+                f"[{index:02}/{len(cases):02}] {status:<4} {case['id']}{label_suffix} "
                 f"expected={case['expected_route']} actual={result['actual_route']} "
                 f"latency={latency_ms}ms"
             )

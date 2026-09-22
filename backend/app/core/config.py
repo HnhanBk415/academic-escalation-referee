@@ -1,13 +1,13 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Union
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", "../../.env"),
+        env_file=(".env", "../.env", "../../.env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -28,9 +28,24 @@ class Settings(BaseSettings):
     rag_min_score: float = 0.15
     prompt_version: str = "referee-v1"
     public_base_url: str = "http://localhost:8000"
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:5173",   # Vite dev server
+            "http://localhost:3000",   # alternative dev port
+            "http://localhost",        # Docker nginx on port 80
+            "http://localhost:80",
+        ]
+    )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, list[str]]) -> list[str]:
+        if isinstance(v, str):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+

@@ -15,7 +15,7 @@ if (-not $SkipDocker) {
 else {
     Write-Host "Skipping Docker. Using DATABASE_URL from .env."
 }
-Push-Location "apps/api"
+Push-Location "backend"
 try {
     py -3.13 -m pip install -e ".[dev]"
     py -3.13 -m alembic upgrade head
@@ -25,7 +25,7 @@ finally {
     Pop-Location
 }
 
-Push-Location "apps/web"
+Push-Location "frontend"
 try {
     npm install
     npm run build
