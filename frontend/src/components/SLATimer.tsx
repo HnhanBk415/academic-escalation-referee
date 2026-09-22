@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { IconClock } from "./Icons";
 
-interface SLATimerProps {
-  /** Total seconds in the SLA window (default 172800 = 48h) */
+interface SlaTimerProps {
+  remaining?: string;
   totalSeconds?: number;
-  /** ISO timestamp the case was created at */
   createdAt?: string;
   className?: string;
 }
@@ -15,39 +15,71 @@ function fmtHHMM(secs: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-/** Countdown timer showing SLA time remaining.
- *  If createdAt is supplied it calculates actual remaining time.
- *  Otherwise it counts down from totalSeconds for demo purposes.
- */
-export function SLATimer({ totalSeconds = 172800, createdAt, className = "" }: SLATimerProps) {
-  const getRemaining = () => {
+export function SlaTimer({ remaining, totalSeconds = 172800, createdAt, className = "" }: SlaTimerProps) {
+  const computeInitial = (): string => {
+    if (remaining) return remaining;
     if (createdAt) {
       const elapsed = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
-      return Math.max(0, totalSeconds - elapsed);
+      const rem = Math.max(0, totalSeconds - elapsed);
+      return fmtHHMM(rem);
     }
-    return totalSeconds;
+    return "47:54:40";
   };
 
-  const [remaining, setRemaining] = useState(getRemaining);
-  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [time, setTime] = useState<string>(computeInitial);
 
   useEffect(() => {
-    setRemaining(getRemaining());
-    ref.current = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 1000);
-    return () => { if (ref.current) clearInterval(ref.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createdAt, totalSeconds]);
+    setTime(computeInitial());
+    const tick = () => {
+      setTime((prev) => {
+        const parts = prev.split(":").map(Number);
+        if (parts.length !== 3 || parts.some(isNaN)) return "47:54:40";
+        const [h, m, s] = parts;
+        let total = h * 3600 + m * 60 + s - 1;
+        if (total < 0) total = 0;
+        const nh = Math.floor(total / 3600);
+        const nm = Math.floor((total % 3600) / 60);
+        const ns = total % 60;
+        return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}:${String(ns).padStart(2, "0")}`;
+      });
+    };
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [remaining, createdAt, totalSeconds]);
 
-  const pct = Math.round((remaining / totalSeconds) * 100);
-  const urgent = pct < 20;
+  const [h] = time.split(":").map(Number);
+  const isUrgent = !isNaN(h) && h < 12;
 
   return (
-    <div className={`sla-card ${className}`} style={urgent ? { borderColor: "#ef4444", background: "#fef2f2" } : {}}>
-      <div className="sla-label">⏱ Thời gian còn lại · SLA</div>
-      <div className="sla-time" style={urgent ? { color: "#dc2626" } : {}}>
-        {fmtHHMM(remaining)}
+    <div
+      className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
+        isUrgent
+          ? "bg-rose-50 border-rose-200"
+          : "bg-amber-50 border-amber-200"
+      } ${className}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <div className={isUrgent ? "text-rose-600" : "text-amber-600"}>
+          <IconClock size={16} />
+        </div>
+        <div>
+          <p className={`text-xs font-semibold ${isUrgent ? "text-rose-800" : "text-amber-800"}`}>
+            Thời gian SLA 48h còn lại
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Hệ thống tự động leo thang nếu hết hạn
+          </p>
+        </div>
       </div>
-      <div className="sla-sub">{pct}% · Xử lý trong 48 giờ làm việc</div>
+      <span
+        className={`font-mono text-lg font-semibold tabular-nums ${
+          isUrgent ? "text-rose-600 sla-blink" : "text-amber-700"
+        }`}
+      >
+        {time}
+      </span>
     </div>
   );
 }
+
+export const SLATimer = SlaTimer;

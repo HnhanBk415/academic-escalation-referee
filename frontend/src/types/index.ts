@@ -30,6 +30,9 @@ export interface QuestionResponse {
   exception_id: string | null;
   citations: Citation[];
   created_at: string;
+  text?: string;
+  course_id?: string;
+  actor_id?: string;
 }
 
 export interface CaseSummary {

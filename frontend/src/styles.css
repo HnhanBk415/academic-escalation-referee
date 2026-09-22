@@ -1125,3 +1125,13 @@ tr:hover td { background: var(--slate-50); }
   .timeline-meta { display: none; }
   .audit-detail { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── SLA Blink Animation ── */
+@keyframes sla-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.98); }
+}
+
+.sla-blink {
+  animation: sla-pulse 1.2s ease-in-out infinite;
+}

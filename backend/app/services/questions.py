@@ -462,6 +462,9 @@ def _build_question_response(
         exception_id=exception_id,
         citations=citations,
         created_at=question.created_at,
+        text=question.text,
+        course_id=question.course_id,
+        actor_id=question.actor_id,
     )
 
 
@@ -520,3 +523,49 @@ async def _evidence_for_question(session: AsyncSession, question_id: str) -> lis
         }
         for record, chunk, document in rows
     ]
+
+
+async def list_questions_response(
+    session: AsyncSession,
+    *,
+    actor_id: str | None = None,
+    course_id: str | None = None,
+) -> list[QuestionResponse]:
+    stmt = select(Question).order_by(Question.created_at.desc())
+    if actor_id:
+        stmt = stmt.where(Question.actor_id == actor_id)
+    if course_id:
+        stmt = stmt.where(Question.course_id == course_id)
+    questions = (await session.scalars(stmt)).all()
+    results: list[QuestionResponse] = []
+    for question in questions:
+        case = await session.scalar(
+            select(EscalationCase).where(EscalationCase.question_id == question.id)
+        )
+        final_decision = None
+        exception_id = None
+        if case:
+            final_decision = await session.scalar(
+                select(HumanDecision)
+                .where(HumanDecision.case_id == case.id)
+                .order_by(HumanDecision.created_at.desc())
+            )
+            if final_decision:
+                exception = await session.scalar(
+                    select(PolicyException).where(
+                        PolicyException.human_decision_id == final_decision.id
+                    )
+                )
+                exception_id = exception.id if exception else None
+        evidence = await _evidence_for_question(session, question.id)
+        results.append(
+            _build_question_response(
+                question,
+                case,
+                evidence,
+                [item["label"] for item in evidence],
+                final_decision,
+                exception_id,
+            )
+        )
+    return results

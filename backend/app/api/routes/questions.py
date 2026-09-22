@@ -7,9 +7,22 @@ from app.core.errors import AppError
 from app.db.session import get_session
 from app.models import Question
 from app.schemas.questions import ClarificationCreate, QuestionCreate, QuestionResponse
-from app.services.questions import get_question_response, submit_question
+from app.services.questions import (
+    get_question_response,
+    list_questions_response,
+    submit_question,
+)
 
 router = APIRouter()
+
+
+@router.get("", response_model=list[QuestionResponse])
+async def list_questions(
+    actor_id: str | None = None,
+    course_id: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> list[QuestionResponse]:
+    return await list_questions_response(session, actor_id=actor_id, course_id=course_id)
 
 
 @router.post("", response_model=QuestionResponse, status_code=201)

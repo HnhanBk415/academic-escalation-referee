@@ -38,3 +38,7 @@ class QuestionResponse(BaseModel):
     exception_id: str | None = None
     citations: list[CitationResponse]
     created_at: datetime
+    text: str | None = None
+    course_id: str | None = None
+    actor_id: str | None = None
+
