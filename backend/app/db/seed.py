@@ -1,36 +1,17 @@
 import asyncio
-import hashlib
-from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
 from app.ai.factory import build_ai_provider
-from app.ai.fake import FakeProvider
-from app.core.config import get_settings
-from app.core.enums import ActorRole, DocumentStatus
+from app.core.enums import ActorRole
 from app.db.session import SessionLocal
-from app.models import Actor, Course, Document, DocumentChunk, Group, GroupMembership
-
-POLICY_TEXT = """Mỗi nhóm đồ án có từ 3 đến 5 sinh viên.
-Mọi thay đổi thành viên sau khi đăng ký phải được giảng viên phụ trách phê duyệt.
-Nhóm có nhiều hơn 5 sinh viên chỉ được chấp nhận khi có quyết định của giảng viên.
-Quyết định ngoại lệ phải ghi rõ nhóm, thời hạn và lý do."""
-
-RUBRIC_TEXT = """Rubric đánh giá đồ án gồm báo cáo kỹ thuật 30%, sản phẩm 40%,
-trình bày và trả lời câu hỏi 20%, hợp tác và đóng góp trong nhóm 10%.
-Bài nộp trễ bị trừ 10% tổng điểm cho mỗi ngày trễ, tối đa hai ngày.
-Yêu cầu thay đổi điểm hoặc phúc khảo phải được chuyển cho giảng viên phụ trách."""
+from app.models import Actor, Course, Group, GroupMembership
 
 
 async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -> None:
     embedding_provider = provider or build_ai_provider()
-    embedding_model = (
-        "deterministic-fake-v1"
-        if isinstance(embedding_provider, FakeProvider)
-        else get_settings().gemini_embed_model
-    )
     actors = [
         Actor(id="student-a1", display_name="Student A1", role=ActorRole.STUDENT),
         Actor(id="student-b1", display_name="Student B1", role=ActorRole.STUDENT),
@@ -103,109 +84,9 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             session.add(GroupMembership(actor_id=actor_id, group_id=group_id))
 
     from app.ingestion.service import scan_and_sync_documents
+
     print("[Seed] Scanning data/sample-documents/ for PDFs and documents...", flush=True)
     await scan_and_sync_documents(session, provider=embedding_provider)
-
-    document_id = "group-policy-v1"
-    content_hash = hashlib.sha256(POLICY_TEXT.encode("utf-8")).hexdigest()
-    if await session.get(Document, document_id) is None:
-        session.add(
-            Document(
-                id=document_id,
-                course_id="CO3001",
-                title="Quy định nhóm đồ án CO3001",
-                document_type="MARKDOWN",
-                source_path="data/sample-documents/group-policy-v1.md",
-                version="1.0",
-                status=DocumentStatus.ACTIVE,
-                effective_from=date(2026, 9, 1),
-                effective_until=date(2027, 1, 31),
-                content_hash=content_hash,
-            )
-        )
-        await session.flush()
-
-    policy_chunk = await session.get(DocumentChunk, "chunk-group-policy-v1-0")
-    if (
-        policy_chunk is None
-        or (policy_chunk.chunk_metadata or {}).get("embedding_model") != embedding_model
-        or policy_chunk.embedding is None
-    ):
-        embedding = (await embedding_provider.embed([POLICY_TEXT]))[0]
-        metadata = {
-            "seeded": True,
-            "language": "vi",
-            "embedding_dimensions": 768,
-            "embedding_model": embedding_model,
-        }
-        if policy_chunk is None:
-            session.add(
-                DocumentChunk(
-                    id="chunk-group-policy-v1-0",
-                    document_id=document_id,
-                    course_id="CO3001",
-                    chunk_index=0,
-                    heading="Thành viên và ngoại lệ",
-                    page_number=1,
-                    content=POLICY_TEXT,
-                    content_hash=content_hash,
-                    embedding=embedding,
-                    chunk_metadata=metadata,
-                )
-            )
-        else:
-            policy_chunk.embedding = embedding
-            policy_chunk.chunk_metadata = metadata
-
-    rubric_hash = hashlib.sha256(RUBRIC_TEXT.encode("utf-8")).hexdigest()
-    if await session.get(Document, "project-rubric-v1") is None:
-        session.add(
-            Document(
-                id="project-rubric-v1",
-                course_id="CO3001",
-                title="Rubric đánh giá đồ án CO3001",
-                document_type="MARKDOWN",
-                source_path="data/sample-documents/project-rubric-v1.md",
-                version="1.0",
-                status=DocumentStatus.ACTIVE,
-                effective_from=date(2026, 9, 1),
-                effective_until=date(2027, 1, 31),
-                content_hash=rubric_hash,
-            )
-        )
-        await session.flush()
-
-    rubric_chunk = await session.get(DocumentChunk, "chunk-project-rubric-v1-0")
-    if (
-        rubric_chunk is None
-        or (rubric_chunk.chunk_metadata or {}).get("embedding_model") != embedding_model
-        or rubric_chunk.embedding is None
-    ):
-        embedding = (await embedding_provider.embed([RUBRIC_TEXT]))[0]
-        metadata = {
-            "seeded": True,
-            "language": "vi",
-            "embedding_dimensions": 768,
-            "embedding_model": embedding_model,
-        }
-        if rubric_chunk is None:
-            session.add(
-                DocumentChunk(
-                    id="chunk-project-rubric-v1-0",
-                    document_id="project-rubric-v1",
-                    course_id="CO3001",
-                    chunk_index=0,
-                    heading="Cơ cấu điểm và phúc khảo",
-                    page_number=1,
-                    content=RUBRIC_TEXT,
-                    content_hash=rubric_hash,
-                    embedding=embedding,
-                    chunk_metadata=metadata,
-                )
-            )
-        else:
-            rubric_chunk.embedding = embedding
-            rubric_chunk.chunk_metadata = metadata
     await session.commit()
 
 

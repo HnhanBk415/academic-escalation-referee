@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # scripts/dev-frontend.ps1
 # Khởi động React + Vite frontend trong chế độ development.
-# Yêu cầu: Node.js 18+ và npm đã cài.
+# Yêu cầu: Node.js 22+ và npm đã cài.
 # Backend phải đang chạy trên http://localhost:8000.
 
 Set-StrictMode -Version Latest

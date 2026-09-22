@@ -12,7 +12,7 @@ Dự án đã được phân tách rõ ràng thành hai phần độc lập:
 - **Backend (`backend/`)**:
   - Framework: FastAPI (Python 3.11+)
   - ORM & Database: SQLAlchemy 2.0 (async), Alembic migrations. Hỗ trợ cả **SQLite** (chạy nhẹ không cần cài đặt) lẫn **PostgreSQL + pgvector** (vector search chuẩn production).
-  - AI Engine: Google Gemini (`gemini-3.6-flash`, embeddings `gemini-embedding-001`) hoặc chế độ `FakeProvider` (deterministic, không tốn API key, thích hợp test CI/CD).
+  - AI Engine: Google Gemini (`gemini-3.1-flash-lite`, embeddings `gemini-embedding-001`) hoặc chế độ `FakeProvider` (deterministic, không tốn API key, thích hợp test CI/CD).
   - RAG: Bộ băm tài liệu PDF/TXT/Markdown, trích dẫn chuẩn hóa từng chunk kèm số dòng/trang.
   - Quản lý ngoại lệ: Phê duyệt miễn giảm/ngoại lệ có phạm vi (scope) và thời hạn cụ thể (SLA tracking).
 
@@ -35,7 +35,10 @@ Sao chép file `.env.example` thành `.env`:
 ```powershell
 Copy-Item .env.example .env
 ```
-Mặc định hệ thống dùng `AI_MODE=fake` và `DATABASE_URL=sqlite+aiosqlite:///./aer-local.db` để chạy ngay mà không cần cấu hình thêm. Nếu muốn sử dụng AI Gemini thật, đặt `AI_MODE=gemini` và điền `GEMINI_API_KEY`.
+Mặc định hệ thống dùng `AI_MODE=fake` và PostgreSQL local tại cổng `5433`.
+Chạy `./scripts/setup.ps1` để khởi động PostgreSQL, migrate, seed và build frontend.
+Nếu muốn sử dụng Gemini thật, đặt `AI_MODE=gemini`, điền `GEMINI_API_KEY` và giữ
+`EMBEDDING_DIMENSIONS=768`.
 
 ---
 
@@ -55,8 +58,8 @@ py -3.13 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 alembic upgrade head
-python scripts/seed.py
-uvicorn app.main:create_app --factory --reload --host 127.0.0.1 --port 8000
+python -m app.db.seed
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 - API chạy tại: `http://localhost:8000`
 - Tài liệu tương tác Swagger: `http://localhost:8000/docs`
@@ -94,7 +97,18 @@ docker compose up -d --build
 Sau khi các container khởi động hoàn tất:
 - **Ứng dụng Web (Frontend Nginx)**: `http://localhost` (cổng 80)
 - **Backend API**: `http://localhost:8000`
-- **Database**: PostgreSQL pgvector trên cổng 5432
+- **Database từ máy host**: PostgreSQL pgvector trên cổng `5433` (`5432` chỉ dùng trong mạng Docker)
+
+Container API tự chạy Alembic migration trước khi khởi động FastAPI. Seed/re-index được tách
+khỏi startup để sự cố Gemini không làm API ngừng hoạt động. Sau lần deploy đầu tiên, chạy:
+
+```powershell
+docker compose run --rm api python -m app.db.seed
+```
+
+File tài liệu gốc được mount từ `data/sample-documents/`; metadata, chunks và embeddings được
+lưu trong PostgreSQL. Sau khi thêm file PDF/Markdown/TXT mới, gọi
+`POST /api/v1/documents/sync` hoặc chạy lại lệnh seed ở trên.
 
 Dừng toàn bộ hệ thống:
 ```powershell

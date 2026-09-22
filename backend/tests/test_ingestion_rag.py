@@ -45,6 +45,28 @@ async def test_document_ingestion_is_idempotent(client):
 
 
 @pytest.mark.asyncio
+async def test_reingest_preserves_chunks_referenced_by_existing_citations(client):
+    question = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "text": "Một nhóm đồ án có bao nhiêu thành viên?",
+        },
+    )
+    assert question.status_code == 201, question.text
+    original_citations = question.json()["citations"]
+    assert original_citations
+
+    ingested = await client.post("/api/v1/documents/group-policy-v1/ingest")
+    assert ingested.status_code == 200, ingested.text
+
+    refreshed = await client.get(f"/api/v1/questions/{question.json()['question_id']}")
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["citations"][0]["chunk_id"] == original_citations[0]["chunk_id"]
+
+
+@pytest.mark.asyncio
 async def test_rag_retrieves_rubric_for_rubric_question(client):
     response = await client.post(
         "/api/v1/questions",

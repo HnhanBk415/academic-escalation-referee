@@ -1,7 +1,7 @@
 import os
 from collections.abc import AsyncIterator
 
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test-aer.db"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["AI_MODE"] = "fake"
 
 import pytest_asyncio

@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     ai_mode: Literal["fake", "gemini"] = "fake"
     gemini_api_key: str = ""
-    gemini_chat_model: str = "gemini-3.6-flash"
+    gemini_chat_model: str = "gemini-3.1-flash-lite"
     gemini_embed_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 768
     ai_request_timeout_seconds: float = 30
@@ -46,8 +46,6 @@ class Settings(BaseSettings):
             except Exception:
                 pass
         return [i.strip() for i in raw.split(",") if i.strip()]
-
-
 
 @lru_cache
 def get_settings() -> Settings:
