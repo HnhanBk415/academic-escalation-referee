@@ -42,6 +42,7 @@ class GeminiProvider:
     ) -> list[list[float]]:
         if not texts:
             return []
+        print(f"[Gemini Embed] Calling {self.settings.gemini_embed_model} for {len(texts)} item(s) (task={task_type})...", flush=True)
         async with self._semaphore:
             response = await asyncio.wait_for(
                 self.client.aio.models.embed_content(
@@ -60,6 +61,7 @@ class GeminiProvider:
             raise RuntimeError("Gemini returned an unexpected embedding count")
         if any(len(vector) != self.settings.embedding_dimensions for vector in vectors):
             raise RuntimeError("Gemini returned an unexpected embedding dimension")
+        print(f"[Gemini Embed] Successfully generated {len(vectors)} vector(s) of dimension {self.settings.embedding_dimensions}", flush=True)
         return vectors
 
     async def decide(
@@ -69,6 +71,10 @@ class GeminiProvider:
         evidence: list[dict],
         applicable_exceptions: list[dict],
     ) -> RefereeDecision:
+        print(
+            f"[Gemini Chat] Calling {self.settings.gemini_chat_model} for question: '{question[:60]}' with {len(evidence)} evidence chunk(s)...",
+            flush=True,
+        )
         prompt = self._decision_prompt(
             question,
             actor_context,
@@ -78,6 +84,7 @@ class GeminiProvider:
         try:
             response = await self._generate_decision(prompt)
         except Exception as error:
+            print(f"[Gemini Error] {type(error).__name__}: {error}", flush=True)
             if not self._is_retryable(error):
                 raise
             # A 503/timeout is transient. Retry once with the same evidence labels
@@ -90,10 +97,19 @@ class GeminiProvider:
                 applicable_exceptions,
             )
             response = await self._generate_decision(retry_prompt)
-        if isinstance(response.parsed, RefereeDecision):
-            return response.parsed
-        if response.parsed:
-            return RefereeDecision.model_validate(response.parsed)
+        decision = (
+            response.parsed
+            if isinstance(response.parsed, RefereeDecision)
+            else RefereeDecision.model_validate(response.parsed)
+            if response.parsed
+            else None
+        )
+        if decision:
+            print(
+                f"[Gemini Chat] => Route: {decision.route}, Reason: {decision.reason_code}, Answer: {str(decision.answer)[:60]}",
+                flush=True,
+            )
+            return decision
         raise RuntimeError("Gemini did not return a structured RefereeDecision")
 
     def _decision_prompt(

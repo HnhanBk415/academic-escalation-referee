@@ -93,22 +93,20 @@ async def ingest_document(
             )
         ).all()
         dimensions = get_settings().embedding_dimensions
+        mismatched_doc_ids = set()
         for indexed in indexed_chunks:
             metadata = indexed.chunk_metadata or {}
             indexed_model = metadata.get("embedding_model")
             indexed_dimensions = metadata.get("embedding_dimensions")
-            if indexed_model and indexed_model != model_name:
-                raise AppError(
-                    "EMBEDDING_INDEX_MISMATCH",
-                    "Embedding model đã thay đổi; cần re-index toàn bộ tài liệu.",
-                    status_code=409,
-                )
-            if indexed_dimensions and indexed_dimensions != dimensions:
-                raise AppError(
-                    "EMBEDDING_INDEX_MISMATCH",
-                    "Embedding dimensions đã thay đổi; cần re-index toàn bộ tài liệu.",
-                    status_code=409,
-                )
+            if (indexed_model and indexed_model != model_name) or (indexed_dimensions and indexed_dimensions != dimensions):
+                mismatched_doc_ids.add(indexed.document_id)
+        if mismatched_doc_ids:
+            print(f"[Ingestion] Purging {len(mismatched_doc_ids)} stale document(s) with outdated embedding model...", flush=True)
+            await session.execute(
+                delete(DocumentChunk).where(DocumentChunk.document_id.in_(mismatched_doc_ids))
+            )
+            await session.flush()
+
         text = extract_text(path, document.document_type)
         chunks = chunk_text(text)
         if not chunks:

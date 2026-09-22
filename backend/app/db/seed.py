@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
@@ -119,9 +119,10 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
         },
     ]
     for doc_info in dadn_docs:
-        if await session.get(Document, doc_info["id"]) is None:
-            doc_content = doc_info["title"]
-            doc_hash = hashlib.sha256(doc_content.encode("utf-8")).hexdigest()
+        doc = await session.get(Document, doc_info["id"])
+        doc_content = doc_info["title"]
+        doc_hash = hashlib.sha256(doc_content.encode("utf-8")).hexdigest()
+        if doc is None:
             session.add(
                 Document(
                     id=doc_info["id"],
@@ -132,36 +133,63 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
                     version="1.0",
                     status=DocumentStatus.ACTIVE,
                     effective_from=date(2025, 2, 1),
-                    effective_until=date(2025, 6, 30),
+                    effective_until=date(2027, 12, 31),
                     content_hash=doc_hash,
                 )
             )
-            await session.flush()
-            if await session.get(DocumentChunk, f"chunk-{doc_info['id']}-0") is None:
-                try:
-                    from app.ingestion.service import ingest_document
-                    await ingest_document(session, doc_info["id"], provider=embedding_provider)
-                except Exception:
-                    embedding = (await embedding_provider.embed([doc_content]))[0]
+            await session.commit()
+
+        chunk_exists = await session.scalar(
+            select(func.count()).select_from(DocumentChunk).where(
+                DocumentChunk.document_id == doc_info["id"]
+            )
+        )
+        if not chunk_exists:
+            try:
+                from app.ingestion.service import ingest_document
+                await ingest_document(session, doc_info["id"], provider=embedding_provider)
+                print(f"[Seed] Ingested PDF {doc_info['id']}", flush=True)
+            except Exception as exc:
+                print(f"[Seed Fallback] {doc_info['id']}: {exc}", flush=True)
+                doc = await session.get(Document, doc_info["id"])
+                if doc is None:
                     session.add(
-                        DocumentChunk(
-                            id=f"chunk-{doc_info['id']}-0",
-                            document_id=doc_info["id"],
+                        Document(
+                            id=doc_info["id"],
                             course_id="DADN-HK242",
-                            chunk_index=0,
-                            heading=doc_info["title"],
-                            page_number=1,
-                            content=doc_content,
+                            title=doc_info["title"],
+                            document_type="PDF",
+                            source_path=doc_info["source_path"],
+                            version="1.0",
+                            status=DocumentStatus.ACTIVE,
+                            effective_from=date(2025, 2, 1),
+                            effective_until=date(2027, 12, 31),
                             content_hash=doc_hash,
-                            embedding=embedding,
-                            chunk_metadata={
-                                "seeded": True,
-                                "language": "vi",
-                                "embedding_dimensions": 768,
-                                "embedding_model": embedding_model,
-                            },
                         )
                     )
+                    await session.commit()
+                embedding = (await embedding_provider.embed([doc_content]))[0]
+                session.add(
+                    DocumentChunk(
+                        id=f"chunk-{doc_info['id']}-0",
+                        document_id=doc_info["id"],
+                        course_id="DADN-HK242",
+                        chunk_index=0,
+                        heading=doc_info["title"],
+                        page_number=1,
+                        content=doc_content,
+                        content_hash=doc_hash,
+                        embedding=embedding,
+                        chunk_metadata={
+                            "seeded": True,
+                            "language": "vi",
+                            "embedding_dimensions": 768,
+                            "embedding_model": embedding_model,
+                        },
+                    )
+                )
+                await session.commit()
+
 
     document_id = "group-policy-v1"
     content_hash = hashlib.sha256(POLICY_TEXT.encode("utf-8")).hexdigest()
