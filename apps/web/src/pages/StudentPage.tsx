@@ -4,27 +4,50 @@ import { api, postJson } from "../api/client";
 import { CitationList } from "../components/CitationList";
 import { PageHeader } from "../components/PageHeader";
 import { RouteBadge } from "../components/RouteBadge";
-import type { QuestionResponse } from "../types";
+import type { AIHealth, QuestionResponse } from "../types";
 
-const examples = [
+const co3001Examples = [
   "Một nhóm đồ án được có bao nhiêu thành viên?",
   "Rubric chấm điểm báo cáo và sản phẩm như thế nào?",
   "Nhóm em xin phép có 6 thành viên được không?"
 ];
 
+const dadnExamples = [
+  "Tỷ lệ điểm giữa kỳ, quá trình, báo cáo tổng kết và demo là bao nhiêu?",
+  "Yêu cầu nộp mô tả tổng quan đề tài là gì?",
+  "Các nhóm cần thực hiện theo những mốc công việc nào?"
+];
+
+const demoActors = {
+  "student-a1": { label: "Student A1 · Group A", courseId: "CO3001", courseLabel: "CO3001 · Đồ án chuyên ngành" },
+  "student-b1": { label: "Student B1 · Group B", courseId: "CO3001", courseLabel: "CO3001 · Đồ án chuyên ngành" },
+  "student-dadn-a1": { label: "Student DADN A1 · Group A", courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành · HK242" },
+  "student-dadn-b1": { label: "Student DADN B1 · Group B", courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành · HK242" }
+} as const;
+type DemoActorId = keyof typeof demoActors;
+
 export function StudentPage() {
-  const [actorId, setActorId] = useState("student-a1");
-  const [question, setQuestion] = useState(examples[0]);
+  const [actorId, setActorId] = useState<DemoActorId>("student-a1");
+  const [question, setQuestion] = useState(co3001Examples[0]);
   const [result, setResult] = useState<QuestionResponse | null>(null);
   const [clarification, setClarification] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [aiStatus, setAiStatus] = useState("checking");
+  const [aiStatus, setAiStatus] = useState("Đang kiểm tra AI");
+  const actor = demoActors[actorId];
+  const examples = actor.courseId === "DADN-HK242" ? dadnExamples : co3001Examples;
+
+  function changeActor(nextActorId: DemoActorId) {
+    setActorId(nextActorId);
+    setQuestion((nextActorId.startsWith("student-dadn") ? dadnExamples : co3001Examples)[0]);
+    setResult(null);
+    setError("");
+  }
 
   useEffect(() => {
-    api<{ available: boolean; model: string }>("/health/ai")
-      .then((health) => setAiStatus(health.available ? health.model : "unavailable"))
-      .catch(() => setAiStatus("offline"));
+    api<AIHealth>("/health/ai")
+      .then((health) => setAiStatus(health.available ? `${health.mode} · ${health.model}` : `${health.mode} không khả dụng`))
+      .catch(() => setAiStatus("AI offline"));
   }, []);
 
   async function submit(event: FormEvent) {
@@ -34,7 +57,7 @@ export function StudentPage() {
     try {
       const response = await postJson<QuestionResponse>("/api/v1/questions", {
         actor_id: actorId,
-        course_id: "CO3001",
+        course_id: actor.courseId,
         text: question
       });
       setResult(response);
@@ -80,8 +103,8 @@ export function StudentPage() {
     <div className="page">
       <PageHeader
         eyebrow="Student workspace"
-        title="Ask with confidence."
-        description="Routine policy questions are grounded in evidence. Exceptions always go to a human."
+        title="Hỏi với đầy đủ căn cứ"
+        description="Câu hỏi thường quy được trả lời theo bằng chứng. Mọi yêu cầu ngoại lệ đều chuyển cho con người."
         actions={<div className="health-pill"><span />{aiStatus}</div>}
       />
 
@@ -89,20 +112,19 @@ export function StudentPage() {
         <section className="panel composer-panel">
           <div className="field-row">
             <label>
-              Acting as
-              <select value={actorId} onChange={(event) => setActorId(event.target.value)}>
-                <option value="student-a1">Student A1 · Group A</option>
-                <option value="student-b1">Student B1 · Group B</option>
+              Người gửi
+              <select value={actorId} onChange={(event) => changeActor(event.target.value as DemoActorId)}>
+                {Object.entries(demoActors).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
               </select>
             </label>
             <label>
-              Course
-              <select disabled value="CO3001"><option>CO3001 · Đồ án chuyên ngành</option></select>
+              Môn học
+              <select disabled value={actor.courseId}><option>{actor.courseLabel}</option></select>
             </label>
           </div>
           <form onSubmit={submit}>
             <label>
-              Your question
+              Câu hỏi
               <textarea
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
@@ -118,7 +140,7 @@ export function StudentPage() {
               ))}
             </div>
             <button className="primary-button" disabled={busy || question.trim().length < 3}>
-              {busy ? "Referee is working…" : "Submit question"}
+              {busy ? "Đang xử lý…" : "Gửi câu hỏi"}
             </button>
           </form>
           {error && <div className="error-banner">{error}</div>}
@@ -128,8 +150,8 @@ export function StudentPage() {
           {!result && (
             <div className="empty-state">
               <div className="empty-orbit"><span /></div>
-              <h2>No decision yet</h2>
-              <p>Your grounded response and evidence packet will appear here.</p>
+              <h2>Chưa có kết quả</h2>
+              <p>Câu trả lời, route và evidence sẽ xuất hiện tại đây.</p>
             </div>
           )}
           {result && (
@@ -141,21 +163,21 @@ export function StudentPage() {
               {result.answer && <h2 className="answer-text">{result.answer}</h2>}
               {result.clarifying_question && (
                 <div className="decision-callout clarify-callout">
-                  <span>One detail needed</span>
+                  <span>Cần bổ sung một thông tin</span>
                   <h2>{result.clarifying_question}</h2>
                   <form onSubmit={submitClarification}>
                     <input value={clarification} onChange={(event) => setClarification(event.target.value)} />
-                    <button disabled={busy || !clarification.trim()}>Send detail</button>
+                    <button disabled={busy || !clarification.trim()}>Gửi bổ sung</button>
                   </form>
                 </div>
               )}
               {result.route === "ESCALATE" && (
                 <div className="decision-callout escalate-callout">
-                  <span>Human review required</span>
-                  <h2>Case sent to Lecturer 01</h2>
+                  <span>Cần giảng viên review</span>
+                  <h2>Case đã gửi Lecturer 01</h2>
                   <p>Case ID: <code>{result.case_id}</code></p>
                   <button className="secondary-button" onClick={refreshResult} disabled={busy}>
-                    Refresh decision
+                    Làm mới quyết định
                   </button>
                 </div>
               )}
@@ -163,7 +185,7 @@ export function StudentPage() {
                 <div className="final-decision">
                   <RouteBadge value={result.final_decision} />
                   <div>
-                    <strong>Lecturer decision received</strong>
+                    <strong>Đã nhận quyết định của giảng viên</strong>
                     <p>{result.final_decision_reason}</p>
                   </div>
                 </div>

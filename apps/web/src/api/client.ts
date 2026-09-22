@@ -19,10 +19,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers
   });
-  const body = await response.json();
+  const contentType = response.headers.get("content-type") ?? "";
+  const body = contentType.includes("application/json") ? await response.json() : null;
   if (!response.ok) {
     throw new ApiError(
-      body?.error?.message ?? "Yêu cầu không thành công.",
+      body?.error?.message ?? body?.detail ?? "Yêu cầu không thành công.",
       body?.error?.code ?? "UNKNOWN_ERROR",
       response.status
     );

@@ -31,20 +31,35 @@ QUY TẮC ĐỊNH DẠNG BẮT BUỘC cho route=ANSWER:
 ANSWER phải có ít nhất một citation label tồn tại trong evidence. Không bịa citation."""
 
 # HTTP status codes that are transient and safe to retry
-_RETRYABLE_STATUS = {429, 499, 503, 502, 504}
+_RETRYABLE_STATUS = {429, 499, 500, 502, 503, 504}
 _MAX_RETRIES = 3
-_BACKOFF_BASE_SECONDS = 2.0
+_RETRY_DELAY_SECONDS = 2.0
+_MAX_EVIDENCE_CHARS = 300
+_MAX_EVIDENCE_CHARS_ON_RETRY = 160
 
 
 def _is_retryable(exc: Exception) -> bool:
     """Return True for transient server-side errors that may resolve on retry."""
+    if isinstance(exc, TimeoutError):
+        return True
+    code = getattr(exc, "code", None)
+    if code in _RETRYABLE_STATUS:
+        return True
     msg = str(exc)
-    for code in _RETRYABLE_STATUS:
-        if f"{code} " in msg or f"'{code}'" in msg or f'"{code}"' in msg:
+    for c in _RETRYABLE_STATUS:
+        if f"{c} " in msg or f"'{c}'" in msg or f'"{c}"' in msg:
             return True
     # google-genai SDK raises ServerError for 5xx and ClientError for 4xx
     type_name = type(exc).__name__
     return type_name in {"ServerError"} or "UNAVAILABLE" in msg or "CANCELLED" in msg
+
+
+def _compact_evidence(evidence: list[dict], max_characters: int) -> list[dict]:
+    compact: list[dict] = []
+    for item in evidence:
+        excerpt = str(item.get("content", ""))[:max_characters]
+        compact.append({**item, "content": excerpt})
+    return compact
 
 
 class GeminiProvider:
@@ -86,14 +101,14 @@ class GeminiProvider:
             raise RuntimeError("Gemini returned an unexpected embedding dimension")
         return vectors
 
-    async def decide(
+    def _decision_prompt(
         self,
         question: str,
         actor_context: dict,
         evidence: list[dict],
         applicable_exceptions: list[dict],
-    ) -> RefereeDecision:
-        prompt = json.dumps(
+    ) -> str:
+        return json.dumps(
             {
                 "student_question": question,
                 "actor_context": actor_context,
@@ -103,11 +118,28 @@ class GeminiProvider:
             ensure_ascii=False,
             default=str,
         )
+
+    async def decide(
+        self,
+        question: str,
+        actor_context: dict,
+        evidence: list[dict],
+        applicable_exceptions: list[dict],
+    ) -> RefereeDecision:
         last_exc: Exception | None = None
         # Semaphore limits concurrency; SDK-native HTTP timeout (set on Client)
         # ensures the request is cancelled at the transport layer.
         async with self._semaphore:
             for attempt in range(1, _MAX_RETRIES + 1):
+                evidence_limit = (
+                    _MAX_EVIDENCE_CHARS if attempt == 1 else _MAX_EVIDENCE_CHARS_ON_RETRY
+                )
+                prompt = self._decision_prompt(
+                    question,
+                    actor_context,
+                    _compact_evidence(evidence, evidence_limit),
+                    applicable_exceptions,
+                )
                 try:
                     response = await self.client.aio.models.generate_content(
                         model=self.settings.gemini_chat_model,
@@ -125,7 +157,7 @@ class GeminiProvider:
                 except Exception as exc:
                     last_exc = exc
                     if _is_retryable(exc) and attempt < _MAX_RETRIES:
-                        delay = _BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
+                        delay = _RETRY_DELAY_SECONDS * (2 ** (attempt - 1))
                         logger.warning(
                             "Gemini decide() attempt %d/%d failed (retryable) | "
                             "model=%s | error=%s: %s | retrying in %.0fs",

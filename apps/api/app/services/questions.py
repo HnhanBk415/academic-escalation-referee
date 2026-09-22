@@ -329,6 +329,7 @@ async def submit_question(
     started = perf_counter()
     used_provider = decision is None
     ai_failed = False
+    ai_failure_snapshot: dict[str, str] = {}
     if decision is None:
         try:
             decision = await provider.decide(
@@ -345,9 +346,16 @@ async def submit_question(
             valid_labels = {item["label"] for item in evidence}
             if not set(decision.citation_labels).issubset(valid_labels):
                 ai_failed = True
+                ai_failure_snapshot = {
+                    "failure_type": "INVALID_CITATION_LABELS",
+                    "received_labels": ",".join(decision.citation_labels),
+                }
                 decision = _safe_ai_failure()
-        except Exception:
+        except Exception as error:
             ai_failed = True
+            # Keep operational diagnostics useful without persisting provider
+            # messages, prompts, or document content in the audit trail.
+            ai_failure_snapshot = {"failure_type": type(error).__name__}
             decision = _safe_ai_failure()
     duration_ms = round((perf_counter() - started) * 1000)
 
@@ -390,6 +398,7 @@ async def submit_question(
             reason_code="AI_UNAVAILABLE",
             model_name=settings.ai_mode,
             prompt_version=settings.prompt_version,
+            output_snapshot=ai_failure_snapshot,
         )
     add_audit_event(
         session,

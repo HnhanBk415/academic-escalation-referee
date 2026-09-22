@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -35,6 +36,22 @@ class FakeGeminiModels:
                 "confidence": 0.95,
             }
         )
+
+
+class RetryableProviderError(Exception):
+    code = 503
+
+
+class FlakyGeminiModels(FakeGeminiModels):
+    def __init__(self) -> None:
+        super().__init__()
+        self.generate_calls = 0
+
+    async def generate_content(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.generate_calls += 1
+        if self.generate_calls == 1:
+            raise RetryableProviderError()
+        return await super().generate_content(**kwargs)
 
 
 def gemini_settings() -> Settings:
@@ -77,3 +94,25 @@ async def test_missing_gemini_key_builds_safe_unavailable_provider():
     health = await provider.health()
     assert health.available is False
     assert health.mode == "gemini"
+
+
+@pytest.mark.asyncio
+async def test_gemini_provider_retries_transient_failure_with_bounded_evidence(
+    monkeypatch,
+):
+    monkeypatch.setattr("app.ai.gemini._RETRY_DELAY_SECONDS", 0)
+    provider = GeminiProvider(gemini_settings())
+    models = FlakyGeminiModels()
+    provider.client = SimpleNamespace(aio=SimpleNamespace(models=models))
+
+    decision = await provider.decide(
+        "Một nhóm có bao nhiêu người?",
+        {"course_id": "CO3001"},
+        [{"label": "C1", "content": "x" * 1_500}],
+        [],
+    )
+
+    assert decision.route == "ANSWER"
+    assert models.generate_calls == 2
+    retry_payload = json.loads(models.generate_kwargs["contents"])
+    assert len(retry_payload["policy_evidence"][0]["content"]) == 160

@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { AuditPage } from "./pages/AuditPage";
 import { LecturerPage } from "./pages/LecturerPage";
 import { StudentPage } from "./pages/StudentPage";
 import { VerifyPage } from "./pages/VerifyPage";
+import { api } from "./api/client";
+import type { AIHealth } from "./types";
 
 const navItems = [
   ["/student", "Student"],
@@ -13,6 +16,12 @@ const navItems = [
 ];
 
 export function App() {
+  const [ai, setAi] = useState<AIHealth | null>(null);
+
+  useEffect(() => {
+    api<AIHealth>("/health/ai").then(setAi).catch(() => setAi(null));
+  }, []);
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -30,8 +39,8 @@ export function App() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <span className="status-light" />
-          Gemini · CO3001
+          <span className={`status-light ${ai?.available ? "" : "offline"}`} />
+          {ai ? `${ai.mode} · ${ai.model}` : "AI offline"}
         </div>
       </aside>
       <main className="main-content">

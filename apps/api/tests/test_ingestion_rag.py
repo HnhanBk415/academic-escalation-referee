@@ -92,7 +92,9 @@ async def test_ai_failure_escalates_safely(client):
     audit = await client.get(
         f"/api/v1/audit/question/{response.json()['question_id']}"
     )
-    assert "AI_FAILED" in {event["event_type"] for event in audit.json()}
+    failed_events = [event for event in audit.json() if event["event_type"] == "AI_FAILED"]
+    assert failed_events
+    assert failed_events[0]["output_snapshot"] == {"failure_type": "TimeoutError"}
 
 
 @pytest.mark.asyncio
