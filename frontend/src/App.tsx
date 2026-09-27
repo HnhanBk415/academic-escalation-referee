@@ -7,7 +7,7 @@ import { LecturerInboxView } from "./pages/LecturerInboxView";
 import { StudentHistoryView } from "./pages/StudentHistoryView";
 import { StudentSubmitView } from "./pages/StudentSubmitView";
 import { VerifyPage } from "./pages/VerifyPage";
-import type { AIHealth, CaseSummary, QuestionResponse } from "./types";
+import type { AIHealth, DashboardCounts } from "./types";
 
 export function App() {
   const [role, setRole] = useState<Role>("student");
@@ -20,43 +20,40 @@ export function App() {
   // Fetch AI health and initial badges
   const refreshCounts = async () => {
     try {
-      // Check pending questions count
-      const questions = await api<QuestionResponse[]>("/api/questions");
-      if (Array.isArray(questions)) {
-        const pending = questions.filter(
-          (q) => q.route === "ESCALATE" && !q.final_decision
-        ).length;
-        setPendingCount(pending);
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      // Check lecturer queue count
-      const cases = await api<CaseSummary[]>("/api/cases?status=UNDER_REVIEW");
-      if (Array.isArray(cases)) {
-        setQueueCount(cases.length);
-      }
+      const counts = await api<DashboardCounts>("/api/questions/counts");
+      setPendingCount(counts.pending_questions);
+      setQueueCount(counts.under_review_cases);
     } catch {
       // ignore
     }
   };
 
   useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const checkHealth = async () => {
+      if (document.visibilityState === "hidden") {
+        timer = setTimeout(checkHealth, 30000);
+        return;
+      }
       try {
         const health = await api<AIHealth>("/health/ai");
-        setAi(health);
-        refreshCounts();
+        if (!cancelled) {
+          setAi(health);
+          await refreshCounts();
+        }
       } catch {
-        setAi(null);
+        if (!cancelled) setAi(null);
+      } finally {
+        if (!cancelled) timer = setTimeout(checkHealth, 30000);
       }
     };
 
-    checkHealth();
-    const interval = setInterval(checkHealth, 10000);
-    return () => clearInterval(interval);
+    void checkHealth();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const handleSelectRole = (newRole: Role) => {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
@@ -6,8 +6,14 @@ from app.api.deps import get_ai_provider
 from app.core.errors import AppError
 from app.db.session import get_session
 from app.models import Question
-from app.schemas.questions import ClarificationCreate, QuestionCreate, QuestionResponse
+from app.schemas.questions import (
+    ClarificationCreate,
+    DashboardCounts,
+    QuestionCreate,
+    QuestionResponse,
+)
 from app.services.questions import (
+    dashboard_counts,
     get_question_response,
     list_questions_response,
     submit_question,
@@ -16,13 +22,28 @@ from app.services.questions import (
 router = APIRouter()
 
 
+@router.get("/counts", response_model=DashboardCounts)
+async def get_dashboard_counts(
+    session: AsyncSession = Depends(get_session),
+) -> DashboardCounts:
+    return await dashboard_counts(session)
+
+
 @router.get("", response_model=list[QuestionResponse])
 async def list_questions(
     actor_id: str | None = None,
     course_id: str | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> list[QuestionResponse]:
-    return await list_questions_response(session, actor_id=actor_id, course_id=course_id)
+    return await list_questions_response(
+        session,
+        actor_id=actor_id,
+        course_id=course_id,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("", response_model=QuestionResponse, status_code=201)

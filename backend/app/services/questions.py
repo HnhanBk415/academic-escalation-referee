@@ -2,6 +2,7 @@ from datetime import date
 from time import perf_counter
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy import case as sql_case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
@@ -10,6 +11,7 @@ from app.core.enums import (
     CaseStatus,
     DocumentStatus,
     ExceptionStatus,
+    PolicyCoverage,
     QuestionStatus,
     Route,
     ScopeType,
@@ -30,7 +32,12 @@ from app.models import (
     RetrievalEvidence,
 )
 from app.rag.service import retrieve_evidence
-from app.schemas.questions import CitationResponse, QuestionCreate, QuestionResponse
+from app.schemas.questions import (
+    CitationResponse,
+    DashboardCounts,
+    QuestionCreate,
+    QuestionResponse,
+)
 from app.schemas.referee import RefereeDecision
 from app.services.audit import add_audit_event
 from app.services.ids import new_id
@@ -44,38 +51,29 @@ def _provider_failure_snapshot(error: Exception) -> dict[str, str]:
     return snapshot
 
 
-AUTHORITY_TOKENS = (
-    "6 thành viên",
-    "sáu thành viên",
-    "ngoại lệ",
-    "xin phép",
-    "phúc khảo",
-    "đổi điểm",
-    "vượt quá",
-)
 SUSPICIOUS_TOKENS = (
     "ignore previous",
     "bỏ qua chỉ dẫn",
-    "bỏ qua quy định",
     "system prompt",
     "developer message",
 )
-MISSING_FACT_TOKENS = (
-    "thiếu thông tin",
-    "chưa rõ môn",
-    "nhóm nào",
-    "trường hợp này",
-    "việc đó",
-    "cái này",
-)
-
-
 async def _resolve_group(session: AsyncSession, actor_id: str, course_id: str) -> Group | None:
-    return await session.scalar(
-        select(Group)
-        .join(GroupMembership, GroupMembership.group_id == Group.id)
-        .where(GroupMembership.actor_id == actor_id, Group.course_id == course_id)
-    )
+    groups = (
+        await session.scalars(
+            select(Group)
+            .join(GroupMembership, GroupMembership.group_id == Group.id)
+            .where(GroupMembership.actor_id == actor_id, Group.course_id == course_id)
+            .order_by(Group.id)
+        )
+    ).all()
+    if len(groups) > 1:
+        raise AppError(
+            "AMBIGUOUS_GROUP_CONTEXT",
+            "Sinh viên đang thuộc nhiều nhóm trong cùng học phần; "
+            "cần sửa dữ liệu nhóm trước khi xử lý.",
+            status_code=409,
+        )
+    return groups[0] if groups else None
 
 
 async def _load_evidence(session: AsyncSession, course_id: str) -> list[dict]:
@@ -132,12 +130,21 @@ async def _load_exceptions(
         )
     records = (
         await session.scalars(
-            select(PolicyException).where(
+            select(PolicyException)
+            .where(
                 PolicyException.course_id == course_id,
                 PolicyException.status == ExceptionStatus.ACTIVE,
                 PolicyException.valid_from <= today,
                 PolicyException.valid_until >= today,
                 or_(*scopes),
+            )
+            .order_by(
+                sql_case(
+                    (PolicyException.scope_type == ScopeType.STUDENT, 0),
+                    (PolicyException.scope_type == ScopeType.GROUP, 1),
+                    else_=2,
+                ),
+                PolicyException.created_at.desc(),
             )
         )
     ).all()
@@ -146,20 +153,25 @@ async def _load_exceptions(
             "id": item.id,
             "scope_type": item.scope_type,
             "scope_id": item.scope_id,
+            "policy_topic": item.policy_topic,
             "content": item.content,
             "valid_from": item.valid_from.isoformat(),
             "valid_until": item.valid_until.isoformat(),
+            "precedence": {"STUDENT": 0, "GROUP": 1, "COURSE": 2}[item.scope_type],
         }
         for item in records
     ]
 
 
 async def _has_conflicting_documents(session: AsyncSession, course_id: str) -> bool:
+    today = date.today()
     conflicting_title = await session.scalar(
         select(Document.title)
         .where(
             Document.course_id == course_id,
             Document.status == DocumentStatus.ACTIVE,
+            or_(Document.effective_from.is_(None), Document.effective_from <= today),
+            or_(Document.effective_until.is_(None), Document.effective_until >= today),
         )
         .group_by(Document.title)
         .having(func.count(func.distinct(Document.content_hash)) > 1)
@@ -172,30 +184,24 @@ def _guardrail_decision(
     text: str,
     *,
     has_group: bool,
-    has_evidence: bool,
-    has_exception: bool,
     has_conflicting_evidence: bool,
 ) -> RefereeDecision | None:
     lowered = text.casefold()
     if not has_group:
         return RefereeDecision(
             route=Route.CLARIFY,
+            policy_coverage=PolicyCoverage.MISSING_FACT,
+            policy_topic="GROUP_CONTEXT",
             uncertainty_type=UncertaintyType.MISSING_FACT,
             reason_code="MISSING_GROUP_CONTEXT",
             clarifying_question="Bạn thuộc nhóm nào trong học phần này?",
             confidence=1,
         )
-    if any(token in lowered for token in MISSING_FACT_TOKENS):
-        return RefereeDecision(
-            route=Route.CLARIFY,
-            uncertainty_type=UncertaintyType.MISSING_FACT,
-            reason_code="MISSING_CONCRETE_FACT",
-            clarifying_question="Bạn có thể nêu rõ quy định hoặc tình huống đang hỏi không?",
-            confidence=1,
-        )
     if any(token in lowered for token in SUSPICIOUS_TOKENS):
         return RefereeDecision(
             route=Route.ESCALATE,
+            policy_coverage=PolicyCoverage.SUSPICIOUS,
+            policy_topic="SECURITY",
             uncertainty_type=UncertaintyType.SUSPICIOUS_INPUT,
             reason_code="SUSPICIOUS_INPUT",
             decision_question=(
@@ -203,32 +209,15 @@ def _guardrail_decision(
             ),
             confidence=1,
         )
-    if any(token in lowered for token in AUTHORITY_TOKENS) and not has_exception:
-        return RefereeDecision(
-            route=Route.ESCALATE,
-            uncertainty_type=UncertaintyType.AUTHORITY_REQUIRED,
-            reason_code="EXCEPTION_REQUIRES_AUTHORITY",
-            decision_question="Giảng viên có phê duyệt ngoại lệ được nêu trong yêu cầu này không?",
-            confidence=1,
-        )
     if has_conflicting_evidence:
         return RefereeDecision(
             route=Route.ESCALATE,
+            policy_coverage=PolicyCoverage.CONFLICTING,
+            policy_topic="POLICY_VERSION",
             uncertainty_type=UncertaintyType.CONFLICTING_EVIDENCE,
             reason_code="CONFLICTING_ACTIVE_DOCUMENTS",
             decision_question=(
                 "Giảng viên xác nhận phiên bản chính sách nào đang có hiệu lực cho học phần?"
-            ),
-            confidence=1,
-        )
-    if not has_evidence:
-        return RefereeDecision(
-            route=Route.ESCALATE,
-            uncertainty_type=UncertaintyType.OUT_OF_POLICY,
-            reason_code="INSUFFICIENT_EVIDENCE",
-            decision_question=(
-                "Giảng viên có thể cung cấp quy định hoặc quyết định áp dụng "
-                "cho yêu cầu này không?"
             ),
             confidence=1,
         )
@@ -238,6 +227,8 @@ def _guardrail_decision(
 def _safe_ai_failure() -> RefereeDecision:
     return RefereeDecision(
         route=Route.ESCALATE,
+        policy_coverage=PolicyCoverage.NO_POLICY,
+        policy_topic="AI_AVAILABILITY",
         uncertainty_type=UncertaintyType.AI_UNAVAILABLE,
         reason_code="AI_UNAVAILABLE",
         decision_question="Giảng viên có thể xem xét và đưa ra quyết định cho yêu cầu này không?",
@@ -292,6 +283,10 @@ async def submit_question(
             "semester": course.semester,
         },
     )
+    # Persist the submitted question and release the database connection before
+    # a potentially slow embedding request. The same session can open a fresh
+    # transaction when retrieval continues.
+    await session.commit()
 
     evidence = await retrieve_evidence(
         session,
@@ -327,12 +322,13 @@ async def submit_question(
         evidence_ids=[item["chunk_id"] for item in evidence],
         output_snapshot={"count": len(evidence), "exception_ids": [e["id"] for e in exceptions]},
     )
+    # Retrieval and scope data are now durable; release the connection before
+    # the model decision call. A provider failure is recorded in a new transaction.
+    await session.commit()
 
     decision = _guardrail_decision(
         payload.text,
         has_group=group is not None,
-        has_evidence=bool(evidence),
-        has_exception=bool(exceptions),
         has_conflicting_evidence=has_conflicting_evidence,
     )
     started = perf_counter()
@@ -377,6 +373,7 @@ async def submit_question(
     question.route = decision.route
     question.uncertainty_type = decision.uncertainty_type
     question.reason_code = decision.reason_code
+    question.policy_topic = decision.policy_topic
     question.answer = decision.answer
     question.clarifying_question = decision.clarifying_question
     case: EscalationCase | None = None
@@ -469,6 +466,7 @@ def _build_question_response(
         route=question.route,
         uncertainty_type=question.uncertainty_type,
         reason_code=question.reason_code or "UNKNOWN",
+        policy_topic=question.policy_topic,
         answer=question.answer,
         clarifying_question=question.clarifying_question,
         case_id=case.id if case else None,
@@ -545,42 +543,116 @@ async def list_questions_response(
     *,
     actor_id: str | None = None,
     course_id: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
 ) -> list[QuestionResponse]:
-    stmt = select(Question).order_by(Question.created_at.desc())
+    stmt = select(Question).order_by(Question.created_at.desc()).limit(limit).offset(offset)
     if actor_id:
         stmt = stmt.where(Question.actor_id == actor_id)
     if course_id:
         stmt = stmt.where(Question.course_id == course_id)
     questions = (await session.scalars(stmt)).all()
+    if not questions:
+        return []
+
+    question_ids = [question.id for question in questions]
+    cases = (
+        await session.scalars(
+            select(EscalationCase).where(EscalationCase.question_id.in_(question_ids))
+        )
+    ).all()
+    case_by_question = {item.question_id: item for item in cases}
+
+    decisions: list[HumanDecision] = []
+    if cases:
+        decisions = list(
+            (
+                await session.scalars(
+                    select(HumanDecision)
+                    .where(HumanDecision.case_id.in_([item.id for item in cases]))
+                    .order_by(HumanDecision.created_at.desc())
+                )
+            ).all()
+        )
+    decision_by_case: dict[str, HumanDecision] = {}
+    for item in decisions:
+        decision_by_case.setdefault(item.case_id, item)
+
+    exceptions_by_decision: dict[str, PolicyException] = {}
+    if decisions:
+        exception_items = (
+            await session.scalars(
+                select(PolicyException).where(
+                    PolicyException.human_decision_id.in_([item.id for item in decisions])
+                )
+            )
+        ).all()
+        exceptions_by_decision = {item.human_decision_id: item for item in exception_items}
+
+    evidence_by_question = await _evidence_for_questions(session, question_ids)
     results: list[QuestionResponse] = []
     for question in questions:
-        case = await session.scalar(
-            select(EscalationCase).where(EscalationCase.question_id == question.id)
-        )
-        final_decision = None
-        exception_id = None
-        if case:
-            final_decision = await session.scalar(
-                select(HumanDecision)
-                .where(HumanDecision.case_id == case.id)
-                .order_by(HumanDecision.created_at.desc())
-            )
-            if final_decision:
-                exception = await session.scalar(
-                    select(PolicyException).where(
-                        PolicyException.human_decision_id == final_decision.id
-                    )
-                )
-                exception_id = exception.id if exception else None
-        evidence = await _evidence_for_question(session, question.id)
+        escalation = case_by_question.get(question.id)
+        final_decision = decision_by_case.get(escalation.id) if escalation else None
+        exception = exceptions_by_decision.get(final_decision.id) if final_decision else None
+        evidence = evidence_by_question.get(question.id, [])
         results.append(
             _build_question_response(
                 question,
-                case,
+                escalation,
                 evidence,
                 [item["label"] for item in evidence],
                 final_decision,
-                exception_id,
+                exception.id if exception else None,
             )
         )
     return results
+
+
+async def _evidence_for_questions(
+    session: AsyncSession, question_ids: list[str]
+) -> dict[str, list[dict]]:
+    rows = (
+        await session.execute(
+            select(RetrievalEvidence, DocumentChunk, Document)
+            .join(DocumentChunk, DocumentChunk.id == RetrievalEvidence.chunk_id)
+            .join(Document, Document.id == DocumentChunk.document_id)
+            .where(RetrievalEvidence.question_id.in_(question_ids))
+            .order_by(RetrievalEvidence.question_id, RetrievalEvidence.rank)
+        )
+    ).all()
+    result: dict[str, list[dict]] = {}
+    for record, chunk, document in rows:
+        result.setdefault(record.question_id, []).append(
+            {
+                "label": record.label,
+                "chunk_id": chunk.id,
+                "document_title": document.title,
+                "page_number": chunk.page_number,
+                "heading": chunk.heading,
+                "content": chunk.content,
+                "score": record.retrieval_score,
+            }
+        )
+    return result
+
+
+async def dashboard_counts(session: AsyncSession) -> DashboardCounts:
+    pending_questions = await session.scalar(
+        select(func.count())
+        .select_from(EscalationCase)
+        .where(
+            EscalationCase.status.not_in(
+                [CaseStatus.DECIDED, CaseStatus.CANCELLED]
+            )
+        )
+    )
+    under_review_cases = await session.scalar(
+        select(func.count())
+        .select_from(EscalationCase)
+        .where(EscalationCase.status == CaseStatus.UNDER_REVIEW)
+    )
+    return DashboardCounts(
+        pending_questions=int(pending_questions or 0),
+        under_review_cases=int(under_review_cases or 0),
+    )

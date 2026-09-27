@@ -1,81 +1,143 @@
-import React, { useEffect, useState } from "react";
-import { api } from "../api/client";
+import { useEffect, useState } from "react";
+
+import { api, postJson } from "../api/client";
 import { IconScale } from "../components/Icons";
-import type { PolicyException } from "../types";
+import type { CourseExceptionOverview, PolicyException } from "../types";
 
 export function ExceptionsView() {
-  const [exceptions, setExceptions] = useState<PolicyException[]>([]);
+  const [courses, setCourses] = useState<CourseExceptionOverview[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadExceptions() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await api<CourseExceptionOverview[]>("/api/exceptions/overview");
+      setCourses(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tải ngoại lệ.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadExceptions() {
-      setLoading(true);
-      try {
-        const data = await api<PolicyException[]>("/api/exceptions");
-        if (Array.isArray(data)) {
-          setExceptions(data);
-        }
-      } catch (err) {
-        console.warn("Could not load policy exceptions", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadExceptions();
+    void loadExceptions();
   }, []);
 
+  async function revoke(item: PolicyException) {
+    const reason = window.prompt("Lý do thu hồi ngoại lệ:");
+    if (!reason) return;
+    try {
+      await postJson(`/api/exceptions/${item.id}/revoke`, {
+        actor_id: "lecturer-01",
+        reason,
+      });
+      await loadExceptions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể thu hồi ngoại lệ.");
+    }
+  }
+
+  function exceptionCard(item: PolicyException) {
+    return (
+      <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="font-mono text-slate-500">{item.scope_type} · {item.scope_id}</span>
+          <span className={`rounded px-2 py-0.5 font-bold ${item.is_effective ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+            {item.effective_status}
+          </span>
+        </div>
+        <p className="text-sm font-medium leading-relaxed text-slate-800">{item.content}</p>
+        <p className="mt-1 font-mono text-[11px] font-semibold text-sky-700">{item.policy_topic}</p>
+        <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 text-slate-500">
+          <span>{item.valid_from} → {item.valid_until}</span>
+          {item.status === "ACTIVE" && (
+            <button type="button" onClick={() => revoke(item)} className="font-semibold text-rose-700">
+              Thu hồi
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC] overflow-y-auto">
-      {/* Header */}
-      <div className="px-8 pt-6 pb-4 border-b border-slate-200 bg-white flex-shrink-0">
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Ngoại lệ quy chế</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Danh sách các ngoại lệ chính sách đã được tạo và phê duyệt
+    <div className="flex h-full flex-col overflow-y-auto bg-[#F8FAFC]">
+      <div className="flex-shrink-0 border-b border-slate-200 bg-white px-8 pb-4 pt-6">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">Ngoại lệ quy chế</h1>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Theo dõi theo môn và tên nhóm, bao gồm cả nhóm chưa có ngoại lệ
         </p>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-8 flex flex-col">
+      <div className="flex flex-1 flex-col p-8">
         {loading ? (
-          <div className="flex flex-1 items-center justify-center text-slate-400 text-sm">
+          <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
             Đang tải dữ liệu ngoại lệ quy chế...
           </div>
-        ) : exceptions.length === 0 ? (
-          /* Empty State as shown in 4.png */
+        ) : error ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>
+        ) : courses.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <div className="text-center py-16">
-              <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-300/80 flex items-center justify-center mx-auto mb-3.5 text-slate-500 shadow-xs">
+            <div className="py-16 text-center">
+              <div className="mx-auto mb-3.5 flex h-14 w-14 items-center justify-center rounded-full border border-slate-300/80 bg-slate-100 text-slate-500 shadow-xs">
                 <IconScale size={24} />
               </div>
-              <p className="text-sm text-slate-500 font-medium">
-                Chưa có ngoại lệ quy chế nào được tạo
-              </p>
+              <p className="text-sm font-medium text-slate-500">Chưa có dữ liệu môn và nhóm</p>
             </div>
           </div>
         ) : (
-          /* Populated Exceptions Cards */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-            {exceptions.map((ex) => (
-              <div
-                key={ex.id}
-                className="p-5 bg-white border border-slate-200 rounded-xl shadow-xs space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded text-[11px] font-bold font-mono">
-                    {ex.scope_type} · {ex.scope_id}
-                  </span>
-                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold uppercase">
-                    {ex.status}
-                  </span>
+          <div className="grid max-w-5xl gap-5">
+            {courses.map((course) => (
+              <section key={course.course_id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+                <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                  <h2 className="font-bold text-slate-900">{course.course_code} · {course.course_name}</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Học kỳ {course.semester}</p>
                 </div>
-                <p className="text-sm text-slate-800 leading-relaxed font-medium">
-                  {ex.content}
-                </p>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <span>Học phần: <strong>{ex.course_id}</strong></span>
-                  <span className="font-mono">{ex.valid_from} → {ex.valid_until}</span>
+                <div className="grid gap-4 p-5">
+                  {course.course_exceptions.length > 0 && (
+                    <div>
+                      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Áp dụng toàn môn</h3>
+                      <div className="grid gap-2 md:grid-cols-2">{course.course_exceptions.map(exceptionCard)}</div>
+                    </div>
+                  )}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {course.groups.map((group) => {
+                      const activeCount = group.exceptions.filter((item) => item.is_effective).length;
+                      return (
+                        <article key={group.group_id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <h3 className="font-bold text-slate-800">{group.group_name}</h3>
+                              <p className="font-mono text-[11px] text-slate-500">{group.group_id}</p>
+                            </div>
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${activeCount ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                              {activeCount ? `${activeCount} ngoại lệ hiệu lực` : "Không có ngoại lệ"}
+                            </span>
+                          </div>
+                          <div className="grid gap-2">
+                            {group.exceptions.length ? group.exceptions.map(exceptionCard) : (
+                              <p className="rounded-lg border border-dashed border-slate-300 bg-white p-3 text-xs text-slate-500">
+                                Nhóm này đang áp dụng quy định chung của môn.
+                              </p>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                  {course.student_exceptions.length > 0 && (
+                    <details>
+                      <summary className="cursor-pointer text-xs font-bold text-slate-600">
+                        Ngoại lệ cá nhân ({course.student_exceptions.length})
+                      </summary>
+                      <div className="mt-2 grid gap-2 md:grid-cols-2">{course.student_exceptions.map(exceptionCard)}</div>
+                    </details>
+                  )}
                 </div>
-              </div>
+              </section>
             ))}
           </div>
         )}

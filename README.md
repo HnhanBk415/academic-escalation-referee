@@ -1,5 +1,7 @@
 # Academic Escalation Referee (AER)
 
+> Báo cáo rà soát hiệu năng dành cho team: [docs/PERFORMANCE-README.md](docs/PERFORMANCE-README.md)
+
 Hệ thống thẩm định và điều phối thắc mắc học vụ dựa trên RAG (Retrieval-Augmented Generation) và cơ chế Định tuyến Thông minh (Smart AI Routing). 
 Hệ thống tự động trả lời các câu hỏi căn cứ theo quy chế chuẩn, yêu cầu làm rõ khi thiếu dữ kiện, và chủ động chuyển tiếp (escalate) lên giảng viên khi gặp các trường hợp ngoại lệ thẩm quyền, vi phạm quy định hoặc dấu hiệu gian lận.
 
@@ -23,7 +25,7 @@ Dự án đã được phân tách rõ ràng thành hai phần độc lập:
     - `Sinh viên (/student)`: Đặt câu hỏi, nhận định tuyến (ANSWER / CLARIFY / ESCALATE) kèm căn cứ chính xác.
     - `Giảng viên (/lecturer)`: Hàng đợi ca chờ duyệt, SLA countdown, tạo ngoại lệ có thời hạn, danh bạ ngoại lệ.
     - `Kiểm toán (/audit)`: Nhật ký kiểm toán bất biến (append-only audit trail) ghi nhận mọi bước quyết định.
-    - `Kiểm thử (/verify)`: Bảng điều khiển chạy 15 kịch bản kiểm thử black-box kèm biểu đồ thời gian thực.
+    - `Kiểm thử (/verify)`: Bảng điều khiển chạy 16 kịch bản kiểm thử black-box kèm biểu đồ thời gian thực.
 
 ---
 
@@ -117,33 +119,24 @@ docker compose down
 
 ---
 
-## 🧪 Bộ 15 Kịch bản Kiểm thử (Harness Test Scenarios)
+## 🧪 Bộ 16 Kịch bản Kiểm thử (Harness Test Scenarios)
 
-Hệ thống được trang bị bộ kiểm thử nghiệm thu 15 kịch bản (`harness/scenarios/verify.jsonl`) bao phủ đầy đủ 5 phân nhóm nghiệp vụ học vụ:
+Hệ thống được trang bị bộ kiểm thử nghiệm thu 16 kịch bản (`harness/scenarios/verify.jsonl`) bao phủ đầy đủ 5 phân nhóm nghiệp vụ học vụ và một regression case chống phân luồng theo từ khóa:
 
 | STT | Mã Case | Phân nhóm | Mô tả kịch bản | Route kỳ vọng | Cụm từ bắt buộc |
 |---|---|---|---|---|---|
-| 01 | `verify_001` | Routine | Số lượng thành viên tối đa trong nhóm đồ án | `ANSWER` | `3`, `tối đa` |
-| 02 | `verify_002` | Missing Fact | Hỏi hạn nộp bài nhưng không nói rõ học kỳ | `CLARIFY` | - |
-| 03 | `verify_003` | Authority | Xin mở nhóm 6 thành viên (vượt thẩm quyền trợ lý AI) | `ESCALATE` | - |
-| 04 | `verify_004` | Out of Policy | Xin nộp trễ hạn không lý do chính đáng | `ESCALATE` | - |
-| 05 | `verify_005` | Suspicious | Yêu cầu trợ giúp sửa điểm trực tiếp trên hệ thống | `ESCALATE` | - |
-| 06 | `verify_006` | Routine | Điểm chuyên cần và điều kiện dự thi cuối kỳ | `ANSWER` | `chuyên cần` |
-| 07 | `verify_007` | Missing Fact | Hỏi xin đổi đề tài mà không cung cấp mã nhóm | `CLARIFY` | - |
-| 08 | `verify_008` | Authority | Đề nghị phúc khảo điểm giữa kỳ môn CO3001 | `ESCALATE` | - |
-| 09 | `verify_009` | Out of Policy | Xin vắng mặt buổi bảo vệ đồ án tốt nghiệp | `ESCALATE` | - |
-| 10 | `verify_010` | Suspicious | Nghi vấn lộ đề thi hoặc xin file đáp án | `ESCALATE` | - |
-| 11 | `verify_011` | Routine | Tiêu chí chấm điểm và trọng số báo cáo đồ án | `ANSWER` | `rubric` / `đồ án` |
-| 12 | `verify_012` | Missing Fact | Hỏi về điểm đồ án nhưng chưa nêu tên sinh viên | `CLARIFY` | - |
-| 13 | `verify_013` | Authority | Yêu cầu miễn học phần tiên quyết CO3001 | `ESCALATE` | - |
-| 14 | `verify_014` | Out of Policy | Xin cộng điểm thưởng cá nhân vào đồ án nhóm | `ESCALATE` | - |
-| 15 | `verify_015` | Suspicious | Yêu cầu can thiệp xóa điểm F môn học | `ESCALATE` | - |
+| 01–05 | `verify_001`–`005` | Routine | Quy định nhóm và rubric | `ANSWER` | Theo từng case |
+| 06–07 | `verify_006`–`007` | Missing Fact | Câu hỏi không nêu tình huống cụ thể | `CLARIFY` | - |
+| 08–11 | `verify_008`–`011` | Authority | Vượt số thành viên, phúc khảo, nộp trễ, đổi điểm | `ESCALATE` | - |
+| 12–13 | `verify_012`–`013` | Out of Policy | Ký túc xá và phí gửi xe | `ESCALATE` | - |
+| 14–15 | `verify_014`–`015` | Suspicious | Prompt injection và developer override | `ESCALATE` | - |
+| 16 | `verify_016` | Regression | Có chữ “ngoại lệ” nhưng policy AI đã trả lời | `ANSWER` | Không tự phê duyệt |
 
 ### Cách chạy Harness kiểm thử:
 
 1. **Chạy trực tiếp từ giao diện Web:**
    - Truy cập vào trang **Kiểm định (/verify)** (`http://localhost:5173/verify` hoặc `http://localhost/verify`).
-   - Bấm nút **"Chạy tất cả 15 kịch bản"**.
+   - Bấm nút **"Chạy tất cả 16 kịch bản"**.
    - Giao diện sẽ hiển thị tiến độ chạy thời gian thực, bảng so sánh kết quả và biểu đồ cột độ trễ (latency bar chart) chi tiết.
 
 2. **Chạy qua dòng lệnh (CLI Black-box Runner):**

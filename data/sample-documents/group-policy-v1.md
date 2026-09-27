@@ -9,3 +9,9 @@ Mọi thay đổi thành viên sau khi đăng ký phải được giảng viên 
 Nhóm có nhiều hơn 5 sinh viên chỉ được chấp nhận khi có quyết định của giảng viên.
 
 Quyết định ngoại lệ phải ghi rõ nhóm, thời hạn và lý do.
+
+## Sử dụng công cụ AI
+
+Nhóm không được phép sử dụng AI để làm toàn bộ bài.
+
+Nếu sử dụng AI trong phạm vi hỗ trợ, nhóm phải khai báo rõ công cụ và phần nội dung đã sử dụng.

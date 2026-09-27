@@ -2,8 +2,12 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.schemas.exceptions import ExceptionResponse, ExceptionRevokeCreate
-from app.services.exceptions import list_exceptions, revoke_exception
+from app.schemas.exceptions import (
+    CourseExceptionOverview,
+    ExceptionResponse,
+    ExceptionRevokeCreate,
+)
+from app.services.exceptions import exception_overview, list_exceptions, revoke_exception
 
 router = APIRouter()
 
@@ -13,6 +17,13 @@ async def get_exceptions(
     session: AsyncSession = Depends(get_session),
 ) -> list[ExceptionResponse]:
     return await list_exceptions(session)
+
+
+@router.get("/overview", response_model=list[CourseExceptionOverview])
+async def get_exception_overview(
+    session: AsyncSession = Depends(get_session),
+) -> list[CourseExceptionOverview]:
+    return await exception_overview(session)
 
 
 @router.post("/{exception_id}/revoke", response_model=ExceptionResponse)

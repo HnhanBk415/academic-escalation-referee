@@ -18,6 +18,9 @@ export interface LecturerQueueItem {
   studentId: string;
   studentName: string;
   courseId: string;
+  groupId: string | null;
+  groupName: string | null;
+  policyTopic: string | null;
   title: string;
   topic: string;
   escalationTag: EscalationTag;
@@ -26,68 +29,6 @@ export interface LecturerQueueItem {
   question: string;
   ragCitations: Array<{ section: string; article: string; text: string }>;
 }
-
-const INITIAL_QUEUE: LecturerQueueItem[] = [
-  {
-    id: "CASE_A1B2",
-    studentId: "2110482",
-    studentName: "Nguyễn Văn An",
-    courseId: "DADN-HK242",
-    title: "Nhóm em xin phép có 6 thành viên được không?",
-    topic: "Đồ án Đa ngành",
-    escalationTag: "OUT_OF_POLICY",
-    submittedAt: "22/09/2026 · 09:15",
-    slaRemaining: "47:54:40",
-    question:
-      "Nhóm em hiện tại có 6 bạn cùng định hướng đề tài AI trong học phần Đồ án Đa ngành (DADN-HK242). Chúng em xin phép được đăng ký nhóm 6 người thay vì quy định chuẩn tối đa 5 người có được không?",
-    ragCitations: [
-      {
-        section: "Quy định nhóm đồ án",
-        article: "Điều 1, khoản 1",
-        text: "Mỗi nhóm đồ án có từ 3 đến 5 sinh viên. Mọi thay đổi thành viên sau khi đăng ký phải được giảng viên phụ trách phê duyệt.",
-      },
-      {
-        section: "Ngoại lệ quy chế môn học",
-        article: "Điều 1, khoản 3",
-        text: "Nhóm có nhiều hơn 5 sinh viên chỉ được chấp nhận khi có quyết định của giảng viên phụ trách. Quyết định ngoại lệ phải ghi rõ nhóm, thời hạn và lý do.",
-      },
-    ],
-  },
-  {
-    id: "CASE_5E6F",
-    studentId: "2109875",
-    studentName: "Lê Thị Phương",
-    courseId: "DADN-HK242",
-    title: "Gia hạn thời gian nộp báo cáo tổng quan đề tài do sự cố máy chủ",
-    topic: "Đồ án Đa ngành",
-    escalationTag: "INSUFFICIENT_EVIDENCE",
-    submittedAt: "22/09/2026 · 11:30",
-    slaRemaining: "44:12:15",
-    question:
-      "Máy chủ phòng thí nghiệm gặp sự cố mất điện và khôi phục dữ liệu muộn 2 ngày so với kế hoạch. Nhóm em xin phép được gia hạn nộp báo cáo tổng quan thêm 48h.",
-    ragCitations: [
-      {
-        section: "Kế hoạch môn học DADN",
-        article: "Mục 4.2",
-        text: "Các trường hợp bất khả kháng về cơ sở vật chất cần có xác nhận bằng văn bản của cán bộ phụ trách phòng Lab trước hạn nộp 24h.",
-      },
-    ],
-  },
-  {
-    id: "CASE_7G8H",
-    studentId: "2111234",
-    studentName: "Phạm Đức Hải",
-    courseId: "CO3001",
-    title: "Xét duyệt bảo lưu tiến độ đồ án chuyên ngành sang học kỳ sau",
-    topic: "Đồ án chuyên ngành",
-    escalationTag: "OUT_OF_POLICY",
-    submittedAt: "22/09/2026 · 08:00",
-    slaRemaining: "39:58:30",
-    question:
-      "Em có lịch thực tập toàn thời gian tại doanh nghiệp nước ngoài trong 3 tháng tới. Em muốn xin bảo lưu kết quả đồ án đợt 1 và tiếp tục bảo vệ vào học kỳ tới.",
-    ragCitations: [],
-  },
-];
 
 type DecisionType = "APPROVED" | "REJECTED" | "NEED_MORE_INFO" | "FORWARDED" | null;
 
@@ -100,11 +41,18 @@ export function LecturerInboxView({
   reviewerId = "lecturer-01",
   onDecisionMade,
 }: LecturerInboxViewProps) {
-  const [queue, setQueue] = useState<LecturerQueueItem[]>(INITIAL_QUEUE);
-  const [selectedId, setSelectedId] = useState<string>(INITIAL_QUEUE[0].id);
+  const [queue, setQueue] = useState<LecturerQueueItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
   const [decision, setDecision] = useState<DecisionType>(null);
   const [reason, setReason] = useState("");
   const [createException, setCreateException] = useState(false);
+  const [exceptionScope, setExceptionScope] = useState<"STUDENT" | "GROUP" | "COURSE">("GROUP");
+  const [exceptionContent, setExceptionContent] = useState("");
+  const [validUntil, setValidUntil] = useState(() => {
+    const value = new Date();
+    value.setDate(value.getDate() + 30);
+    return value.toISOString().slice(0, 10);
+  });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -122,6 +70,9 @@ export function LecturerInboxView({
                   studentId: d.actor_id || "2110482",
                   studentName: d.actor_id === "student-dadn-a1" ? "Lê Văn Cường" : "Nguyễn Văn An",
                   courseId: d.course_id || "DADN-HK242",
+                  groupId: d.group_id,
+                  groupName: d.group_name,
+                  policyTopic: d.policy_topic,
                   title: d.decision_question || d.original_question.slice(0, 60),
                   topic: d.course_id === "CO3001" ? "Đồ án chuyên ngành" : "Đồ án Đa ngành",
                   escalationTag: (d.uncertainty_type as EscalationTag) || "OUT_OF_POLICY",
@@ -149,10 +100,18 @@ export function LecturerInboxView({
           if (valid.length > 0) {
             setQueue(valid);
             setSelectedId(valid[0].id);
+          } else {
+            setQueue([]);
+            setSelectedId("");
           }
+        } else {
+          setQueue([]);
+          setSelectedId("");
         }
       } catch (err) {
-        console.warn("Using initial demo queue data", err);
+        console.warn("Could not load lecturer queue", err);
+        setQueue([]);
+        setSelectedId("");
       }
     }
     loadCases();
@@ -174,12 +133,17 @@ export function LecturerInboxView({
         exception:
           createException && decision === "APPROVED"
             ? {
-                scope_type: "STUDENT",
-                scope_id: selected.studentId,
+                scope_type: exceptionScope,
+                scope_id:
+                  exceptionScope === "STUDENT"
+                    ? selected.studentId
+                    : exceptionScope === "GROUP"
+                      ? selected.groupId
+                      : selected.courseId,
                 course_id: selected.courseId,
-                content: reason.trim() || "Chấp thuận ngoại lệ đặc cách theo phê duyệt của Giảng viên.",
-                valid_from: "2026-09-01",
-                valid_until: "2027-01-31",
+                content: exceptionContent.trim() || reason.trim(),
+                valid_from: new Date().toISOString().slice(0, 10),
+                valid_until: validUntil,
               }
             : null,
       };
@@ -270,6 +234,8 @@ export function LecturerInboxView({
                 setDecision(null);
                 setReason("");
                 setCreateException(false);
+                setExceptionScope(c.groupId ? "GROUP" : "STUDENT");
+                setExceptionContent("");
                 setMessage("");
               }}
               className={`w-full text-left p-4 rounded-xl border transition-all ${
@@ -292,6 +258,7 @@ export function LecturerInboxView({
               </p>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-slate-500 font-mono font-medium">{c.studentId}</span>
+                <span className="text-[11px] text-slate-500">{c.groupName || c.groupId || "Chưa có nhóm"}</span>
                 <EscalationTagBadge tag={c.escalationTag} />
               </div>
             </button>
@@ -325,6 +292,8 @@ export function LecturerInboxView({
                   <span>·</span>
                   <span className="font-medium text-slate-600">{selected.topic}</span>
                   <span>·</span>
+                  <span>{selected.groupName || selected.groupId || "Chưa có nhóm"}</span>
+                  <span>·</span>
                   <span>{selected.submittedAt}</span>
                 </div>
               </div>
@@ -354,6 +323,12 @@ export function LecturerInboxView({
                   <div className="flex items-center gap-3 text-xs">
                     <span className="text-slate-500 font-medium">Lý do leo thang:</span>
                     <EscalationTagBadge tag={selected.escalationTag} />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-slate-500 font-medium">Chủ đề policy:</span>
+                    <span className="font-mono font-semibold text-slate-700">
+                      {selected.policyTopic || "GENERAL"}
+                    </span>
                   </div>
 
                   {selected.ragCitations && selected.ragCitations.length > 0 ? (
@@ -428,18 +403,61 @@ export function LecturerInboxView({
                 </div>
 
                 {/* Create Policy Exception Checkbox */}
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={createException}
-                    onChange={(e) => setCreateException(e.target.checked)}
-                    className="w-4 h-4 rounded text-[#DC2626] focus:ring-[#DC2626] border-slate-300 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-700 font-medium">
-                    Tạo ngoại lệ chính sách sau khi phê duyệt{" "}
-                    <span className="text-slate-400">(Policy Exception)</span>
-                  </span>
-                </label>
+                {decision === "APPROVED" && (
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={createException}
+                      onChange={(e) => setCreateException(e.target.checked)}
+                      className="w-4 h-4 rounded text-[#DC2626] focus:ring-[#DC2626] border-slate-300 cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">
+                      Tạo ngoại lệ dùng lại cho các câu hỏi sau{" "}
+                      <span className="text-slate-400">(không bắt buộc)</span>
+                    </span>
+                  </label>
+                )}
+
+                {createException && decision === "APPROVED" && (
+                  <div className="grid gap-3 rounded-lg border border-rose-200 bg-rose-50/60 p-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Phạm vi áp dụng
+                        <select
+                          value={exceptionScope}
+                          onChange={(e) => setExceptionScope(e.target.value as "STUDENT" | "GROUP" | "COURSE")}
+                          className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                        >
+                          <option value="STUDENT">Cá nhân · {selected.studentId}</option>
+                          <option value="GROUP" disabled={!selected.groupId}>
+                            Nhóm · {selected.groupName || selected.groupId || "chưa xác định"}
+                          </option>
+                          <option value="COURSE">Toàn môn · {selected.courseId}</option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-semibold text-slate-700">
+                        Hiệu lực đến
+                        <input
+                          type="date"
+                          value={validUntil}
+                          min={new Date().toISOString().slice(0, 10)}
+                          onChange={(e) => setValidUntil(e.target.value)}
+                          className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                        />
+                      </label>
+                    </div>
+                    <label className="text-xs font-semibold text-slate-700">
+                      Nội dung ngoại lệ dùng cho các câu hỏi sau
+                      <textarea
+                        rows={2}
+                        value={exceptionContent}
+                        onChange={(e) => setExceptionContent(e.target.value)}
+                        placeholder="Ghi rõ điều được phép, điều kiện và giới hạn áp dụng..."
+                        className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 {/* Submit Feedback */}
                 {message && (
@@ -452,7 +470,11 @@ export function LecturerInboxView({
                 <button
                   type="button"
                   onClick={handleConfirmDecision}
-                  disabled={!decision || submitting}
+                  disabled={
+                    !decision ||
+                    submitting ||
+                    (createException && decision === "APPROVED" && exceptionScope === "GROUP" && !selected.groupId)
+                  }
                   className={`w-full py-3 px-4 rounded-lg text-sm font-semibold transition-all shadow-sm ${
                     decision
                       ? "bg-[#DC2626] hover:bg-[#B91C1C] text-white cursor-pointer"

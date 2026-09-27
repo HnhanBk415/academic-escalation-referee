@@ -2,7 +2,7 @@ import hashlib
 import re
 import unicodedata
 
-from app.core.enums import Route, UncertaintyType
+from app.core.enums import PolicyCoverage, Route, UncertaintyType
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -100,10 +100,30 @@ class FakeProvider:
         applicable_exceptions: list[dict],
     ) -> RefereeDecision:
         lowered = question.casefold()
-        if applicable_exceptions and any(token in lowered for token in ("6", "sáu", "thành viên")):
-            exception = applicable_exceptions[0]
+        question_tokens = {
+            token for token in re.findall(r"\w+", lowered, flags=re.UNICODE) if len(token) > 2
+        }
+        relevant_exceptions = [
+            item
+            for item in applicable_exceptions
+            if len(
+                question_tokens
+                & {
+                    token
+                    for token in re.findall(
+                        r"\w+", str(item.get("content", "")).casefold(), flags=re.UNICODE
+                    )
+                    if len(token) > 2
+                }
+            )
+            >= 2
+        ]
+        if relevant_exceptions:
+            exception = relevant_exceptions[0]
             return RefereeDecision(
                 route=Route.ANSWER,
+                policy_coverage=PolicyCoverage.APPLICABLE_EXCEPTION,
+                policy_topic=self._policy_topic(question),
                 uncertainty_type=UncertaintyType.NONE,
                 reason_code="APPLICABLE_SCOPED_EXCEPTION",
                 answer=(
@@ -116,14 +136,73 @@ class FakeProvider:
         if any(token in lowered for token in ("thiếu thông tin", "chưa rõ môn", "nhóm nào")):
             return RefereeDecision(
                 route=Route.CLARIFY,
+                policy_coverage=PolicyCoverage.MISSING_FACT,
+                policy_topic="GENERAL",
                 uncertainty_type=UncertaintyType.MISSING_FACT,
                 reason_code="MISSING_CONCRETE_FACT",
                 clarifying_question="Bạn đang hỏi về nhóm và học kỳ cụ thể nào?",
                 confidence=1,
             )
+        if any(token in lowered for token in ("trường hợp này", "việc đó", "cái này")):
+            return RefereeDecision(
+                route=Route.CLARIFY,
+                policy_coverage=PolicyCoverage.MISSING_FACT,
+                policy_topic="GENERAL",
+                uncertainty_type=UncertaintyType.MISSING_FACT,
+                reason_code="MISSING_CONCRETE_FACT",
+                clarifying_question="Bạn có thể nêu rõ tình huống hoặc quy định đang hỏi không?",
+                confidence=1,
+            )
         if evidence:
+            evidence_text = " ".join(str(item.get("content", "")) for item in evidence).casefold()
+            requests_decision = any(
+                token in lowered
+                for token in (
+                    "xin phép",
+                    "xin ngoại lệ",
+                    "muốn phúc khảo",
+                    "muốn đổi điểm",
+                    "cho nhóm em",
+                    "cho em",
+                )
+            )
+            policy_requires_approval = any(
+                token in evidence_text
+                for token in (
+                    "phải được giảng viên",
+                    "phải được chuyển cho giảng viên",
+                    "chỉ được chấp nhận khi có quyết định",
+                )
+            )
+            exceeds_group_limit = bool(
+                re.search(r"\b(?:6|sáu|7|bảy|8|tám|9|chín|10|mười)\b", lowered)
+                and "thành viên" in lowered
+                and "3 đến 5" in evidence_text
+            )
+            requests_late_waiver = "nộp" in lowered and "trễ" in lowered and "ngoại lệ" in lowered
+            if (
+                requests_decision and (policy_requires_approval or requests_late_waiver)
+            ) or exceeds_group_limit:
+                coverage = (
+                    PolicyCoverage.REQUIRES_APPROVAL
+                    if policy_requires_approval
+                    else PolicyCoverage.REQUESTS_WAIVER
+                )
+                return RefereeDecision(
+                    route=Route.ESCALATE,
+                    policy_coverage=coverage,
+                    policy_topic=self._policy_topic(question),
+                    uncertainty_type=UncertaintyType.AUTHORITY_REQUIRED,
+                    reason_code=coverage.value,
+                    decision_question=(
+                        "Giảng viên có phê duyệt yêu cầu vượt ngoài quy định hiện hành không?"
+                    ),
+                    confidence=1,
+                )
             return RefereeDecision(
                 route=Route.ANSWER,
+                policy_coverage=PolicyCoverage.DIRECT,
+                policy_topic=self._policy_topic(question),
                 uncertainty_type=UncertaintyType.NONE,
                 reason_code="POLICY_GROUNDED_EXTRACTIVE_ANSWER",
                 answer=self._extractive_answer(question, evidence),
@@ -132,11 +211,26 @@ class FakeProvider:
             )
         return RefereeDecision(
             route=Route.ESCALATE,
+            policy_coverage=PolicyCoverage.NO_POLICY,
+            policy_topic=self._policy_topic(question),
             uncertainty_type=UncertaintyType.OUT_OF_POLICY,
             reason_code="INSUFFICIENT_EVIDENCE",
             decision_question="Giảng viên có thể cung cấp quy định áp dụng cho yêu cầu này không?",
             confidence=0,
         )
+
+    @staticmethod
+    def _policy_topic(question: str) -> str:
+        lowered = question.casefold()
+        if "ai" in lowered or "trí tuệ nhân tạo" in lowered:
+            return "AI_USAGE"
+        if "thành viên" in lowered or "nhóm" in lowered:
+            return "GROUP_MEMBERSHIP"
+        if "điểm" in lowered or "phúc khảo" in lowered:
+            return "GRADE_APPEAL"
+        if "nộp" in lowered or "hạn" in lowered:
+            return "SUBMISSION_DEADLINE"
+        return "GENERAL"
 
     async def health(self) -> AIHealth:
         return AIHealth(mode="fake", available=True, model="deterministic-fake-v1")

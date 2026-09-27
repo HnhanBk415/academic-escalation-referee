@@ -58,7 +58,9 @@ class CaseDetail(CaseSummary):
     original_question: str
     actor_id: str
     group_id: str | None
+    group_name: str | None
     course_id: str
+    policy_topic: str | None
     ai_summary: str
     citations: list[CitationResponse]
 

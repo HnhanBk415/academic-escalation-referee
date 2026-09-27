@@ -5,7 +5,7 @@ import { PageHeader }  from "../components/PageHeader";
 import { RouteBadge }  from "../components/RouteBadge";
 import type { QuestionResponse, Route } from "../types";
 
-/* ── 15 verify cases ── */
+/* ── Semantic routing verification cases ── */
 interface VerifyCase {
   id: string;
   label: string;
@@ -54,6 +54,13 @@ const CASES: VerifyCase[] = [
     actor_id: "student-b1", course_id: "CO3001",
     question: "Quy định số lượng sinh viên trong nhóm là gì?",
     expected_route: "ANSWER", must_include: ["3 đến 5"], forbidden_claims: [],
+  },
+  {
+    id: "verify_005b", label: "Từ 'ngoại lệ' nhưng policy đã trả lời",
+    category: "routine",
+    actor_id: "student-a1", course_id: "CO3001",
+    question: "Nhóm em có ngoại lệ là đã sử dụng AI được không ạ?",
+    expected_route: "ANSWER", must_include: [], forbidden_claims: ["đã được phê duyệt"],
   },
 
   /* ── MISSING FACT (CLARIFY) ── */
@@ -205,7 +212,7 @@ export function VerifyPage() {
       <PageHeader
         eyebrow="Tự động hóa kiểm chứng · AER-CORE · V2.4 · Harness.chế"
         title="Verify Harness — Kiểm chứng hệ thống"
-        description="Hệ thống tự động chạy 15 test case để kiểm tra phân luồng (ANSWER / CLARIFY / ESCALATE) và tính khớp giải quy chế."
+        description="Hệ thống tự động chạy 16 test case để kiểm tra phân luồng (ANSWER / CLARIFY / ESCALATE), tính khớp quy chế và lỗi phân luồng theo từ khóa."
         actions={
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <button
