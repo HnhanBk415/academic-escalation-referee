@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.enums import PolicyCoverage, Route, UncertaintyType
+from app.core.enums import EscalationTarget, PolicyCoverage, Route, UncertaintyType
 
 
 class RefereeDecision(BaseModel):
@@ -9,6 +9,7 @@ class RefereeDecision(BaseModel):
     policy_topic: str = Field(min_length=2, max_length=100, pattern=r"^[A-Z][A-Z0-9_]*$")
     uncertainty_type: UncertaintyType
     reason_code: str
+    escalation_target: EscalationTarget | None = None
     answer: str | None = None
     clarifying_question: str | None = None
     decision_question: str | None = None

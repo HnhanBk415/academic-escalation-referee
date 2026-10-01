@@ -49,6 +49,7 @@ class CaseSummary(BaseModel):
     status: CaseStatus
     reason_code: str
     uncertainty_type: str
+    escalation_target: str | None = None
     decision_question: str
     assigned_reviewer_id: str | None
     created_at: datetime

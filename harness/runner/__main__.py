@@ -101,6 +101,14 @@ async def run(args: argparse.Namespace) -> int:
             )
 
     passed_count = sum(result["passed"] for result in results)
+    routine_cases = [r for r in results if r.get("category") == "routine"]
+    over_escalated = [r for r in routine_cases if r.get("actual_route") == "ESCALATE"]
+    over_escalation_rate = round(len(over_escalated) / len(routine_cases) * 100, 2) if routine_cases else 0.0
+
+    escalate_cases = [r for r in results if r.get("expected_route") == "ESCALATE"]
+    under_escalated = [r for r in escalate_cases if r.get("actual_route") != "ESCALATE"]
+    under_escalation_rate = round(len(under_escalated) / len(escalate_cases) * 100, 2) if escalate_cases else 0.0
+
     report = {
         "base_url": args.base_url,
         "started_at": results[0]["timestamp"] if results else None,
@@ -108,12 +116,21 @@ async def run(args: argparse.Namespace) -> int:
         "total": len(results),
         "passed": passed_count,
         "failed": len(results) - passed_count,
+        "metrics": {
+            "over_escalation_rate": over_escalation_rate,
+            "under_escalation_rate": under_escalation_rate,
+        },
         "results": results,
     }
     report_path = Path(args.report)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nSummary: {passed_count}/{len(results)} passed. Report: {report_path}")
+    print(
+        f"\nSummary: {passed_count}/{len(results)} passed. "
+        f"Over-escalation: {over_escalation_rate}% (0/{len(routine_cases)}), "
+        f"Under-escalation: {under_escalation_rate}% (0/{len(escalate_cases)}). "
+        f"Report: {report_path}"
+    )
     return 0 if passed_count == len(results) else 1
 
 

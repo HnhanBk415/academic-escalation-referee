@@ -21,6 +21,7 @@ export interface LecturerQueueItem {
   groupId: string | null;
   groupName: string | null;
   policyTopic: string | null;
+  escalationTarget?: string | null;
   title: string;
   topic: string;
   escalationTag: EscalationTag;
@@ -43,6 +44,7 @@ export function LecturerInboxView({
 }: LecturerInboxViewProps) {
   const [queue, setQueue] = useState<LecturerQueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [filterTarget, setFilterTarget] = useState<"ALL" | "COURSE_LECTURER" | "ACADEMIC_AFFAIRS" | "POLICY_VIOLATION">("ALL");
   const [decision, setDecision] = useState<DecisionType>(null);
   const [reason, setReason] = useState("");
   const [createException, setCreateException] = useState(false);
@@ -73,6 +75,7 @@ export function LecturerInboxView({
                   groupId: d.group_id,
                   groupName: d.group_name,
                   policyTopic: d.policy_topic,
+                  escalationTarget: d.escalation_target || (d.assigned_reviewer_id === "academic-affairs-01" ? "ACADEMIC_AFFAIRS" : "COURSE_LECTURER"),
                   title: d.decision_question || d.original_question.slice(0, 60),
                   topic: d.course_id === "CO3001" ? "Đồ án chuyên ngành" : "Đồ án Đa ngành",
                   escalationTag: (d.uncertainty_type as EscalationTag) || "OUT_OF_POLICY",
@@ -117,7 +120,12 @@ export function LecturerInboxView({
     loadCases();
   }, []);
 
-  const selected = queue.find((c) => c.id === selectedId) || queue[0];
+  const filteredQueue = queue.filter((c) => {
+    if (filterTarget === "ALL") return true;
+    return c.escalationTarget === filterTarget;
+  });
+
+  const selected = filteredQueue.find((c) => c.id === selectedId) || filteredQueue[0] || queue.find((c) => c.id === selectedId) || queue[0];
 
   async function handleConfirmDecision() {
     if (!decision || !selected) return;
@@ -125,8 +133,13 @@ export function LecturerInboxView({
     setMessage("");
 
     try {
+      const effectiveReviewerId =
+        selected.escalationTarget === "ACADEMIC_AFFAIRS" || selected.escalationTarget === "POLICY_VIOLATION"
+          ? "academic-affairs-01"
+          : reviewerId;
+
       const payload = {
-        reviewer_id: reviewerId,
+        reviewer_id: effectiveReviewerId,
         decision,
         reason: reason.trim() || "Giảng viên phụ trách đã phê duyệt và đưa ra quyết định.",
         create_exception: createException && decision === "APPROVED",
@@ -219,13 +232,61 @@ export function LecturerInboxView({
       {/* 2-Column Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Column (~33%) */}
-        <div className="w-[33%] border-r border-slate-200 overflow-y-auto bg-slate-50/50 p-3 space-y-2 flex-shrink-0">
-          {queue.length === 0 && (
+        <div className="w-[33%] border-r border-slate-200 overflow-y-auto bg-slate-50/50 p-3 space-y-2 flex-shrink-0 flex flex-col">
+          {/* Target Filter Pills */}
+          <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-lg text-xs font-medium mb-1">
+            <button
+              type="button"
+              onClick={() => setFilterTarget("ALL")}
+              className={`flex-1 py-1 px-1 rounded text-center transition-all ${
+                filterTarget === "ALL"
+                  ? "bg-white text-slate-900 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Tất cả ({queue.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTarget("COURSE_LECTURER")}
+              className={`flex-1 py-1 px-1 rounded text-center transition-all ${
+                filterTarget === "COURSE_LECTURER"
+                  ? "bg-white text-amber-900 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              GV ({queue.filter((q) => q.escalationTarget === "COURSE_LECTURER").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTarget("ACADEMIC_AFFAIRS")}
+              className={`flex-1 py-1 px-1 rounded text-center transition-all ${
+                filterTarget === "ACADEMIC_AFFAIRS"
+                  ? "bg-white text-indigo-900 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Đào tạo ({queue.filter((q) => q.escalationTarget === "ACADEMIC_AFFAIRS").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTarget("POLICY_VIOLATION")}
+              className={`flex-1 py-1 px-1 rounded text-center transition-all ${
+                filterTarget === "POLICY_VIOLATION"
+                  ? "bg-white text-rose-900 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Vi phạm ({queue.filter((q) => q.escalationTarget === "POLICY_VIOLATION").length})
+            </button>
+          </div>
+
+          {filteredQueue.length === 0 && (
             <div className="text-center py-16 text-slate-400 text-sm font-medium">
-              Không có hồ sơ nào cần thẩm định
+              Không có hồ sơ nào phù hợp với bộ lọc
             </div>
           )}
-          {queue.map((c) => (
+          {filteredQueue.map((c) => (
             <button
               type="button"
               key={c.id}
@@ -245,9 +306,24 @@ export function LecturerInboxView({
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-[10px] font-bold text-slate-400">
-                  #{c.id}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[10px] font-bold text-slate-400">
+                    #{c.id}
+                  </span>
+                  {c.escalationTarget === "POLICY_VIOLATION" ? (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                      Vi phạm
+                    </span>
+                  ) : c.escalationTarget === "ACADEMIC_AFFAIRS" ? (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      P. Đào tạo
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                      Giảng viên
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1 text-[11px] text-slate-500">
                   <IconClock size={12} />
                   <span className="font-mono">{c.slaRemaining}</span>
@@ -275,9 +351,24 @@ export function LecturerInboxView({
               {/* Case Summary Card */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
                 <div className="flex items-start justify-between mb-2">
-                  <span className="font-mono text-xs font-bold text-slate-400">
-                    #{selected.id}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-400">
+                      #{selected.id}
+                    </span>
+                    {selected.escalationTarget === "POLICY_VIOLATION" ? (
+                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-rose-100 text-rose-800 border border-rose-300">
+                        Cảnh báo: Vi phạm quy chế (Auditor / Thanh tra)
+                      </span>
+                    ) : selected.escalationTarget === "ACADEMIC_AFFAIRS" ? (
+                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-indigo-100 text-indigo-800 border border-indigo-300">
+                        Thẩm quyền: Phòng Đào tạo & CTSV
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-amber-100 text-amber-800 border border-amber-300">
+                        Thẩm quyền: Giảng viên phụ trách môn học
+                      </span>
+                    )}
+                  </div>
                   <EscalationTagBadge tag={selected.escalationTag} />
                 </div>
                 <h2 className="text-base font-bold text-slate-900 leading-snug mb-3">

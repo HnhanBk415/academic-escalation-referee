@@ -26,6 +26,11 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             role=ActorRole.STUDENT,
         ),
         Actor(id="lecturer-01", display_name="Lecturer 01", role=ActorRole.LECTURER),
+        Actor(
+            id="academic-affairs-01",
+            display_name="Phòng Đào Tạo & CTSV",
+            role=ActorRole.ACADEMIC_AFFAIRS,
+        ),
     ]
     for actor in actors:
         if await session.get(Actor, actor.id) is None:
@@ -83,10 +88,16 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
         if existing is None:
             session.add(GroupMembership(actor_id=actor_id, group_id=group_id))
 
+    from sqlalchemy import func
     from app.ingestion.service import scan_and_sync_documents
+    from app.models import Document
 
-    print("[Seed] Scanning data/sample-documents/ for PDFs and documents...", flush=True)
-    await scan_and_sync_documents(session, provider=embedding_provider)
+    existing_docs = await session.scalar(select(func.count()).select_from(Document))
+    if not existing_docs:
+        print("[Seed] No documents found. Ingesting sample policies from data/sample-documents/...", flush=True)
+        await scan_and_sync_documents(session, provider=embedding_provider)
+    else:
+        print(f"[Seed] Database already contains {existing_docs} document(s). Skipping ingestion.", flush=True)
     await session.commit()
 
 
