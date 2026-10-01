@@ -22,6 +22,7 @@ export interface QuestionResponse {
   route: Route;
   uncertainty_type: string;
   reason_code: string;
+  policy_topic: string | null;
   answer: string | null;
   clarifying_question: string | null;
   case_id: string | null;
@@ -50,7 +51,9 @@ export interface CaseDetail extends CaseSummary {
   original_question: string;
   actor_id: string;
   group_id: string | null;
+  group_name: string | null;
   course_id: string;
+  policy_topic: string | null;
   ai_summary: string;
   citations: Citation[];
 }
@@ -60,15 +63,40 @@ export interface PolicyException {
   course_id: string;
   scope_type: "STUDENT" | "GROUP" | "COURSE";
   scope_id: string;
+  policy_topic: string;
   content: string;
   valid_from: string;
   valid_until: string;
   status: string;
+  effective_status: "ACTIVE" | "UPCOMING" | "EXPIRED" | "REVOKED";
+  is_effective: boolean;
   created_by: string;
   created_at: string;
   revoked_by: string | null;
   revoked_at: string | null;
   revocation_reason: string | null;
+}
+
+export interface GroupExceptionOverview {
+  group_id: string;
+  group_name: string;
+  semester: string;
+  exceptions: PolicyException[];
+}
+
+export interface CourseExceptionOverview {
+  course_id: string;
+  course_code: string;
+  course_name: string;
+  semester: string;
+  course_exceptions: PolicyException[];
+  groups: GroupExceptionOverview[];
+  student_exceptions: PolicyException[];
+}
+
+export interface DashboardCounts {
+  pending_questions: number;
+  under_review_cases: number;
 }
 
 export interface AuditEvent {

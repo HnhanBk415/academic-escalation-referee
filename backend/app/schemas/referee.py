@@ -1,10 +1,12 @@
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.enums import Route, UncertaintyType
+from app.core.enums import PolicyCoverage, Route, UncertaintyType
 
 
 class RefereeDecision(BaseModel):
     route: Route
+    policy_coverage: PolicyCoverage
+    policy_topic: str = Field(min_length=2, max_length=100, pattern=r"^[A-Z][A-Z0-9_]*$")
     uncertainty_type: UncertaintyType
     reason_code: str
     answer: str | None = None
@@ -15,6 +17,19 @@ class RefereeDecision(BaseModel):
 
     @model_validator(mode="after")
     def validate_route_payload(self) -> "RefereeDecision":
+        expected_routes = {
+            PolicyCoverage.DIRECT: Route.ANSWER,
+            PolicyCoverage.CONDITIONAL: Route.ANSWER,
+            PolicyCoverage.APPLICABLE_EXCEPTION: Route.ANSWER,
+            PolicyCoverage.MISSING_FACT: Route.CLARIFY,
+            PolicyCoverage.REQUIRES_APPROVAL: Route.ESCALATE,
+            PolicyCoverage.REQUESTS_WAIVER: Route.ESCALATE,
+            PolicyCoverage.NO_POLICY: Route.ESCALATE,
+            PolicyCoverage.CONFLICTING: Route.ESCALATE,
+            PolicyCoverage.SUSPICIOUS: Route.ESCALATE,
+        }
+        if self.route != expected_routes[self.policy_coverage]:
+            raise ValueError("route is inconsistent with policy_coverage")
         if self.route == Route.ANSWER:
             if not self.answer:
                 raise ValueError("ANSWER requires answer")

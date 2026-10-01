@@ -22,11 +22,12 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 768
     ai_request_timeout_seconds: float = 30
     ai_max_concurrency: int = 1
+    ai_health_cache_seconds: float = 45
 
     rag_top_k: int = 8
     rag_context_chunks: int = 5
     rag_min_score: float = 0.15
-    prompt_version: str = "referee-v1"
+    prompt_version: str = "referee-v2-semantic-routing"
     public_base_url: str = "http://localhost:8000"
     cors_origins_raw: str = Field(
         default="http://localhost:5173,http://localhost:3000,http://localhost,http://localhost:80",

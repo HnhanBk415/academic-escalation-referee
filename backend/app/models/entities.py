@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -112,6 +113,7 @@ class DocumentChunk(Base):
 
 class Question(Base):
     __tablename__ = "questions"
+    __table_args__ = (Index("ix_questions_actor_created", "actor_id", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     actor_id: Mapped[str] = mapped_column(ForeignKey("actors.id"), index=True)
@@ -122,6 +124,7 @@ class Question(Base):
     route: Mapped[str | None] = mapped_column(String(20), nullable=True)
     uncertainty_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     reason_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    policy_topic: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     clarifying_question: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -132,7 +135,10 @@ class Question(Base):
 
 class RetrievalEvidence(Base):
     __tablename__ = "retrieval_evidence"
-    __table_args__ = (UniqueConstraint("question_id", "label"),)
+    __table_args__ = (
+        UniqueConstraint("question_id", "label"),
+        Index("ix_retrieval_evidence_question_rank", "question_id", "rank"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     question_id: Mapped[str] = mapped_column(ForeignKey("questions.id"), index=True)
@@ -145,6 +151,7 @@ class RetrievalEvidence(Base):
 
 class EscalationCase(Base):
     __tablename__ = "escalation_cases"
+    __table_args__ = (Index("ix_escalation_cases_status_created", "status", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     question_id: Mapped[str] = mapped_column(ForeignKey("questions.id"), unique=True)
@@ -183,6 +190,7 @@ class PolicyException(Base):
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
     scope_type: Mapped[str] = mapped_column(String(20), index=True)
     scope_id: Mapped[str] = mapped_column(String(64), index=True)
+    policy_topic: Mapped[str] = mapped_column(String(100), default="GENERAL", index=True)
     content: Mapped[str] = mapped_column(Text)
     valid_from: Mapped[date] = mapped_column(Date)
     valid_until: Mapped[date] = mapped_column(Date)
@@ -196,6 +204,9 @@ class PolicyException(Base):
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_entity_created", "entity_type", "entity_id", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     request_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)

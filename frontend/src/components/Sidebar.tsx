@@ -60,22 +60,22 @@ export function Sidebar({
           </div>
           <div>
             <p className="text-sm font-bold text-white tracking-tight leading-none">AER System</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-medium">Academic Escalation Referee</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium">aer-web.bks.vn</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span className="text-[11px] font-mono text-slate-400">
-            Referee Core · {aiOnline ? "Active" : "Offline"}
-          </span>
+
+        {/* Course Pill Selector */}
+        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/90 border border-slate-800 rounded-lg text-xs font-mono mt-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span className="font-bold text-white">CO3001</span>
+          </div>
+          <span className="text-slate-400 text-[11px] font-medium">HK261</span>
         </div>
       </div>
 
       {/* Role Switcher */}
-      <div className="px-4 py-3.5 border-b border-slate-800/80">
+      <div className="px-4 py-3 border-b border-slate-800/80">
         <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-2 px-1">
           Chế độ
         </p>
@@ -85,7 +85,7 @@ export function Sidebar({
             onClick={() => onSelectRole("student")}
             className={`flex-1 py-1.5 px-2 rounded-md text-xs font-semibold transition-all ${
               role === "student"
-                ? "bg-slate-800 text-white shadow-sm border border-slate-700"
+                ? "bg-[#B91C1C] text-white shadow-sm"
                 : "text-slate-400 hover:text-slate-200"
             }`}
           >
@@ -96,7 +96,7 @@ export function Sidebar({
             onClick={() => onSelectRole("lecturer")}
             className={`flex-1 py-1.5 px-2 rounded-md text-xs font-semibold transition-all ${
               role === "lecturer"
-                ? "bg-slate-800 text-white shadow-sm border border-slate-700"
+                ? "bg-[#B91C1C] text-white shadow-sm"
                 : "text-slate-400 hover:text-slate-200"
             }`}
           >
@@ -114,13 +114,13 @@ export function Sidebar({
             </p>
             <NavItem
               icon={<IconMessageSquare size={16} />}
-              label="Gửi câu hỏi"
+              label="Hỏi đáp quy chế"
               active={activeTab === "submit"}
               onClick={() => onSelectTab("submit")}
             />
             <NavItem
               icon={<IconClipboard size={16} />}
-              label="Câu hỏi của tôi"
+              label="Hồ sơ của tôi"
               active={activeTab === "history"}
               onClick={() => onSelectTab("history")}
               badge={pendingCount > 0 ? pendingCount : undefined}
@@ -168,7 +168,7 @@ export function Sidebar({
             type="button"
             disabled={resetting}
             onClick={handleResetDemo}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-slate-400 hover:text-amber-300 hover:bg-amber-950/20 transition-all border border-dashed border-slate-800 hover:border-amber-700/50 mt-2"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-amber-300 hover:bg-amber-950/20 transition-all border border-dashed border-slate-800 hover:border-amber-700/50 mt-2"
           >
             <span className={resetting ? "animate-spin text-amber-400" : "text-amber-400"}>
               <IconRotateCcw size={15} />
@@ -178,8 +178,13 @@ export function Sidebar({
         </div>
       </nav>
 
+      {/* Version footer */}
+      <div className="px-4 py-2 text-[10px] text-slate-500 font-mono border-t border-slate-900/60">
+        Phiên bản chuẩn mực v2.4
+      </div>
+
       {/* User Footer */}
-      <div className="px-3 py-3.5 border-t border-slate-800/80 bg-[#070A10]">
+      <div className="px-3 py-3 border-t border-slate-800/80 bg-[#070A10]">
         <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 transition-all cursor-pointer group">
           <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-inner">
             {role === "student" ? "NV" : "TM"}
@@ -218,18 +223,22 @@ function NavItem({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all group ${
+      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all group ${
         active
-          ? "bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/60"
+          ? "bg-[#B91C1C] text-white shadow-sm"
           : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
       }`}
     >
-      <span className={active ? "text-[#DC2626]" : "text-slate-400 group-hover:text-slate-200"}>
+      <span className={active ? "text-white" : "text-slate-400 group-hover:text-slate-200"}>
         {icon}
       </span>
       <span className="flex-1 text-left">{label}</span>
       {badge !== undefined && (
-        <span className="min-w-[18px] h-[18px] px-1.5 bg-[#DC2626] text-white rounded-full text-[10px] font-mono font-bold flex items-center justify-center shadow-sm">
+        <span
+          className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-mono font-bold flex items-center justify-center ${
+            active ? "bg-white text-[#B91C1C]" : "bg-[#DC2626] text-white"
+          }`}
+        >
           {badge}
         </span>
       )}

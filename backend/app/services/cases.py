@@ -1,5 +1,5 @@
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import (
@@ -14,10 +14,13 @@ from app.core.errors import AppError
 from app.models import (
     Actor,
     Document,
+    DocumentChunk,
     EscalationCase,
+    Group,
     HumanDecision,
     PolicyException,
     Question,
+    RetrievalEvidence,
 )
 from app.schemas.cases import (
     CaseDecisionCreate,
@@ -59,6 +62,7 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
     if question is None:
         raise AppError("QUESTION_NOT_FOUND", "Không tìm thấy câu hỏi gốc.", status_code=500)
     evidence = await _evidence_for_question(session, question.id)
+    group = await session.get(Group, question.group_id) if question.group_id else None
     citations = [
         CitationResponse(
             label=item["label"],
@@ -82,7 +86,9 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
         original_question=question.text,
         actor_id=question.actor_id,
         group_id=question.group_id,
+        group_name=group.name if group else None,
         course_id=question.course_id,
+        policy_topic=question.policy_topic,
         ai_summary=case.ai_summary,
         citations=citations,
     )
@@ -201,12 +207,48 @@ async def decide_case(
 
     exception_id: str | None = None
     if payload.create_exception and payload.exception:
+        overlapping_exception = await session.scalar(
+            select(PolicyException).where(
+                PolicyException.course_id == payload.exception.course_id,
+                PolicyException.scope_type == payload.exception.scope_type,
+                PolicyException.scope_id == payload.exception.scope_id,
+                PolicyException.policy_topic == (question.policy_topic or "GENERAL"),
+                PolicyException.status == ExceptionStatus.ACTIVE,
+                and_(
+                    PolicyException.valid_from <= payload.exception.valid_until,
+                    PolicyException.valid_until >= payload.exception.valid_from,
+                ),
+            )
+        )
+        if overlapping_exception is not None:
+            raise AppError(
+                "OVERLAPPING_EXCEPTION",
+                "Đã có ngoại lệ chồng thời gian cho cùng phạm vi. "
+                "Hãy thu hồi hoặc điều chỉnh ngoại lệ hiện có.",
+                status_code=409,
+            )
         policy_document = await session.scalar(
-            select(Document).where(
+            select(Document)
+            .join(DocumentChunk, DocumentChunk.document_id == Document.id)
+            .join(RetrievalEvidence, RetrievalEvidence.chunk_id == DocumentChunk.id)
+            .where(
+                RetrievalEvidence.question_id == question.id,
                 Document.course_id == question.course_id,
                 Document.status == DocumentStatus.ACTIVE,
             )
+            .order_by(RetrievalEvidence.rank)
+            .limit(1)
         )
+        if policy_document is None:
+            policy_document = await session.scalar(
+                select(Document)
+                .where(
+                    Document.course_id == question.course_id,
+                    Document.status == DocumentStatus.ACTIVE,
+                )
+                .order_by(Document.created_at.desc())
+                .limit(1)
+            )
         if policy_document is None:
             raise AppError(
                 "ACTIVE_POLICY_NOT_FOUND",
@@ -221,6 +263,7 @@ async def decide_case(
             course_id=payload.exception.course_id,
             scope_type=payload.exception.scope_type,
             scope_id=payload.exception.scope_id,
+            policy_topic=question.policy_topic or "GENERAL",
             content=payload.exception.content,
             valid_from=payload.exception.valid_from,
             valid_until=payload.exception.valid_until,

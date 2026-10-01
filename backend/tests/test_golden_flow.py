@@ -29,6 +29,86 @@ async def test_answer_clarify_and_escalate_routes(client):
 
 
 @pytest.mark.asyncio
+async def test_policy_answer_is_not_escalated_just_because_it_says_exception(client):
+    response = await ask(
+        client,
+        "student-a1",
+        'Nhóm em có "ngoại lệ" là đã sử dụng AI được không ạ?',
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["route"] == "ANSWER"
+    assert body["case_id"] is None
+    assert body["citations"]
+
+
+@pytest.mark.asyncio
+async def test_exception_overview_includes_groups_without_exceptions(client):
+    response = await client.get("/api/v1/exceptions/overview")
+    assert response.status_code == 200, response.text
+    co3001 = next(item for item in response.json() if item["course_id"] == "CO3001")
+    groups = {item["group_id"]: item for item in co3001["groups"]}
+    assert set(groups) == {"group-a", "group-b"}
+    assert groups["group-a"]["exceptions"] == []
+    assert groups["group-b"]["exceptions"] == []
+
+
+@pytest.mark.asyncio
+async def test_overlapping_exceptions_are_blocked_per_policy_topic(client):
+    first_group = await ask(client, "student-a1", "Nhóm em xin phép có 6 thành viên được không?")
+    second_group = await ask(client, "student-a1", "Nhóm em có được có 6 thành viên không?")
+    grade_appeal = await ask(client, "student-a1", "Em muốn phúc khảo điểm trình bày.")
+    assert first_group.json()["route"] == "ESCALATE"
+    assert second_group.json()["route"] == "ESCALATE"
+    assert grade_appeal.json()["route"] == "ESCALATE"
+
+    today = date.today()
+
+    def payload(content: str) -> dict:
+        return {
+            "reviewer_id": "lecturer-01",
+            "decision": "APPROVED",
+            "reason": "Phê duyệt có giới hạn cho nhóm trong kỳ hiện tại.",
+            "create_exception": True,
+            "exception": {
+                "scope_type": "GROUP",
+                "scope_id": "group-a",
+                "course_id": "CO3001",
+                "content": content,
+                "valid_from": today.isoformat(),
+                "valid_until": (today + timedelta(days=30)).isoformat(),
+            },
+        }
+
+    created = await client.post(
+        f"/api/v1/cases/{first_group.json()['case_id']}/decision",
+        json=payload("Nhóm được phép có tối đa 6 thành viên."),
+    )
+    assert created.status_code == 200, created.text
+
+    duplicate_topic = await client.post(
+        f"/api/v1/cases/{second_group.json()['case_id']}/decision",
+        json=payload("Nhóm được phép có tối đa 7 thành viên."),
+    )
+    assert duplicate_topic.status_code == 409, duplicate_topic.text
+    assert duplicate_topic.json()["error"]["code"] == "OVERLAPPING_EXCEPTION"
+
+    different_topic = await client.post(
+        f"/api/v1/cases/{grade_appeal.json()['case_id']}/decision",
+        json=payload("Nhóm được xem xét lại điểm trình bày theo biên bản đính kèm."),
+    )
+    assert different_topic.status_code == 200, different_topic.text
+
+    overview = await client.get("/api/v1/exceptions/overview")
+    co3001 = next(item for item in overview.json() if item["course_id"] == "CO3001")
+    group_a = next(item for item in co3001["groups"] if item["group_id"] == "group-a")
+    assert {item["policy_topic"] for item in group_a["exceptions"]} == {
+        "GROUP_MEMBERSHIP",
+        "GRADE_APPEAL",
+    }
+
+
+@pytest.mark.asyncio
 async def test_scoped_exception_isolated_then_revoked(client):
     escalation = await ask(client, "student-a1", "Nhóm em xin phép có 6 thành viên được không?")
     case_id = escalation.json()["case_id"]

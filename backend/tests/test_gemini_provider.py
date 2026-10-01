@@ -32,6 +32,8 @@ class FakeGeminiModels:
         return SimpleNamespace(
             parsed={
                 "route": "ANSWER",
+                "policy_coverage": "DIRECT",
+                "policy_topic": "GROUP_MEMBERSHIP",
                 "uncertainty_type": "NONE",
                 "reason_code": "POLICY_GROUNDED_ANSWER",
                 "answer": "Mỗi nhóm có từ 3 đến 5 sinh viên.",
