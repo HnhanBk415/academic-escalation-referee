@@ -2,7 +2,7 @@ import hashlib
 import re
 import unicodedata
 
-from app.core.enums import PolicyCoverage, Route, UncertaintyType
+from app.core.enums import EscalationTarget, PolicyCoverage, Route, UncertaintyType
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -188,15 +188,25 @@ class FakeProvider:
                     if policy_requires_approval
                     else PolicyCoverage.REQUESTS_WAIVER
                 )
+                topic = self._policy_topic(question)
+                if topic == "GRADE_APPEAL" or "đổi điểm" in lowered:
+                    target = EscalationTarget.ACADEMIC_AFFAIRS
+                    decision_question = (
+                        "Phòng Đào tạo xác nhận có tiếp nhận hồ sơ phúc khảo / xem xét lại điểm này không?"
+                    )
+                else:
+                    target = EscalationTarget.COURSE_LECTURER
+                    decision_question = (
+                        "Giảng viên có phê duyệt yêu cầu vượt ngoài quy định hiện hành không?"
+                    )
                 return RefereeDecision(
                     route=Route.ESCALATE,
                     policy_coverage=coverage,
-                    policy_topic=self._policy_topic(question),
+                    policy_topic=topic,
                     uncertainty_type=UncertaintyType.AUTHORITY_REQUIRED,
                     reason_code=coverage.value,
-                    decision_question=(
-                        "Giảng viên có phê duyệt yêu cầu vượt ngoài quy định hiện hành không?"
-                    ),
+                    escalation_target=target,
+                    decision_question=decision_question,
                     confidence=1,
                 )
             return RefereeDecision(
@@ -209,13 +219,15 @@ class FakeProvider:
                 citation_labels=[evidence[0]["label"]],
                 confidence=1,
             )
+        topic = self._policy_topic(question)
         return RefereeDecision(
             route=Route.ESCALATE,
             policy_coverage=PolicyCoverage.NO_POLICY,
-            policy_topic=self._policy_topic(question),
+            policy_topic=topic,
             uncertainty_type=UncertaintyType.OUT_OF_POLICY,
             reason_code="INSUFFICIENT_EVIDENCE",
-            decision_question="Giảng viên có thể cung cấp quy định áp dụng cho yêu cầu này không?",
+            escalation_target=EscalationTarget.ACADEMIC_AFFAIRS,
+            decision_question="Phòng Đào tạo / Bộ phận liên quan có tiếp nhận giải đáp thông tin này không?",
             confidence=0,
         )
 
@@ -230,6 +242,8 @@ class FakeProvider:
             return "GRADE_APPEAL"
         if "nộp" in lowered or "hạn" in lowered:
             return "SUBMISSION_DEADLINE"
+        if "ký túc xá" in lowered or "xe" in lowered or "phí" in lowered:
+            return "CAMPUS_LIFE"
         return "GENERAL"
 
     async def health(self) -> AIHealth:

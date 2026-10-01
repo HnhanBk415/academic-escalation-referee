@@ -4,6 +4,13 @@ from enum import StrEnum
 class ActorRole(StrEnum):
     STUDENT = "STUDENT"
     LECTURER = "LECTURER"
+    ACADEMIC_AFFAIRS = "ACADEMIC_AFFAIRS"
+
+
+class EscalationTarget(StrEnum):
+    COURSE_LECTURER = "COURSE_LECTURER"
+    ACADEMIC_AFFAIRS = "ACADEMIC_AFFAIRS"
+    POLICY_VIOLATION = "POLICY_VIOLATION"
 
 
 class DocumentStatus(StrEnum):

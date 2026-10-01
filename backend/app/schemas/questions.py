@@ -31,6 +31,7 @@ class QuestionResponse(BaseModel):
     uncertainty_type: UncertaintyType
     reason_code: str
     policy_topic: str | None = None
+    escalation_target: str | None = None
     answer: str | None
     clarifying_question: str | None
     case_id: str | None

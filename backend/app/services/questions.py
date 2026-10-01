@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.enums import (
     CaseStatus,
     DocumentStatus,
+    EscalationTarget,
     ExceptionStatus,
     PolicyCoverage,
     QuestionStatus,
@@ -204,8 +205,9 @@ def _guardrail_decision(
             policy_topic="SECURITY",
             uncertainty_type=UncertaintyType.SUSPICIOUS_INPUT,
             reason_code="SUSPICIOUS_INPUT",
+            escalation_target=EscalationTarget.POLICY_VIOLATION,
             decision_question=(
-                "Giảng viên có xác nhận yêu cầu này là hợp lệ để tiếp tục xử lý không?"
+                "Phòng Đào tạo xác nhận xử lý vi phạm quy chế hoặc từ chối yêu cầu can thiệp hệ thống này?"
             ),
             confidence=1,
         )
@@ -216,6 +218,7 @@ def _guardrail_decision(
             policy_topic="POLICY_VERSION",
             uncertainty_type=UncertaintyType.CONFLICTING_EVIDENCE,
             reason_code="CONFLICTING_ACTIVE_DOCUMENTS",
+            escalation_target=EscalationTarget.COURSE_LECTURER,
             decision_question=(
                 "Giảng viên xác nhận phiên bản chính sách nào đang có hiệu lực cho học phần?"
             ),
@@ -231,6 +234,7 @@ def _safe_ai_failure() -> RefereeDecision:
         policy_topic="AI_AVAILABILITY",
         uncertainty_type=UncertaintyType.AI_UNAVAILABLE,
         reason_code="AI_UNAVAILABLE",
+        escalation_target=EscalationTarget.COURSE_LECTURER,
         decision_question="Giảng viên có thể xem xét và đưa ra quyết định cho yêu cầu này không?",
         confidence=0,
     )
@@ -386,15 +390,52 @@ async def submit_question(
     else:
         question.status = QuestionStatus.ESCALATED
         terminal_event = "CASE_ESCALATED"
+
+        target = decision.escalation_target
+        if not target:
+            if (
+                decision.policy_coverage == PolicyCoverage.SUSPICIOUS
+                or decision.uncertainty_type == UncertaintyType.SUSPICIOUS_INPUT
+            ):
+                target = EscalationTarget.POLICY_VIOLATION
+            elif (
+                decision.policy_topic in ("GRADE_APPEAL", "COURSE_REGISTRATION", "WITHDRAWAL", "CAMPUS_LIFE")
+                or decision.policy_coverage == PolicyCoverage.NO_POLICY
+            ):
+                target = EscalationTarget.ACADEMIC_AFFAIRS
+            else:
+                target = EscalationTarget.COURSE_LECTURER
+
+        if target == EscalationTarget.POLICY_VIOLATION:
+            assigned_reviewer_id = "academic-affairs-01"
+            ai_summary = f"Cảnh báo vi phạm quy chế đào tạo / can thiệp bất thường: {payload.text}"
+            decision_question = (
+                decision.decision_question
+                or "Phòng Đào tạo xác nhận lập biên bản xử lý vi phạm hoặc bác bỏ yêu cầu này?"
+            )
+        elif target == EscalationTarget.ACADEMIC_AFFAIRS:
+            assigned_reviewer_id = "academic-affairs-01"
+            ai_summary = f"Yêu cầu cấp trường / vượt thẩm quyền giảng viên (chuyển Phòng Đào tạo): {payload.text}"
+            decision_question = (
+                decision.decision_question
+                or "Phòng Đào tạo có tiếp nhận và xử lý yêu cầu học vụ này không?"
+            )
+        else:
+            assigned_reviewer_id = "lecturer-01"
+            ai_summary = f"Yêu cầu ngoại lệ môn học (chuyển Giảng viên): {payload.text}"
+            decision_question = decision.decision_question or "Giảng viên có phê duyệt không?"
+
+        question.escalation_target = target.value
         case = EscalationCase(
             id=new_id("case"),
             question_id=question.id,
             status=CaseStatus.UNDER_REVIEW,
             reason_code=decision.reason_code,
             uncertainty_type=decision.uncertainty_type,
-            ai_summary=f"Yêu cầu được chuyển cho giảng viên: {payload.text}",
-            decision_question=decision.decision_question or "Giảng viên có phê duyệt không?",
-            assigned_reviewer_id="lecturer-01",
+            escalation_target=target.value,
+            ai_summary=ai_summary,
+            decision_question=decision_question,
+            assigned_reviewer_id=assigned_reviewer_id,
         )
         session.add(case)
 
@@ -467,6 +508,7 @@ def _build_question_response(
         uncertainty_type=question.uncertainty_type,
         reason_code=question.reason_code or "UNKNOWN",
         policy_topic=question.policy_topic,
+        escalation_target=(case.escalation_target if case else question.escalation_target),
         answer=question.answer,
         clarifying_question=question.clarifying_question,
         case_id=case.id if case else None,

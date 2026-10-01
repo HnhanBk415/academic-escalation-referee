@@ -46,6 +46,7 @@ async def list_cases(session: AsyncSession, status: CaseStatus | None = None) ->
             status=item.status,
             reason_code=item.reason_code,
             uncertainty_type=item.uncertainty_type,
+            escalation_target=item.escalation_target,
             decision_question=item.decision_question,
             assigned_reviewer_id=item.assigned_reviewer_id,
             created_at=item.created_at,
@@ -80,6 +81,7 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
         status=case.status,
         reason_code=case.reason_code,
         uncertainty_type=case.uncertainty_type,
+        escalation_target=case.escalation_target,
         decision_question=case.decision_question,
         assigned_reviewer_id=case.assigned_reviewer_id,
         created_at=case.created_at,
@@ -96,10 +98,10 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
 
 async def _validate_reviewer(session: AsyncSession, reviewer_id: str) -> Actor:
     reviewer = await session.get(Actor, reviewer_id)
-    if reviewer is None or reviewer.role != ActorRole.LECTURER:
+    if reviewer is None or reviewer.role not in (ActorRole.LECTURER, ActorRole.ACADEMIC_AFFAIRS):
         raise AppError(
             "REVIEWER_NOT_AUTHORIZED",
-            "Chỉ giảng viên demo mới có thể thực hiện thao tác này.",
+            "Chỉ người có thẩm quyền (Giảng viên hoặc Phòng Đào tạo) mới có thể thực hiện thao tác này.",
             status_code=403,
         )
     return reviewer

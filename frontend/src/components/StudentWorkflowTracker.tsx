@@ -66,10 +66,22 @@ export function StudentWorkflowTracker({
               ✓ Giảng viên đã phê duyệt / phản hồi
             </span>
           ) : isEscalate ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-[#DC2626] border border-red-200">
-              <span className="w-2 h-2 rounded-full bg-[#DC2626] animate-ping"></span>
-              👨‍🏫 Chuyển tiếp Giảng viên phụ trách xem xét
-            </span>
+            result?.escalation_target === "POLICY_VIOLATION" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-300">
+                <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
+                🛑 Cảnh báo vi phạm quy chế · Hồ sơ chuyển xác minh
+              </span>
+            ) : result?.escalation_target === "ACADEMIC_AFFAIRS" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping"></span>
+                🏢 Chuyển tiếp Phòng Đào tạo / Khoa thẩm định
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-[#DC2626] border border-red-200">
+                <span className="w-2 h-2 rounded-full bg-[#DC2626] animate-ping"></span>
+                👨‍🏫 Chuyển tiếp Giảng viên phụ trách xem xét
+              </span>
+            )
           ) : isClarify ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
               <span className="w-2 h-2 rounded-full bg-sky-500"></span>
@@ -160,9 +172,19 @@ export function StudentWorkflowTracker({
               ) : isAnswer ? (
                 <span className="text-emerald-700">Phát hiện: Quy chuẩn hợp lệ (Đủ thẩm quyền AI)</span>
               ) : isEscalate ? (
-                <span className="text-red-700 font-semibold">
-                  Phát hiện: Ngoại lệ / Vượt thẩm quyền AI (Chuyển GV)
-                </span>
+                result?.escalation_target === "POLICY_VIOLATION" ? (
+                  <span className="text-rose-700 font-semibold">
+                    Phát hiện: Dấu hiệu vi phạm quy chế / Nghi vấn bảo mật
+                  </span>
+                ) : result?.escalation_target === "ACADEMIC_AFFAIRS" ? (
+                  <span className="text-indigo-700 font-semibold">
+                    Phát hiện: Vượt thẩm quyền giảng viên (Chuyển Phòng Đào tạo)
+                  </span>
+                ) : (
+                  <span className="text-red-700 font-semibold">
+                    Phát hiện: Ngoại lệ thẩm quyền Giảng viên môn học
+                  </span>
+                )
               ) : isClarify ? (
                 <span className="text-sky-700">Phát hiện: Thiếu dữ kiện tình huống cụ thể</span>
               ) : (
@@ -182,7 +204,11 @@ export function StudentWorkflowTracker({
                   : isAnswer
                   ? "bg-[#DC2626] text-white shadow-sm shadow-red-500/20"
                   : isEscalate
-                  ? "bg-[#B91C1C] text-white shadow-sm shadow-red-700/30 animate-pulse"
+                  ? result?.escalation_target === "POLICY_VIOLATION"
+                    ? "bg-rose-700 text-white shadow-sm shadow-rose-700/30 animate-pulse"
+                    : result?.escalation_target === "ACADEMIC_AFFAIRS"
+                    ? "bg-indigo-700 text-white shadow-sm shadow-indigo-700/30 animate-pulse"
+                    : "bg-[#B91C1C] text-white shadow-sm shadow-red-700/30 animate-pulse"
                   : isClarify
                   ? "bg-sky-600 text-white shadow-sm shadow-sky-600/30"
                   : "bg-slate-100 text-slate-400 border border-slate-300"
@@ -209,11 +235,15 @@ export function StudentWorkflowTracker({
             <div className="flex items-center justify-center md:justify-start gap-1.5">
               <h4 className="text-sm font-bold text-slate-900 tracking-tight">
                 {isApproved
-                  ? "Giảng viên đã phản hồi"
+                  ? "Cán bộ/Giảng viên đã phản hồi"
                   : isAnswer
                   ? "AI Trả lời & Trích dẫn"
                   : isEscalate
-                  ? "Giảng viên thụ lý & Duyệt"
+                  ? result?.escalation_target === "POLICY_VIOLATION"
+                    ? "Kiểm tra vi phạm & Lập biên bản"
+                    : result?.escalation_target === "ACADEMIC_AFFAIRS"
+                    ? "Phòng Đào tạo thẩm định"
+                    : "Giảng viên thụ lý & Duyệt"
                   : isClarify
                   ? "AI Yêu cầu làm rõ"
                   : "Thẩm định & Trả lời"}
@@ -225,11 +255,15 @@ export function StudentWorkflowTracker({
 
             <p className="text-xs text-slate-600 mt-0.5 truncate max-w-[280px]">
               {isApproved
-                ? "Quyết định chính thức từ Giảng viên"
+                ? "Quyết định chính thức đã ban hành"
                 : isAnswer
                 ? citationSnippet
                 : isEscalate
-                ? `Hồ sơ #${caseDisplayId} chuyển tiếp Thầy/Cô`
+                ? result?.escalation_target === "POLICY_VIOLATION"
+                  ? `Hồ sơ #${caseDisplayId} chuyển Thanh tra / PĐT`
+                  : result?.escalation_target === "ACADEMIC_AFFAIRS"
+                  ? `Hồ sơ #${caseDisplayId} chuyển Phòng Đào tạo`
+                  : `Hồ sơ #${caseDisplayId} chuyển tiếp Thầy/Cô`
                 : isClarify
                 ? "Chưa đủ dữ kiện đối chiếu quy chế"
                 : "Phản hồi chính thức"}
@@ -237,11 +271,17 @@ export function StudentWorkflowTracker({
 
             <p className="text-[11px] mt-0.5 font-semibold">
               {isApproved ? (
-                <span className="text-purple-700">✓ Ngoại lệ đã được phê duyệt & ghi nhận</span>
+                <span className="text-purple-700">✓ Đã được phê duyệt & ghi nhận ngoại lệ</span>
               ) : isAnswer ? (
                 <span className="text-emerald-700">✓ Đầy đủ căn cứ pháp lý · Trả lời tự động</span>
               ) : isEscalate ? (
-                <span className="text-red-700">⏳ Giảng viên phụ trách xem xét & quyết định</span>
+                result?.escalation_target === "POLICY_VIOLATION" ? (
+                  <span className="text-rose-700">🛑 Ghi nhận nhật ký kiểm toán bất biến & chuyển xử lý</span>
+                ) : result?.escalation_target === "ACADEMIC_AFFAIRS" ? (
+                  <span className="text-indigo-700">⏳ Phòng Đào tạo xem xét & trả lời theo quy chế</span>
+                ) : (
+                  <span className="text-red-700">⏳ Giảng viên phụ trách xem xét & quyết định</span>
+                )
               ) : isClarify ? (
                 <span className="text-sky-700">❓ Chờ sinh viên bổ sung tình huống cụ thể</span>
               ) : (

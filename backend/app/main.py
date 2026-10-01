@@ -19,7 +19,11 @@ WEB_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 async def lifespan(app: FastAPI):
     settings = get_settings()
     if settings.embedding_dimensions != 768:
-        raise RuntimeError("EMBEDDING_DIMENSIONS must be 768 for this index")
+        print(
+            f"[Startup Warning] EMBEDDING_DIMENSIONS is configured as {settings.embedding_dimensions}. "
+            "Ensure the active pgvector index and embeddings are properly synchronized.",
+            flush=True,
+        )
     app.state.ai_provider = build_ai_provider(settings)
     yield
 

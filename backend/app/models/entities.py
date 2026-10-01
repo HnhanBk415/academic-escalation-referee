@@ -125,6 +125,7 @@ class Question(Base):
     uncertainty_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     reason_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     policy_topic: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    escalation_target: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     clarifying_question: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -158,6 +159,7 @@ class EscalationCase(Base):
     status: Mapped[str] = mapped_column(String(40), index=True)
     reason_code: Mapped[str] = mapped_column(String(100))
     uncertainty_type: Mapped[str] = mapped_column(String(40))
+    escalation_target: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     ai_summary: Mapped[str] = mapped_column(Text)
     decision_question: Mapped[str] = mapped_column(Text)
     assigned_reviewer_id: Mapped[str | None] = mapped_column(

@@ -23,6 +23,7 @@ export interface QuestionResponse {
   uncertainty_type: string;
   reason_code: string;
   policy_topic: string | null;
+  escalation_target?: string | null;
   answer: string | null;
   clarifying_question: string | null;
   case_id: string | null;
@@ -42,6 +43,7 @@ export interface CaseSummary {
   status: string;
   reason_code: string;
   uncertainty_type: string;
+  escalation_target?: string | null;
   decision_question: string;
   assigned_reviewer_id: string | null;
   created_at: string;
