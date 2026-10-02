@@ -102,7 +102,13 @@ class GeminiProvider:
         self.settings = settings
         self.client = genai.Client(api_key=settings.gemini_api_key)
         self._semaphore = asyncio.Semaphore(settings.ai_max_concurrency)
-        self._rate_limiter = AsyncRateLimiter(max_calls=14, period_seconds=60.0)
+        self._chat_rate_limiter = AsyncRateLimiter(max_calls=14, period_seconds=60.0)
+        self._embed_rate_limiter = AsyncRateLimiter(max_calls=80, period_seconds=60.0)
+        self._embed_cache: dict[tuple[str, str], list[float]] = {}
+
+    @property
+    def _rate_limiter(self) -> AsyncRateLimiter:
+        return self._chat_rate_limiter
 
     async def embed(
         self,
@@ -112,6 +118,10 @@ class GeminiProvider:
     ) -> list[list[float]]:
         if not texts:
             return []
+        if task_type == "RETRIEVAL_QUERY" and len(texts) == 1:
+            cache_key = (self.settings.gemini_embed_model, texts[0])
+            if cache_key in self._embed_cache:
+                return [self._embed_cache[cache_key]]
         print(
             f"[Gemini Embed] Calling {self.settings.gemini_embed_model} "
             f"for {len(texts)} item(s) (task={task_type})...",
@@ -120,7 +130,7 @@ class GeminiProvider:
 
         last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
-            await self._rate_limiter.acquire()
+            await self._embed_rate_limiter.acquire()
             try:
                 async with self._semaphore:
                     response = await asyncio.wait_for(
@@ -145,6 +155,9 @@ class GeminiProvider:
                     f"of dimension {self.settings.embedding_dimensions}",
                     flush=True,
                 )
+                if task_type == "RETRIEVAL_QUERY" and len(texts) == 1:
+                    cache_key = (self.settings.gemini_embed_model, texts[0])
+                    self._embed_cache[cache_key] = vectors[0]
                 return vectors
             except Exception as error:
                 last_error = error
@@ -183,7 +196,7 @@ class GeminiProvider:
 
         last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
-            await self._rate_limiter.acquire()
+            await self._chat_rate_limiter.acquire()
             max_chars = _MAX_EVIDENCE_CHARS if attempt == 1 else _MAX_EVIDENCE_CHARS_ON_RETRY
             prompt = self._decision_prompt(
                 question,
