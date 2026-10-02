@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     rag_top_k: int = 8
     rag_context_chunks: int = 5
     rag_min_score: float = 0.15
-    prompt_version: str = "referee-v2-semantic-routing"
+    prompt_version: str = "referee-v3-structured-exceptions"
     public_base_url: str = "http://localhost:8000"
     cors_origins_raw: str = Field(
         default="http://localhost:5173,http://localhost:3000,http://localhost,http://localhost:80",

@@ -1,6 +1,12 @@
 import React from "react";
 
-export type CaseStatus = "auto_replied" | "pending_lecturer" | "approved" | "clarify";
+export type CaseStatus =
+  | "auto_replied"
+  | "pending_lecturer"
+  | "approved"
+  | "clarify"
+  | "out_of_scope"
+  | "rejected";
 export type EscalationTag = "OUT_OF_POLICY" | "INSUFFICIENT_EVIDENCE" | string;
 
 export function StatusBadge({ status }: { status: CaseStatus | string }) {
@@ -22,6 +28,20 @@ export function StatusBadge({ status }: { status: CaseStatus | string }) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-sky-50 text-sky-800 border border-sky-200">
         CẦN LÀM RÕ
+      </span>
+    );
+  }
+  if (status === "out_of_scope" || status === "OUT_OF_SCOPE") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-purple-50 text-purple-700 border border-purple-200">
+        NGOÀI PHẠM VI
+      </span>
+    );
+  }
+  if (status === "rejected" || status === "reject" || status === "REJECT" || status === "REJECTED") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-rose-50 text-rose-700 border border-rose-200">
+        BỊ TỪ CHỐI
       </span>
     );
   }

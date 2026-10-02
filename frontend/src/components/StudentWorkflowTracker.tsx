@@ -1,5 +1,5 @@
 import React from "react";
-import { IconCheck, IconSparkle, IconTeacher } from "./Icons";
+import { IconCheck, IconInfo, IconSparkle, IconTeacher, IconX } from "./Icons";
 import type { QuestionResponse } from "../types";
 
 interface StudentWorkflowTrackerProps {
@@ -12,27 +12,26 @@ interface StudentWorkflowTrackerProps {
 export function StudentWorkflowTracker({
   busy = false,
   result = null,
-  submitTime = "14:20",
-  processTime = "14:21",
+  submitTime = "",
+  processTime = "",
 }: StudentWorkflowTrackerProps) {
   // Determine route and step states
   const hasResult = !!result;
+  const isSubmitted = busy || hasResult;
   const isAnswer = result?.route === "ANSWER";
   const isEscalate = result?.route === "ESCALATE";
   const isClarify = result?.route === "CLARIFY";
+  const isOutOfScope = result?.route === "OUT_OF_SCOPE";
+  const isRejected = result?.route === "REJECT";
   const isApproved = !!result?.final_decision;
-
-  const caseDisplayId = result?.case_id
-    ? result.case_id
-    : result?.question_id
-    ? result.question_id.replace(/^q_/, "CASE-").slice(0, 9).toUpperCase()
-    : "CASE-001";
 
   // Citation text for step 3 subtitle
   const citationSnippet =
     result?.citations && result.citations.length > 0
-      ? `${result.citations[0].document_title} ${result.citations[0].heading ? `· ${result.citations[0].heading}` : ""}`
-      : "Trích xuất quy định CO3001 Mục 3.1";
+      ? `${result.citations[0].document_title} ${
+          result.citations[0].heading ? `· ${result.citations[0].heading}` : ""
+        }`
+      : "Trích xuất quy định quy chế hiện hành";
 
   return (
     <div className="w-full bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs relative overflow-hidden transition-all">
@@ -55,6 +54,11 @@ export function StudentWorkflowTracker({
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
               Đang đối soát & phân luồng…
             </span>
+          ) : result?.applied_exception_id ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              ⚡ Đã áp dụng ngoại lệ #{result.applied_exception_id}
+            </span>
           ) : isAnswer ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -66,22 +70,20 @@ export function StudentWorkflowTracker({
               ✓ Giảng viên đã phê duyệt / phản hồi
             </span>
           ) : isEscalate ? (
-            result?.escalation_target === "POLICY_VIOLATION" ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-300">
-                <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
-                🛑 Cảnh báo vi phạm quy chế · Hồ sơ chuyển xác minh
-              </span>
-            ) : result?.escalation_target === "ACADEMIC_AFFAIRS" ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping"></span>
-                🏢 Chuyển tiếp Phòng Đào tạo / Khoa thẩm định
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-[#DC2626] border border-red-200">
-                <span className="w-2 h-2 rounded-full bg-[#DC2626] animate-ping"></span>
-                👨‍🏫 Chuyển tiếp Giảng viên phụ trách xem xét
-              </span>
-            )
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-[#DC2626] border border-red-200">
+              <span className="w-2 h-2 rounded-full bg-[#DC2626] animate-ping"></span>
+              👨‍🏫 Chuyển Giảng viên
+            </span>
+          ) : isOutOfScope ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+              🌐 Ngoài phạm vi — liên hệ đơn vị phụ trách
+            </span>
+          ) : isRejected ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-300">
+              <span className="w-2 h-2 rounded-full bg-rose-600"></span>
+              🛑 Yêu cầu bị từ chối
+            </span>
           ) : isClarify ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
               <span className="w-2 h-2 rounded-full bg-sky-500"></span>
@@ -97,49 +99,57 @@ export function StudentWorkflowTracker({
 
       {/* Horizontal Pipeline Steps */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-        {/* Connecting Line between Step 1 and Step 2 */}
-        <div className="hidden md:block absolute top-5 left-[16%] right-[50%] h-[2px] bg-[#DC2626] z-0" />
-        {/* Connecting Line between Step 2 and Step 3 */}
-        <div
-          className={`hidden md:block absolute top-5 left-[50%] right-[16%] h-[2px] z-0 transition-colors ${
-            hasResult ? "bg-[#DC2626]" : "bg-slate-200"
-          }`}
-        />
-
         {/* ── MILESTONE 1: GỬI CÂU HỎI ── */}
         <div className="relative z-10 flex flex-col items-center md:items-start text-center md:text-left">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-10 h-10 rounded-full bg-[#DC2626] text-white flex items-center justify-center font-bold shadow-sm shadow-red-500/20">
-              <IconCheck size={18} />
+          <div className="flex items-center w-full mb-2">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all flex-shrink-0 z-10 ${
+                isSubmitted
+                  ? "bg-[#DC2626] text-white shadow-sm shadow-red-500/20"
+                  : "bg-slate-100 text-slate-500 border border-slate-300"
+              }`}
+            >
+              {isSubmitted ? (
+                <IconCheck size={18} />
+              ) : (
+                <span className="text-xs font-bold text-slate-500">1</span>
+              )}
             </div>
-            <span className="md:hidden text-xs font-mono font-medium text-slate-400">
-              {submitTime}
-            </span>
+            {/* Seamless connecting line to Step 2 */}
+            <div
+              className={`hidden md:block flex-1 h-[2px] ml-3 -mr-6 z-0 transition-colors ${
+                isSubmitted ? "bg-[#DC2626]" : "bg-slate-200"
+              }`}
+            />
           </div>
 
           <div className="mt-1">
             <div className="flex items-center justify-center md:justify-start gap-1.5">
               <h4 className="text-sm font-bold text-slate-900 tracking-tight">Gửi câu hỏi</h4>
-              <span className="hidden md:inline-block text-[11px] font-mono text-slate-400">
-                {submitTime}
-              </span>
+              {isSubmitted && submitTime && (
+                <span className="text-[11px] font-mono text-slate-400">
+                  {submitTime}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-600 mt-0.5">Sinh viên gửi đề xuất học vụ</p>
             <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
-              Đã tiếp nhận vào hệ thống
+              {isSubmitted ? "Đã tiếp nhận vào hệ thống" : "Chờ gửi câu hỏi"}
             </p>
           </div>
         </div>
 
         {/* ── MILESTONE 2: KIỂM TRA & PHÂN LUỒNG ── */}
         <div className="relative z-10 flex flex-col items-center md:items-start text-center md:text-left">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center w-full mb-2">
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
+              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all flex-shrink-0 z-10 ${
                 busy
                   ? "bg-amber-500 text-white shadow-sm shadow-amber-500/30"
                   : hasResult
-                  ? "bg-[#DC2626] text-white shadow-sm shadow-red-500/20"
+                  ? isRejected
+                    ? "bg-rose-600 text-white shadow-sm shadow-rose-500/20"
+                    : "bg-[#DC2626] text-white shadow-sm shadow-red-500/20"
                   : "bg-slate-100 text-slate-400 border border-slate-300"
               }`}
             >
@@ -148,12 +158,15 @@ export function StudentWorkflowTracker({
               ) : hasResult ? (
                 <IconCheck size={18} />
               ) : (
-                <span className="text-xs font-bold">2</span>
+                <span className="text-xs font-bold text-slate-500">2</span>
               )}
             </div>
-            <span className="md:hidden text-xs font-mono font-medium text-slate-400">
-              {processTime}
-            </span>
+            {/* Seamless connecting line to Step 3 */}
+            <div
+              className={`hidden md:block flex-1 h-[2px] ml-3 -mr-6 z-0 transition-colors ${
+                hasResult ? "bg-[#DC2626]" : "bg-slate-200"
+              }`}
+            />
           </div>
 
           <div className="mt-1">
@@ -161,9 +174,11 @@ export function StudentWorkflowTracker({
               <h4 className="text-sm font-bold text-slate-900 tracking-tight">
                 Kiểm tra & Phân luồng
               </h4>
-              <span className="hidden md:inline-block text-[11px] font-mono text-slate-400">
-                {processTime}
-              </span>
+              {hasResult && processTime && (
+                <span className="text-[11px] font-mono text-slate-400">
+                  {processTime}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-600 mt-0.5">RAG đối chiếu quy chế định mức</p>
             <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
@@ -172,19 +187,17 @@ export function StudentWorkflowTracker({
               ) : isAnswer ? (
                 <span className="text-emerald-700">Phát hiện: Quy chuẩn hợp lệ (Đủ thẩm quyền AI)</span>
               ) : isEscalate ? (
-                result?.escalation_target === "POLICY_VIOLATION" ? (
-                  <span className="text-rose-700 font-semibold">
-                    Phát hiện: Dấu hiệu vi phạm quy chế / Nghi vấn bảo mật
-                  </span>
-                ) : result?.escalation_target === "ACADEMIC_AFFAIRS" ? (
-                  <span className="text-indigo-700 font-semibold">
-                    Phát hiện: Vượt thẩm quyền giảng viên (Chuyển Phòng Đào tạo)
-                  </span>
-                ) : (
-                  <span className="text-red-700 font-semibold">
-                    Phát hiện: Ngoại lệ thẩm quyền Giảng viên môn học
-                  </span>
-                )
+                <span className="text-red-700 font-semibold">
+                  Phát hiện: Ngoại lệ thẩm quyền Giảng viên môn học
+                </span>
+              ) : isOutOfScope ? (
+                <span className="text-purple-700 font-semibold">
+                  Phát hiện: Ngoài phạm vi giải quyết của môn học
+                </span>
+              ) : isRejected ? (
+                <span className="text-rose-700 font-semibold">
+                  Phát hiện: Yêu cầu bị từ chối / Vi phạm quy chế
+                </span>
               ) : isClarify ? (
                 <span className="text-sky-700">Phát hiện: Thiếu dữ kiện tình huống cụ thể</span>
               ) : (
@@ -194,21 +207,21 @@ export function StudentWorkflowTracker({
           </div>
         </div>
 
-        {/* ── MILESTONE 3: AI TRẢ LỜI hoặc GIẢNG VIÊN THỤ LÝ ── */}
+        {/* ── MILESTONE 3: THẨM ĐỊNH & TRẢ LỜI ── */}
         <div className="relative z-10 flex flex-col items-center md:items-start text-center md:text-left">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center w-full mb-2">
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
+              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all flex-shrink-0 z-10 ${
                 isApproved
                   ? "bg-purple-600 text-white shadow-sm shadow-purple-600/30"
                   : isAnswer
                   ? "bg-[#DC2626] text-white shadow-sm shadow-red-500/20"
                   : isEscalate
-                  ? result?.escalation_target === "POLICY_VIOLATION"
-                    ? "bg-rose-700 text-white shadow-sm shadow-rose-700/30 animate-pulse"
-                    : result?.escalation_target === "ACADEMIC_AFFAIRS"
-                    ? "bg-indigo-700 text-white shadow-sm shadow-indigo-700/30 animate-pulse"
-                    : "bg-[#B91C1C] text-white shadow-sm shadow-red-700/30 animate-pulse"
+                  ? "bg-[#B91C1C] text-white shadow-sm shadow-red-700/30 animate-pulse"
+                  : isOutOfScope
+                  ? "bg-purple-600 text-white shadow-sm shadow-purple-600/30"
+                  : isRejected
+                  ? "bg-rose-600 text-white shadow-sm shadow-rose-600/30"
                   : isClarify
                   ? "bg-sky-600 text-white shadow-sm shadow-sky-600/30"
                   : "bg-slate-100 text-slate-400 border border-slate-300"
@@ -220,15 +233,16 @@ export function StudentWorkflowTracker({
                 <IconSparkle size={18} />
               ) : isEscalate ? (
                 <IconTeacher size={18} />
+              ) : isOutOfScope ? (
+                <IconInfo size={18} />
+              ) : isRejected ? (
+                <IconX size={18} />
               ) : isClarify ? (
                 <span className="text-sm font-bold">?</span>
               ) : (
-                <span className="text-xs font-bold">3</span>
+                <span className="text-xs font-bold text-slate-500">3</span>
               )}
             </div>
-            <span className="md:hidden text-xs font-mono font-medium text-slate-400">
-              {isAnswer ? processTime : isEscalate ? "Chờ duyệt" : ""}
-            </span>
           </div>
 
           <div className="mt-1">
@@ -239,17 +253,21 @@ export function StudentWorkflowTracker({
                   : isAnswer
                   ? "AI Trả lời & Trích dẫn"
                   : isEscalate
-                  ? result?.escalation_target === "POLICY_VIOLATION"
-                    ? "Kiểm tra vi phạm & Lập biên bản"
-                    : result?.escalation_target === "ACADEMIC_AFFAIRS"
-                    ? "Phòng Đào tạo thẩm định"
-                    : "Giảng viên thụ lý & Duyệt"
+                  ? "Chuyển Giảng viên"
+                  : isOutOfScope
+                  ? "Ngoài phạm vi môn học"
+                  : isRejected
+                  ? "Yêu cầu bị từ chối"
                   : isClarify
                   ? "AI Yêu cầu làm rõ"
                   : "Thẩm định & Trả lời"}
               </h4>
-              <span className="hidden md:inline-block text-[11px] font-mono text-slate-400">
-                {isAnswer ? processTime : isEscalate ? "SLA 48h" : ""}
+              <span className="text-[11px] font-mono text-slate-400">
+                {isAnswer || isOutOfScope || isRejected
+                  ? processTime
+                  : isEscalate
+                  ? "SLA 48h"
+                  : ""}
               </span>
             </div>
 
@@ -259,11 +277,13 @@ export function StudentWorkflowTracker({
                 : isAnswer
                 ? citationSnippet
                 : isEscalate
-                ? result?.escalation_target === "POLICY_VIOLATION"
-                  ? `Hồ sơ #${caseDisplayId} chuyển Thanh tra / PĐT`
-                  : result?.escalation_target === "ACADEMIC_AFFAIRS"
-                  ? `Hồ sơ #${caseDisplayId} chuyển Phòng Đào tạo`
-                  : `Hồ sơ #${caseDisplayId} chuyển tiếp Thầy/Cô`
+                ? result?.case_id
+                  ? `Hồ sơ #${result.case_id} chuyển tiếp Thầy/Cô`
+                  : "Chuyển tiếp Giảng viên phụ trách"
+                : isOutOfScope
+                ? "Liên hệ đơn vị phụ trách theo hướng dẫn"
+                : isRejected
+                ? "Yêu cầu không phù hợp quy định đào tạo"
                 : isClarify
                 ? "Chưa đủ dữ kiện đối chiếu quy chế"
                 : "Phản hồi chính thức"}
@@ -275,13 +295,11 @@ export function StudentWorkflowTracker({
               ) : isAnswer ? (
                 <span className="text-emerald-700">✓ Đầy đủ căn cứ pháp lý · Trả lời tự động</span>
               ) : isEscalate ? (
-                result?.escalation_target === "POLICY_VIOLATION" ? (
-                  <span className="text-rose-700">🛑 Ghi nhận nhật ký kiểm toán bất biến & chuyển xử lý</span>
-                ) : result?.escalation_target === "ACADEMIC_AFFAIRS" ? (
-                  <span className="text-indigo-700">⏳ Phòng Đào tạo xem xét & trả lời theo quy chế</span>
-                ) : (
-                  <span className="text-red-700">⏳ Giảng viên phụ trách xem xét & quyết định</span>
-                )
+                <span className="text-red-700">⏳ Giảng viên phụ trách xem xét & quyết định</span>
+              ) : isOutOfScope ? (
+                <span className="text-purple-700">🌐 Ngoài phạm vi — liên hệ đơn vị phụ trách</span>
+              ) : isRejected ? (
+                <span className="text-rose-700">🛑 Yêu cầu bị từ chối</span>
               ) : isClarify ? (
                 <span className="text-sky-700">❓ Chờ sinh viên bổ sung tình huống cụ thể</span>
               ) : (

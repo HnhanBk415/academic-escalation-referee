@@ -116,6 +116,8 @@ class Question(Base):
     __table_args__ = (Index("ix_questions_actor_created", "actor_id", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    parent_question_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    clarification_round: Mapped[int] = mapped_column(Integer, default=0)
     actor_id: Mapped[str] = mapped_column(ForeignKey("actors.id"), index=True)
     group_id: Mapped[str | None] = mapped_column(ForeignKey("groups.id"), nullable=True)
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
@@ -125,6 +127,7 @@ class Question(Base):
     uncertainty_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     reason_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     policy_topic: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    applied_exception_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     escalation_target: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     clarifying_question: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -165,6 +168,7 @@ class EscalationCase(Base):
     assigned_reviewer_id: Mapped[str | None] = mapped_column(
         ForeignKey("actors.id"), nullable=True
     )
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

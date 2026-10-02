@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from time import perf_counter
 
 from sqlalchemy import and_, func, or_, select
@@ -19,6 +19,11 @@ from app.core.enums import (
     UncertaintyType,
 )
 from app.core.errors import AppError
+from app.core.policy_topics import (
+    canonical_policy_topic,
+    infer_policy_topic,
+    resolve_policy_topic,
+)
 from app.models import (
     Actor,
     Course,
@@ -58,7 +63,31 @@ SUSPICIOUS_TOKENS = (
     "system prompt",
     "developer message",
 )
-async def _resolve_group(session: AsyncSession, actor_id: str, course_id: str) -> Group | None:
+MAX_CLARIFICATION_ROUNDS = 2
+CASE_SLA_HOURS = 48
+
+
+async def _resolve_group(
+    session: AsyncSession,
+    actor_id: str,
+    course_id: str,
+    selected_group_id: str | None = None,
+) -> Group | None:
+    if selected_group_id:
+        group = await session.get(Group, selected_group_id)
+        if group is None:
+            raise AppError("GROUP_NOT_FOUND", "Không tìm thấy nhóm đã chọn.", status_code=404)
+        if group.course_id != course_id:
+            raise AppError(
+                "GROUP_COURSE_MISMATCH",
+                "Nhóm đã chọn không thuộc môn học này.",
+                status_code=422,
+                details={"course_id": course_id, "group_id": selected_group_id},
+            )
+        return group
+
+    # Backward-compatible path for the existing verification harness. The demo
+    # UI should send group_id explicitly because it has no authenticated user.
     groups = (
         await session.scalars(
             select(Group)
@@ -94,6 +123,7 @@ async def _load_evidence(session: AsyncSession, course_id: str) -> list[dict]:
         {
             "label": f"C{index}",
             "chunk_id": chunk.id,
+            "document_id": document.id,
             "document_title": document.title,
             "page_number": chunk.page_number,
             "heading": chunk.heading,
@@ -152,6 +182,7 @@ async def _load_exceptions(
     return [
         {
             "id": item.id,
+            "course_id": item.course_id,
             "scope_type": item.scope_type,
             "scope_id": item.scope_id,
             "policy_topic": item.policy_topic,
@@ -188,26 +219,63 @@ def _guardrail_decision(
     has_conflicting_evidence: bool,
 ) -> RefereeDecision | None:
     lowered = text.casefold()
-    if not has_group:
+    if any(token in lowered for token in SUSPICIOUS_TOKENS):
+        return RefereeDecision(
+            route=Route.REJECT,
+            policy_coverage=PolicyCoverage.SUSPICIOUS,
+            policy_topic="SECURITY",
+            uncertainty_type=UncertaintyType.SUSPICIOUS_INPUT,
+            reason_code="SUSPICIOUS_INPUT",
+            answer=(
+                "Yêu cầu bị từ chối vì có dấu hiệu can thiệp hệ thống hoặc vi phạm quy định. "
+                "Hệ thống không thực hiện thay đổi dữ liệu, điểm số hay phê duyệt ngoại lệ."
+            ),
+            confidence=1,
+        )
+    topic = infer_policy_topic(text)
+    if any(token in lowered for token in ("thiếu thông tin", "chưa rõ môn", "nhóm nào")):
+        return RefereeDecision(
+            route=Route.CLARIFY,
+            policy_coverage=PolicyCoverage.MISSING_FACT,
+            policy_topic="GENERAL",
+            uncertainty_type=UncertaintyType.MISSING_FACT,
+            reason_code="MISSING_CONCRETE_FACT",
+            clarifying_question="Bạn đang hỏi về nhóm và học kỳ cụ thể nào?",
+            confidence=1,
+        )
+    if (
+        any(
+            token in lowered
+            for token in (
+                "trường hợp này",
+                "việc đó",
+                "cái này",
+                "như thế này",
+                "như vậy có được không",
+            )
+        )
+        and topic == "GENERAL"
+    ):
+        return RefereeDecision(
+            route=Route.CLARIFY,
+            policy_coverage=PolicyCoverage.MISSING_FACT,
+            policy_topic="GENERAL",
+            uncertainty_type=UncertaintyType.MISSING_FACT,
+            reason_code="MISSING_CONCRETE_FACT",
+            clarifying_question=(
+                "Bạn có thể nêu rõ tình huống hoặc quy định cụ thể đang muốn hỏi không?"
+            ),
+            confidence=1,
+        )
+    if not has_group and topic in {"GROUP_MEMBERSHIP", "AI_USAGE"}:
         return RefereeDecision(
             route=Route.CLARIFY,
             policy_coverage=PolicyCoverage.MISSING_FACT,
             policy_topic="GROUP_CONTEXT",
             uncertainty_type=UncertaintyType.MISSING_FACT,
             reason_code="MISSING_GROUP_CONTEXT",
-            clarifying_question="Bạn thuộc nhóm nào trong học phần này?",
-            confidence=1,
-        )
-    if any(token in lowered for token in SUSPICIOUS_TOKENS):
-        return RefereeDecision(
-            route=Route.ESCALATE,
-            policy_coverage=PolicyCoverage.SUSPICIOUS,
-            policy_topic="SECURITY",
-            uncertainty_type=UncertaintyType.SUSPICIOUS_INPUT,
-            reason_code="SUSPICIOUS_INPUT",
-            escalation_target=EscalationTarget.POLICY_VIOLATION,
-            decision_question=(
-                "Phòng Đào tạo xác nhận xử lý vi phạm quy chế hoặc từ chối yêu cầu can thiệp hệ thống này?"
+            clarifying_question=(
+                "Bạn hãy chọn nhóm của mình trong học phần này để mình kiểm tra đúng phạm vi."
             ),
             confidence=1,
         )
@@ -227,13 +295,13 @@ def _guardrail_decision(
     return None
 
 
-def _safe_ai_failure() -> RefereeDecision:
+def _safe_ai_failure(reason_code: str = "AI_UNAVAILABLE") -> RefereeDecision:
     return RefereeDecision(
         route=Route.ESCALATE,
-        policy_coverage=PolicyCoverage.NO_POLICY,
+        policy_coverage=PolicyCoverage.AI_UNAVAILABLE,
         policy_topic="AI_AVAILABILITY",
         uncertainty_type=UncertaintyType.AI_UNAVAILABLE,
-        reason_code="AI_UNAVAILABLE",
+        reason_code=reason_code,
         escalation_target=EscalationTarget.COURSE_LECTURER,
         decision_question="Giảng viên có thể xem xét và đưa ra quyết định cho yêu cầu này không?",
         confidence=0,
@@ -246,6 +314,8 @@ async def submit_question(
     *,
     provider: AIProvider,
     request_id: str | None,
+    parent_question_id: str | None = None,
+    clarification_round: int = 0,
 ) -> QuestionResponse:
     actor = await session.get(Actor, payload.actor_id)
     if actor is None:
@@ -254,9 +324,11 @@ async def submit_question(
     if course is None:
         raise AppError("COURSE_NOT_FOUND", "Không tìm thấy học phần.", status_code=404)
 
-    group = await _resolve_group(session, actor.id, course.id)
+    group = await _resolve_group(session, actor.id, course.id, payload.group_id)
     question = Question(
         id=new_id("q"),
+        parent_question_id=parent_question_id,
+        clarification_round=clarification_round,
         actor_id=actor.id,
         group_id=group.id if group else None,
         course_id=course.id,
@@ -287,6 +359,19 @@ async def submit_question(
             "semester": course.semester,
         },
     )
+    if parent_question_id:
+        add_audit_event(
+            session,
+            event_type="CLARIFICATION_SUBMITTED",
+            actor_id=actor.id,
+            entity_type="question",
+            entity_id=question.id,
+            request_id=request_id,
+            input_snapshot={
+                "parent_question_id": parent_question_id,
+                "round": clarification_round,
+            },
+        )
     # Persist the submitted question and release the database connection before
     # a potentially slow embedding request. The same session can open a fresh
     # transaction when retrieval continues.
@@ -372,7 +457,59 @@ async def submit_question(
                 flush=True,
             )
             decision = _safe_ai_failure()
+
+    if decision.route == Route.CLARIFY and clarification_round >= MAX_CLARIFICATION_ROUNDS:
+        decision = RefereeDecision(
+            route=Route.ESCALATE,
+            policy_coverage=PolicyCoverage.UNRESOLVED,
+            policy_topic=resolve_policy_topic(payload.text, decision.policy_topic),
+            uncertainty_type=UncertaintyType.MISSING_FACT,
+            reason_code="CLARIFICATION_LIMIT_REACHED",
+            escalation_target=EscalationTarget.COURSE_LECTURER,
+            decision_question=(
+                "Thông tin vẫn chưa đủ rõ sau hai lượt bổ sung; "
+                "giảng viên vui lòng xem xét hồ sơ này."
+            ),
+            confidence=0,
+        )
+
+    decision.policy_topic = resolve_policy_topic(payload.text, decision.policy_topic)
+    eligible_exceptions = {item["id"]: item for item in exceptions}
+    if decision.policy_coverage == PolicyCoverage.APPLICABLE_EXCEPTION:
+        exception = eligible_exceptions.get(decision.applied_exception_id or "")
+        expected_scope_ids = {
+            "STUDENT": actor.id,
+            "GROUP": group.id if group else None,
+            "COURSE": course.id,
+        }
+        exception_is_valid = bool(
+            exception
+            and canonical_policy_topic(str(exception.get("policy_topic"))) == decision.policy_topic
+            and exception.get("course_id") == course.id
+            and exception.get("scope_id")
+            == expected_scope_ids.get(str(exception.get("scope_type")))
+            and (
+                canonical_policy_topic(str(exception.get("policy_topic"))) == "GENERAL"
+                or infer_policy_topic(payload.text) == decision.policy_topic
+            )
+        )
+        if not exception_is_valid:
+            ai_failed = True
+            ai_failure_snapshot = {"failure_type": "INVALID_APPLIED_EXCEPTION_REFERENCE"}
+            decision = _safe_ai_failure("INVALID_APPLIED_EXCEPTION_REFERENCE")
+            decision.policy_topic = resolve_policy_topic(payload.text, decision.policy_topic)
+        else:
+            question.applied_exception_id = str(decision.applied_exception_id)
     duration_ms = round((perf_counter() - started) * 1000)
+
+    stored_question = await session.get(Question, question.id)
+    if stored_question is None:
+        raise AppError(
+            "QUESTION_NOT_FOUND",
+            "Câu hỏi không còn tồn tại hoặc phiên làm việc đã được đặt lại.",
+            status_code=409,
+        )
+    question = stored_question
 
     question.route = decision.route
     question.uncertainty_type = decision.uncertainty_type
@@ -387,44 +524,21 @@ async def submit_question(
     elif decision.route == Route.CLARIFY:
         question.status = QuestionStatus.CLARIFICATION_REQUIRED
         terminal_event = "CLARIFICATION_REQUESTED"
+    elif decision.route == Route.OUT_OF_SCOPE:
+        question.status = QuestionStatus.OUT_OF_SCOPE
+        terminal_event = "OUT_OF_SCOPE_RETURNED"
+    elif decision.route == Route.REJECT:
+        question.status = QuestionStatus.REJECTED
+        terminal_event = "REQUEST_REJECTED"
     else:
         question.status = QuestionStatus.ESCALATED
         terminal_event = "CASE_ESCALATED"
 
-        target = decision.escalation_target
-        if not target:
-            if (
-                decision.policy_coverage == PolicyCoverage.SUSPICIOUS
-                or decision.uncertainty_type == UncertaintyType.SUSPICIOUS_INPUT
-            ):
-                target = EscalationTarget.POLICY_VIOLATION
-            elif (
-                decision.policy_topic in ("GRADE_APPEAL", "COURSE_REGISTRATION", "WITHDRAWAL", "CAMPUS_LIFE")
-                or decision.policy_coverage == PolicyCoverage.NO_POLICY
-            ):
-                target = EscalationTarget.ACADEMIC_AFFAIRS
-            else:
-                target = EscalationTarget.COURSE_LECTURER
-
-        if target == EscalationTarget.POLICY_VIOLATION:
-            assigned_reviewer_id = "academic-affairs-01"
-            ai_summary = f"Cảnh báo vi phạm quy chế đào tạo / can thiệp bất thường: {payload.text}"
-            decision_question = (
-                decision.decision_question
-                or "Phòng Đào tạo xác nhận lập biên bản xử lý vi phạm hoặc bác bỏ yêu cầu này?"
-            )
-        elif target == EscalationTarget.ACADEMIC_AFFAIRS:
-            assigned_reviewer_id = "academic-affairs-01"
-            ai_summary = f"Yêu cầu cấp trường / vượt thẩm quyền giảng viên (chuyển Phòng Đào tạo): {payload.text}"
-            decision_question = (
-                decision.decision_question
-                or "Phòng Đào tạo có tiếp nhận và xử lý yêu cầu học vụ này không?"
-            )
-        else:
-            assigned_reviewer_id = "lecturer-01"
-            ai_summary = f"Yêu cầu ngoại lệ môn học (chuyển Giảng viên): {payload.text}"
-            decision_question = decision.decision_question or "Giảng viên có phê duyệt không?"
-
+        # Every request requiring a human decision belongs to the demo lecturer.
+        target = EscalationTarget.COURSE_LECTURER
+        assigned_reviewer_id = "lecturer-01"
+        ai_summary = f"Yêu cầu ngoại lệ môn học (chuyển Giảng viên): {payload.text}"
+        decision_question = decision.decision_question or "Giảng viên có phê duyệt không?"
         question.escalation_target = target.value
         case = EscalationCase(
             id=new_id("case"),
@@ -436,6 +550,7 @@ async def submit_question(
             ai_summary=ai_summary,
             decision_question=decision_question,
             assigned_reviewer_id=assigned_reviewer_id,
+            sla_due_at=datetime.now(UTC) + timedelta(hours=CASE_SLA_HOURS),
         )
         session.add(case)
 
@@ -448,7 +563,7 @@ async def submit_question(
             entity_type="question",
             entity_id=question.id,
             request_id=request_id,
-            reason_code="AI_UNAVAILABLE",
+            reason_code=decision.reason_code,
             model_name=settings.ai_mode,
             prompt_version=settings.prompt_version,
             output_snapshot=ai_failure_snapshot,
@@ -467,6 +582,22 @@ async def submit_question(
         prompt_version=settings.prompt_version,
         duration_ms=duration_ms,
     )
+    if question.applied_exception_id:
+        add_audit_event(
+            session,
+            event_type="EXCEPTION_APPLIED",
+            actor_id=actor.id,
+            entity_type="question",
+            entity_id=question.id,
+            request_id=request_id,
+            output_snapshot={
+                "applied_exception_id": question.applied_exception_id,
+                "policy_topic": question.policy_topic,
+                "course_id": question.course_id,
+                "group_id": question.group_id,
+            },
+            reason_code="APPLICABLE_SCOPED_EXCEPTION",
+        )
     add_audit_event(
         session,
         event_type=terminal_event,
@@ -478,7 +609,13 @@ async def submit_question(
     )
     await session.commit()
     await session.refresh(question)
-    return _build_question_response(question, case, evidence, decision.citation_labels)
+    return _build_question_response(
+        question,
+        case,
+        evidence,
+        decision.citation_labels,
+        applied_exception_id=question.applied_exception_id,
+    )
 
 
 def _build_question_response(
@@ -488,11 +625,13 @@ def _build_question_response(
     labels: list[str],
     final_decision: HumanDecision | None = None,
     exception_id: str | None = None,
+    applied_exception_id: str | None = None,
 ) -> QuestionResponse:
     citations = [
         CitationResponse(
             label=item["label"],
             chunk_id=item["chunk_id"],
+            document_id=item["document_id"],
             document_title=item["document_title"],
             page_number=item["page_number"],
             heading=item["heading"],
@@ -515,10 +654,14 @@ def _build_question_response(
         final_decision=final_decision.decision if final_decision else None,
         final_decision_reason=final_decision.reason if final_decision else None,
         exception_id=exception_id,
+        applied_exception_id=applied_exception_id or question.applied_exception_id,
+        parent_question_id=question.parent_question_id,
+        clarification_round=question.clarification_round,
         citations=citations,
         created_at=question.created_at,
         text=question.text,
         course_id=question.course_id,
+        group_id=question.group_id,
         actor_id=question.actor_id,
     )
 
@@ -553,6 +696,7 @@ async def get_question_response(session: AsyncSession, question_id: str) -> Ques
         [item["label"] for item in evidence],
         final_decision,
         exception_id,
+        question.applied_exception_id,
     )
 
 
@@ -570,6 +714,7 @@ async def _evidence_for_question(session: AsyncSession, question_id: str) -> lis
         {
             "label": record.label,
             "chunk_id": chunk.id,
+            "document_id": document.id,
             "document_title": document.title,
             "page_number": chunk.page_number,
             "heading": chunk.heading,
@@ -585,6 +730,7 @@ async def list_questions_response(
     *,
     actor_id: str | None = None,
     course_id: str | None = None,
+    group_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[QuestionResponse]:
@@ -593,6 +739,8 @@ async def list_questions_response(
         stmt = stmt.where(Question.actor_id == actor_id)
     if course_id:
         stmt = stmt.where(Question.course_id == course_id)
+    if group_id:
+        stmt = stmt.where(Question.group_id == group_id)
     questions = (await session.scalars(stmt)).all()
     if not questions:
         return []
@@ -646,6 +794,7 @@ async def list_questions_response(
                 [item["label"] for item in evidence],
                 final_decision,
                 exception.id if exception else None,
+                question.applied_exception_id,
             )
         )
     return results
@@ -669,6 +818,7 @@ async def _evidence_for_questions(
             {
                 "label": record.label,
                 "chunk_id": chunk.id,
+                "document_id": document.id,
                 "document_title": document.title,
                 "page_number": chunk.page_number,
                 "heading": chunk.heading,

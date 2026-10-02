@@ -1,8 +1,9 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.enums import CaseStatus, DecisionValue, ScopeType
+from app.core.policy_topics import canonical_policy_topic
 from app.schemas.questions import CitationResponse
 
 
@@ -11,6 +12,7 @@ class ExceptionCreate(BaseModel):
     scope_id: str
     course_id: str
     content: str = Field(min_length=3, max_length=4000)
+    policy_topic: str | None = Field(default=None, min_length=2, max_length=100)
     valid_from: date
     valid_until: date
 
@@ -18,6 +20,8 @@ class ExceptionCreate(BaseModel):
     def validate_period(self) -> "ExceptionCreate":
         if self.valid_until < self.valid_from:
             raise ValueError("valid_until must not be before valid_from")
+        if self.policy_topic is not None:
+            self.policy_topic = canonical_policy_topic(self.policy_topic)
         return self
 
 
@@ -30,6 +34,14 @@ class CaseDecisionCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_exception(self) -> "CaseDecisionCreate":
+        if self.decision == DecisionValue.FORWARDED:
+            raise ValueError("The demo lecturer must approve or reject; forwarding is disabled")
+        if self.exception is not None:
+            if self.decision != DecisionValue.APPROVED:
+                raise ValueError("Only APPROVED decisions may create an exception")
+            # Supplying exception details is the explicit save action. Do not
+            # silently discard them because a client omitted the legacy flag.
+            self.create_exception = True
         if self.create_exception:
             if self.decision != DecisionValue.APPROVED:
                 raise ValueError("Only APPROVED decisions may create an exception")
@@ -53,6 +65,17 @@ class CaseSummary(BaseModel):
     decision_question: str
     assigned_reviewer_id: str | None
     created_at: datetime
+    sla_due_at: datetime | None = None
+    sla_overdue: bool = False
+
+    @field_validator("created_at", "sla_due_at", mode="after")
+    @classmethod
+    def normalize_timestamps_to_utc(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
 
 class CaseDetail(CaseSummary):

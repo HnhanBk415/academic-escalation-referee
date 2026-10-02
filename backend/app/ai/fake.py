@@ -3,6 +3,11 @@ import re
 import unicodedata
 
 from app.core.enums import EscalationTarget, PolicyCoverage, Route, UncertaintyType
+from app.core.policy_topics import (
+    canonical_policy_topic,
+    infer_policy_topic,
+    policy_topics_in_text,
+)
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -100,38 +105,27 @@ class FakeProvider:
         applicable_exceptions: list[dict],
     ) -> RefereeDecision:
         lowered = question.casefold()
-        question_tokens = {
-            token for token in re.findall(r"\w+", lowered, flags=re.UNICODE) if len(token) > 2
-        }
+        topic = infer_policy_topic(question)
         relevant_exceptions = [
             item
             for item in applicable_exceptions
-            if len(
-                question_tokens
-                & {
-                    token
-                    for token in re.findall(
-                        r"\w+", str(item.get("content", "")).casefold(), flags=re.UNICODE
-                    )
-                    if len(token) > 2
-                }
-            )
-            >= 2
+            if canonical_policy_topic(str(item.get("policy_topic", "GENERAL"))) == topic
         ]
         if relevant_exceptions:
             exception = relevant_exceptions[0]
             return RefereeDecision(
                 route=Route.ANSWER,
                 policy_coverage=PolicyCoverage.APPLICABLE_EXCEPTION,
-                policy_topic=self._policy_topic(question),
+                policy_topic=topic,
                 uncertainty_type=UncertaintyType.NONE,
                 reason_code="APPLICABLE_SCOPED_EXCEPTION",
                 answer=(
                     "Theo ngoại lệ đang có hiệu lực cho phạm vi của bạn: "
                     f"{exception['content']}"
                 ),
-                citation_labels=[evidence[0]["label"]],
+                citation_labels=[evidence[0]["label"]] if evidence else [],
                 confidence=1,
+                applied_exception_id=str(exception["id"]),
             )
         if any(token in lowered for token in ("thiếu thông tin", "chưa rõ môn", "nhóm nào")):
             return RefereeDecision(
@@ -155,15 +149,21 @@ class FakeProvider:
             )
         if evidence:
             evidence_text = " ".join(str(item.get("content", "")) for item in evidence).casefold()
+            evidence_topics = policy_topics_in_text(evidence_text)
             requests_decision = any(
                 token in lowered
                 for token in (
                     "xin phép",
                     "xin ngoại lệ",
+                    "xin gia hạn",
+                    "xin miễn",
                     "muốn phúc khảo",
                     "muốn đổi điểm",
+                    "phúc khảo",
+                    "đổi điểm",
+                    "xem xét lại điểm",
                     "cho nhóm em",
-                    "cho em",
+                    "cho team em",
                 )
             )
             policy_requires_approval = any(
@@ -176,29 +176,20 @@ class FakeProvider:
             )
             exceeds_group_limit = bool(
                 re.search(r"\b(?:6|sáu|7|bảy|8|tám|9|chín|10|mười)\b", lowered)
-                and "thành viên" in lowered
+                and topic == "GROUP_MEMBERSHIP"
                 and "3 đến 5" in evidence_text
             )
-            requests_late_waiver = "nộp" in lowered and "trễ" in lowered and "ngoại lệ" in lowered
-            if (
-                requests_decision and (policy_requires_approval or requests_late_waiver)
-            ) or exceeds_group_limit:
+            if requests_decision or exceeds_group_limit:
                 coverage = (
                     PolicyCoverage.REQUIRES_APPROVAL
                     if policy_requires_approval
                     else PolicyCoverage.REQUESTS_WAIVER
                 )
                 topic = self._policy_topic(question)
-                if topic == "GRADE_APPEAL" or "đổi điểm" in lowered:
-                    target = EscalationTarget.ACADEMIC_AFFAIRS
-                    decision_question = (
-                        "Phòng Đào tạo xác nhận có tiếp nhận hồ sơ phúc khảo / xem xét lại điểm này không?"
-                    )
-                else:
-                    target = EscalationTarget.COURSE_LECTURER
-                    decision_question = (
-                        "Giảng viên có phê duyệt yêu cầu vượt ngoài quy định hiện hành không?"
-                    )
+                target = EscalationTarget.COURSE_LECTURER
+                decision_question = (
+                    "Giảng viên có phê duyệt yêu cầu vượt ngoài quy định hiện hành không?"
+                )
                 return RefereeDecision(
                     route=Route.ESCALATE,
                     policy_coverage=coverage,
@@ -209,42 +200,38 @@ class FakeProvider:
                     decision_question=decision_question,
                     confidence=1,
                 )
+            if topic != "GENERAL" and topic not in evidence_topics:
+                return self._no_policy_decision(topic)
             return RefereeDecision(
                 route=Route.ANSWER,
                 policy_coverage=PolicyCoverage.DIRECT,
-                policy_topic=self._policy_topic(question),
+                policy_topic=topic,
                 uncertainty_type=UncertaintyType.NONE,
                 reason_code="POLICY_GROUNDED_EXTRACTIVE_ANSWER",
                 answer=self._extractive_answer(question, evidence),
                 citation_labels=[evidence[0]["label"]],
                 confidence=1,
             )
-        topic = self._policy_topic(question)
+        return self._no_policy_decision(topic)
+
+    @staticmethod
+    def _no_policy_decision(topic: str) -> RefereeDecision:
         return RefereeDecision(
             route=Route.ESCALATE,
             policy_coverage=PolicyCoverage.NO_POLICY,
             policy_topic=topic,
             uncertainty_type=UncertaintyType.OUT_OF_POLICY,
-            reason_code="INSUFFICIENT_EVIDENCE",
-            escalation_target=EscalationTarget.ACADEMIC_AFFAIRS,
-            decision_question="Phòng Đào tạo / Bộ phận liên quan có tiếp nhận giải đáp thông tin này không?",
+            reason_code="NO_POLICY_MATCH",
+            escalation_target=EscalationTarget.COURSE_LECTURER,
+            decision_question=(
+                "Giảng viên có thể xem xét và quyết định yêu cầu này theo phạm vi môn học không?"
+            ),
             confidence=0,
         )
 
     @staticmethod
     def _policy_topic(question: str) -> str:
-        lowered = question.casefold()
-        if "ai" in lowered or "trí tuệ nhân tạo" in lowered:
-            return "AI_USAGE"
-        if "thành viên" in lowered or "nhóm" in lowered:
-            return "GROUP_MEMBERSHIP"
-        if "điểm" in lowered or "phúc khảo" in lowered:
-            return "GRADE_APPEAL"
-        if "nộp" in lowered or "hạn" in lowered:
-            return "SUBMISSION_DEADLINE"
-        if "ký túc xá" in lowered or "xe" in lowered or "phí" in lowered:
-            return "CAMPUS_LIFE"
-        return "GENERAL"
+        return infer_policy_topic(question)
 
     async def health(self) -> AIHealth:
         return AIHealth(mode="fake", available=True, model="deterministic-fake-v1")

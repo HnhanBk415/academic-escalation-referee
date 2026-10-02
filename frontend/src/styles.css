@@ -491,8 +491,9 @@ button:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
 }
 .badge-answer, .badge-approved, .badge-active, .badge-pass { color: #065f46; background: var(--green-light); border: 1px solid var(--green-border); }
 .badge-clarify, .badge-waiting-for-student, .badge-need-more-info { color: #92400e; background: var(--amber-light); border: 1px solid var(--amber-border); }
-.badge-escalate, .badge-rejected, .badge-revoked, .badge-cancelled, .badge-fail { color: #991b1b; background: var(--red-light); border: 1px solid var(--red-border); }
+.badge-escalate, .badge-reject, .badge-rejected, .badge-revoked, .badge-cancelled, .badge-fail { color: #991b1b; background: var(--red-light); border: 1px solid var(--red-border); }
 .badge-under-review, .badge-forwarded { color: #1e40af; background: var(--blue-light); border: 1px solid var(--blue-border); }
+.badge-out-of-scope { color: #5b21b6; background: #f5f3ff; border: 1px solid #ddd6fe; }
 
 /* ============================================================
    STEP TRACKER

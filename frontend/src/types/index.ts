@@ -1,4 +1,9 @@
-export type Route = "ANSWER" | "CLARIFY" | "ESCALATE";
+export type Route =
+  | "ANSWER"
+  | "CLARIFY"
+  | "ESCALATE"
+  | "OUT_OF_SCOPE"
+  | "REJECT";
 
 export interface AIHealth {
   mode: string;
@@ -10,10 +15,32 @@ export interface AIHealth {
 export interface Citation {
   label: string;
   chunk_id: string;
+  document_id: string;
   document_title: string;
   page_number: number | null;
   heading: string | null;
   quote: string;
+}
+
+export interface DemoGroup {
+  id: string;
+  name: string;
+}
+
+export interface DemoCourse {
+  id: string;
+  code: string;
+  name: string;
+  semester: string;
+  groups: DemoGroup[];
+}
+
+export interface DemoCatalog {
+  lecturer: {
+    id: string;
+    display_name: string;
+  };
+  courses: DemoCourse[];
 }
 
 export interface QuestionResponse {
@@ -30,11 +57,15 @@ export interface QuestionResponse {
   final_decision: string | null;
   final_decision_reason: string | null;
   exception_id: string | null;
+  applied_exception_id?: string | null;
+  parent_question_id?: string | null;
+  clarification_round?: number;
   citations: Citation[];
   created_at: string;
-  text?: string;
-  course_id?: string;
-  actor_id?: string;
+  text?: string | null;
+  course_id?: string | null;
+  group_id?: string | null;
+  actor_id?: string | null;
 }
 
 export interface CaseSummary {
@@ -47,6 +78,8 @@ export interface CaseSummary {
   decision_question: string;
   assigned_reviewer_id: string | null;
   created_at: string;
+  sla_due_at?: string | null;
+  sla_overdue?: boolean;
 }
 
 export interface CaseDetail extends CaseSummary {
@@ -58,6 +91,32 @@ export interface CaseDetail extends CaseSummary {
   policy_topic: string | null;
   ai_summary: string;
   citations: Citation[];
+}
+
+export interface DecisionResponse {
+  decision_id: string;
+  case_id: string;
+  status: string;
+  decision: "APPROVED" | "REJECTED";
+  exception_id: string | null;
+}
+
+export interface ExceptionCreatePayload {
+  scope_type: "GROUP" | "STUDENT" | "COURSE";
+  scope_id: string;
+  course_id: string;
+  policy_topic?: string | null;
+  content: string;
+  valid_from: string;
+  valid_until: string;
+}
+
+export interface CaseDecisionCreate {
+  reviewer_id: string;
+  decision: "APPROVED" | "REJECTED";
+  reason: string;
+  create_exception?: boolean;
+  exception?: ExceptionCreatePayload | null;
 }
 
 export interface PolicyException {

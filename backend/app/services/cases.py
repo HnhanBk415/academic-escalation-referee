@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from app.core.enums import (
     ScopeType,
 )
 from app.core.errors import AppError
+from app.core.policy_topics import canonical_policy_topic
 from app.models import (
     Actor,
     Document,
@@ -34,6 +36,15 @@ from app.services.ids import new_id
 from app.services.questions import _evidence_for_question
 
 
+def _sla_is_overdue(case: EscalationCase) -> bool:
+    if not case.sla_due_at or case.status in (CaseStatus.DECIDED, CaseStatus.CANCELLED):
+        return False
+    due_at = case.sla_due_at
+    if due_at.tzinfo is None:
+        due_at = due_at.replace(tzinfo=UTC)
+    return due_at < datetime.now(UTC)
+
+
 async def list_cases(session: AsyncSession, status: CaseStatus | None = None) -> list[CaseSummary]:
     statement = select(EscalationCase).order_by(EscalationCase.created_at.desc())
     if status:
@@ -50,6 +61,8 @@ async def list_cases(session: AsyncSession, status: CaseStatus | None = None) ->
             decision_question=item.decision_question,
             assigned_reviewer_id=item.assigned_reviewer_id,
             created_at=item.created_at,
+            sla_due_at=item.sla_due_at,
+            sla_overdue=_sla_is_overdue(item),
         )
         for item in cases
     ]
@@ -68,6 +81,7 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
         CitationResponse(
             label=item["label"],
             chunk_id=item["chunk_id"],
+            document_id=item["document_id"],
             document_title=item["document_title"],
             page_number=item["page_number"],
             heading=item["heading"],
@@ -85,6 +99,8 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
         decision_question=case.decision_question,
         assigned_reviewer_id=case.assigned_reviewer_id,
         created_at=case.created_at,
+        sla_due_at=case.sla_due_at,
+        sla_overdue=_sla_is_overdue(case),
         original_question=question.text,
         actor_id=question.actor_id,
         group_id=question.group_id,
@@ -98,10 +114,10 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
 
 async def _validate_reviewer(session: AsyncSession, reviewer_id: str) -> Actor:
     reviewer = await session.get(Actor, reviewer_id)
-    if reviewer is None or reviewer.role not in (ActorRole.LECTURER, ActorRole.ACADEMIC_AFFAIRS):
+    if reviewer is None or reviewer.role != ActorRole.LECTURER or reviewer.id != "lecturer-01":
         raise AppError(
             "REVIEWER_NOT_AUTHORIZED",
-            "Chỉ người có thẩm quyền (Giảng viên hoặc Phòng Đào tạo) mới có thể thực hiện thao tác này.",
+            "Chỉ giảng viên phụ trách lecturer-01 mới có thể xử lý hồ sơ demo.",
             status_code=403,
         )
     return reviewer
@@ -113,6 +129,13 @@ def _validate_exception_scope(payload: CaseDecisionCreate, question: Question) -
         return
     if exception.course_id != question.course_id:
         raise AppError("INVALID_EXCEPTION_SCOPE", "Ngoại lệ không thuộc học phần của câu hỏi.")
+    if exception.policy_topic and exception.policy_topic != canonical_policy_topic(
+        question.policy_topic
+    ):
+        raise AppError(
+            "INVALID_EXCEPTION_TOPIC",
+            "Chủ đề ngoại lệ phải trùng với chủ đề của yêu cầu được duyệt.",
+        )
     expected_scope_ids = {
         ScopeType.STUDENT: question.actor_id,
         ScopeType.GROUP: question.group_id,
@@ -134,6 +157,12 @@ async def decide_case(
     request_id: str | None,
 ) -> DecisionResponse:
     await _validate_reviewer(session, payload.reviewer_id)
+    if payload.decision == DecisionValue.FORWARDED:
+        raise AppError(
+            "FORWARDING_DISABLED",
+            "Giảng viên xử lý bằng cách duyệt hoặc từ chối; demo không chuyển tiếp hồ sơ.",
+            status_code=422,
+        )
     if idempotency_key:
         existing = await session.scalar(
             select(HumanDecision).where(HumanDecision.idempotency_key == idempotency_key)
@@ -166,6 +195,12 @@ async def decide_case(
         raise AppError("CASE_CANCELLED", "Hồ sơ đã bị hủy.", status_code=409)
     if case.status == CaseStatus.DECIDED:
         raise AppError("CASE_ALREADY_DECIDED", "Hồ sơ đã có quyết định.", status_code=409)
+    if case.assigned_reviewer_id and case.assigned_reviewer_id != payload.reviewer_id:
+        raise AppError(
+            "CASE_REVIEWER_MISMATCH",
+            "Hồ sơ này được phân công cho giảng viên khác.",
+            status_code=403,
+        )
     question = await session.get(Question, case.question_id)
     if question is None:
         raise AppError("QUESTION_NOT_FOUND", "Không tìm thấy câu hỏi gốc.", status_code=500)
@@ -182,8 +217,6 @@ async def decide_case(
     session.add(decision)
     if payload.decision == DecisionValue.NEED_MORE_INFO:
         case.status = CaseStatus.WAITING_FOR_STUDENT
-    elif payload.decision == DecisionValue.FORWARDED:
-        case.status = CaseStatus.FORWARDED
     else:
         case.status = CaseStatus.DECIDED
     add_audit_event(
@@ -214,7 +247,7 @@ async def decide_case(
                 PolicyException.course_id == payload.exception.course_id,
                 PolicyException.scope_type == payload.exception.scope_type,
                 PolicyException.scope_id == payload.exception.scope_id,
-                PolicyException.policy_topic == (question.policy_topic or "GENERAL"),
+                PolicyException.policy_topic == canonical_policy_topic(question.policy_topic),
                 PolicyException.status == ExceptionStatus.ACTIVE,
                 and_(
                     PolicyException.valid_from <= payload.exception.valid_until,
@@ -265,7 +298,7 @@ async def decide_case(
             course_id=payload.exception.course_id,
             scope_type=payload.exception.scope_type,
             scope_id=payload.exception.scope_id,
-            policy_topic=question.policy_topic or "GENERAL",
+            policy_topic=canonical_policy_topic(question.policy_topic),
             content=payload.exception.content,
             valid_from=payload.exception.valid_from,
             valid_until=payload.exception.valid_until,
@@ -332,4 +365,6 @@ async def cancel_case(
         decision_question=case.decision_question,
         assigned_reviewer_id=case.assigned_reviewer_id,
         created_at=case.created_at,
+        sla_due_at=case.sla_due_at,
+        sla_overdue=_sla_is_overdue(case),
     )
