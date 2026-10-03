@@ -13,7 +13,7 @@ export function ExceptionsView() {
     setLoading(true);
     setError("");
     try {
-      const data = await api<CourseExceptionOverview[]>("/api/exceptions/overview");
+      const data = await api<CourseExceptionOverview[]>("/api/v1/exceptions/overview");
       setCourses(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải ngoại lệ.");
@@ -30,7 +30,7 @@ export function ExceptionsView() {
     const reason = window.prompt("Lý do thu hồi ngoại lệ:");
     if (!reason) return;
     try {
-      await postJson(`/api/exceptions/${item.id}/revoke`, {
+      await postJson(`/api/v1/exceptions/${item.id}/revoke`, {
         actor_id: "lecturer-01",
         reason,
       });

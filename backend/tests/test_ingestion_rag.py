@@ -132,7 +132,8 @@ async def test_unrelated_question_does_not_receive_definitive_answer(client):
     assert response.status_code == 201, response.text
     assert response.json()["route"] == "ESCALATE"
     assert response.json()["uncertainty_type"] == "OUT_OF_POLICY"
-    assert response.json()["answer"] is None
+    assert response.json()["escalation_target"] == "COURSE_LECTURER"
+    assert response.json()["case_id"]
 
 
 @pytest.mark.asyncio

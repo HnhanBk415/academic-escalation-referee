@@ -1,13 +1,20 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
+let lastRequestId: string | null = null;
+
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly status: number
+    public readonly status: number,
+    public readonly requestId?: string | null
   ) {
     super(message);
   }
+}
+
+export function getLastRequestId(): string | null {
+  return lastRequestId;
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -19,13 +26,18 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers
   });
+  const reqId = response.headers.get("x-request-id");
+  if (reqId) {
+    lastRequestId = reqId;
+  }
   const contentType = response.headers.get("content-type") ?? "";
   const body = contentType.includes("application/json") ? await response.json() : null;
   if (!response.ok) {
     throw new ApiError(
       body?.error?.message ?? body?.detail ?? "Yêu cầu không thành công.",
       body?.error?.code ?? "UNKNOWN_ERROR",
-      response.status
+      response.status,
+      reqId
     );
   }
   return body as T;
@@ -33,3 +45,4 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const postJson = <T>(path: string, payload: unknown, headers?: HeadersInit) =>
   api<T>(path, { method: "POST", body: JSON.stringify(payload), headers });
+

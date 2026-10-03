@@ -102,7 +102,7 @@ async def _postgres_vector_search(
     statement = text(
         """
         SELECT dc.id AS chunk_id, dc.content, dc.content_hash, dc.heading, dc.page_number,
-               d.title AS document_title,
+               d.id AS document_id, d.title AS document_title,
                1 - (dc.embedding <=> CAST(:embedding AS vector)) AS score
         FROM document_chunks dc
         JOIN documents d ON d.id = dc.document_id
@@ -153,6 +153,7 @@ async def _portable_vector_search(
                 "content_hash": chunk.content_hash,
                 "heading": chunk.heading,
                 "page_number": chunk.page_number,
+                "document_id": document.id,
                 "document_title": document.title,
                 "score": _cosine(chunk.embedding, vector),
             }
@@ -179,6 +180,7 @@ async def _keyword_fallback(
                     "content_hash": chunk.content_hash,
                     "heading": chunk.heading,
                     "page_number": chunk.page_number,
+                    "document_id": document.id,
                     "document_title": document.title,
                     "score": score,
                 }

@@ -13,6 +13,7 @@ from app.models import Actor, Course, Group, GroupMembership
 async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -> None:
     embedding_provider = provider or build_ai_provider()
     actors = [
+        Actor(id="demo-student", display_name="Sinh viên demo", role=ActorRole.STUDENT),
         Actor(id="student-a1", display_name="Student A1", role=ActorRole.STUDENT),
         Actor(id="student-b1", display_name="Student B1", role=ActorRole.STUDENT),
         Actor(
@@ -25,11 +26,18 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             display_name="Student DADN B1",
             role=ActorRole.STUDENT,
         ),
-        Actor(id="lecturer-01", display_name="Lecturer 01", role=ActorRole.LECTURER),
+        Actor(
+            id="lecturer-01",
+            display_name="TS. Trần Minh Tuấn",
+            role=ActorRole.LECTURER,
+        ),
     ]
     for actor in actors:
-        if await session.get(Actor, actor.id) is None:
+        existing_actor = await session.get(Actor, actor.id)
+        if existing_actor is None:
             session.add(actor)
+        elif actor.id == "lecturer-01":
+            existing_actor.display_name = actor.display_name
 
     if await session.get(Course, "CO3001") is None:
         session.add(
@@ -83,10 +91,25 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
         if existing is None:
             session.add(GroupMembership(actor_id=actor_id, group_id=group_id))
 
-    from app.ingestion.service import scan_and_sync_documents
+    from sqlalchemy import func
 
-    print("[Seed] Scanning data/sample-documents/ for PDFs and documents...", flush=True)
-    await scan_and_sync_documents(session, provider=embedding_provider)
+    from app.ingestion.service import scan_and_sync_documents
+    from app.models import Document
+
+    existing_docs = await session.scalar(select(func.count()).select_from(Document))
+    if not existing_docs:
+        print(
+            "[Seed] No documents found. "
+            "Ingesting sample policies from data/sample-documents/...",
+            flush=True,
+        )
+        await scan_and_sync_documents(session, provider=embedding_provider)
+    else:
+        print(
+            f"[Seed] Database already contains {existing_docs} document(s). "
+            "Skipping ingestion.",
+            flush=True,
+        )
     await session.commit()
 
 

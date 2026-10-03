@@ -39,8 +39,9 @@ USER aer
 
 EXPOSE 8000
 
-# Run only schema migrations during web startup. Seeding/ingestion is an explicit
-# one-off operation so a slow AI provider cannot delay API availability.
+# Run schema migrations and idempotent seed on startup with fallback,
+# ensuring initial policy documents and actors are ready immediately.
 CMD ["sh", "-c", \
   "python -m alembic upgrade head && \
+   (python -m app.db.seed || true) && \
    python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

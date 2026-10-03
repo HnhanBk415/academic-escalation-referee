@@ -32,7 +32,7 @@ def add_audit_event(
         entity_id=entity_id,
         input_snapshot=input_snapshot or {},
         output_snapshot=output_snapshot or {},
-        reason_code=reason_code,
+        reason_code=reason_code[:100] if reason_code else None,
         evidence_ids=evidence_ids or [],
         model_name=model_name,
         prompt_version=prompt_version,

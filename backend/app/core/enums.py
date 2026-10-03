@@ -4,6 +4,13 @@ from enum import StrEnum
 class ActorRole(StrEnum):
     STUDENT = "STUDENT"
     LECTURER = "LECTURER"
+    ACADEMIC_AFFAIRS = "ACADEMIC_AFFAIRS"
+
+
+class EscalationTarget(StrEnum):
+    COURSE_LECTURER = "COURSE_LECTURER"
+    ACADEMIC_AFFAIRS = "ACADEMIC_AFFAIRS"
+    POLICY_VIOLATION = "POLICY_VIOLATION"
 
 
 class DocumentStatus(StrEnum):
@@ -18,13 +25,18 @@ class QuestionStatus(StrEnum):
     SUBMITTED = "SUBMITTED"
     ANSWERED = "ANSWERED"
     CLARIFICATION_REQUIRED = "CLARIFICATION_REQUIRED"
+    CLARIFICATION_RECEIVED = "CLARIFICATION_RECEIVED"
     ESCALATED = "ESCALATED"
+    OUT_OF_SCOPE = "OUT_OF_SCOPE"
+    REJECTED = "REJECTED"
 
 
 class Route(StrEnum):
     ANSWER = "ANSWER"
     CLARIFY = "CLARIFY"
     ESCALATE = "ESCALATE"
+    OUT_OF_SCOPE = "OUT_OF_SCOPE"
+    REJECT = "REJECT"
 
 
 class UncertaintyType(StrEnum):
@@ -68,6 +80,8 @@ class PolicyCoverage(StrEnum):
     NO_POLICY = "NO_POLICY"
     CONFLICTING = "CONFLICTING"
     SUSPICIOUS = "SUSPICIOUS"
+    AI_UNAVAILABLE = "AI_UNAVAILABLE"
+    UNRESOLVED = "UNRESOLVED"
 
 
 class ExceptionStatus(StrEnum):

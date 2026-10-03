@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api/client";
-import { IconBookOpen, IconCheck, IconWarning } from "../components/Icons";
+import { IconBookOpen, IconCheck, IconRotateCcw, IconWarning, IconX } from "../components/Icons";
 import { StatusBadge, type CaseStatus } from "../components/StatusBadge";
 import { Stepper } from "../components/Stepper";
-import type { QuestionResponse } from "../types";
+import type { DemoCatalog, QuestionResponse } from "../types";
 
 export interface StudentCaseItem {
   id: string;
@@ -19,6 +19,10 @@ export interface StudentCaseItem {
   citations?: Array<{ label: string; quote: string; document_title: string; section?: string }>;
   escalationReason?: string;
   escalationNote?: string;
+  appliedExceptionId?: string | null;
+  exceptionId?: string | null;
+  finalDecision?: string | null;
+  finalDecisionReason?: string | null;
   lecturerDecision?: {
     decision: string;
     reason: string;
@@ -83,32 +87,50 @@ const INITIAL_DEMO_CASES: StudentCaseItem[] = [
 
 interface StudentHistoryViewProps {
   initialSelectedId?: string;
-  actorId?: string;
+  catalog?: DemoCatalog | null;
+  selectedCourseId?: string;
+  selectedGroupId?: string;
 }
 
 export function StudentHistoryView({
   initialSelectedId,
-  actorId = "student-dadn-a1",
+  catalog,
+  selectedCourseId,
+  selectedGroupId,
 }: StudentHistoryViewProps) {
   const [cases, setCases] = useState<StudentCaseItem[]>(INITIAL_DEMO_CASES);
   const [selectedId, setSelectedId] = useState<string>(initialSelectedId || INITIAL_DEMO_CASES[0].id);
   const [filter, setFilter] = useState<"all" | CaseStatus>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        const raw = await api<QuestionResponse[]>(`/api/questions`);
-        if (Array.isArray(raw) && raw.length > 0) {
+        const params = new URLSearchParams();
+        params.append("actor_id", "demo-student");
+        if (selectedCourseId) params.append("course_id", selectedCourseId);
+        if (selectedGroupId) params.append("group_id", selectedGroupId);
+        const queryStr = params.toString() ? `?${params.toString()}` : "";
+        const raw = await api<QuestionResponse[]>(`/api/v1/questions${queryStr}`);
+        if (Array.isArray(raw)) {
           const mapped: StudentCaseItem[] = raw.map((q) => {
             let status: CaseStatus = "auto_replied";
-            if (q.final_decision) {
+            if (q.final_decision === "APPROVED") {
               status = "approved";
+            } else if (q.final_decision === "REJECTED") {
+              status = "rejected";
+            } else if (q.route === "OUT_OF_SCOPE" || q.status === "OUT_OF_SCOPE") {
+              status = "out_of_scope";
+            } else if (q.route === "REJECT" || q.status === "REJECTED" || (q.status as string) === "REJECT") {
+              status = "rejected";
             } else if (q.route === "ESCALATE" || q.status === "ESCALATED") {
               status = "pending_lecturer";
-            } else if (q.route === "ANSWER" || q.status === "ANSWERED") {
+            } else if (q.route === "CLARIFY" || q.status === "CLARIFICATION_REQUIRED") {
+              status = "clarify";
+            } else {
               status = "auto_replied";
             }
 
@@ -120,7 +142,7 @@ export function StudentHistoryView({
                   hour: "2-digit",
                   minute: "2-digit",
                 })
-              : "22/09/2026 · 14:00";
+              : "Hôm nay";
 
             const displayTitle = q.text
               ? q.text.length > 70
@@ -128,22 +150,29 @@ export function StudentHistoryView({
                 : q.text
               : q.clarifying_question || q.answer?.slice(0, 65) || "Yêu cầu quy chế học vụ";
 
+            const courseObj = catalog?.courses.find((c) => c.id === q.course_id);
+            const groupObj = courseObj?.groups.find((g) => g.id === q.group_id);
+
             return {
               id: q.case_id || q.question_id.replace(/^q_/, "CASE_").slice(0, 9).toUpperCase(),
               rawId: q.question_id,
               title: displayTitle,
-              topic: q.course_id === "CO3001" ? "CO3001 · Nhóm đồ án" : "Đồ án Đa ngành",
+              topic: courseObj ? `${courseObj.code} · ${courseObj.name}` : (q.course_id || "Môn học"),
               timestamp: cleanDate,
               status,
               question: q.text || (q.answer ? `Câu hỏi: ${q.question_id}` : "Yêu cầu học vụ từ sinh viên"),
-              group: q.course_id || "DADN-HK242",
+              group: groupObj?.name || q.group_id || "Chưa có nhóm",
               aiResponse: q.answer || undefined,
-              policyRef: q.citations?.[0]?.document_title || "Quy chế môn học Đồ án Đa ngành",
+              policyRef: q.citations?.[0]?.document_title || "Quy chế môn học",
+              appliedExceptionId: q.applied_exception_id,
+              exceptionId: q.exception_id,
+              finalDecision: q.final_decision,
+              finalDecisionReason: q.final_decision_reason,
               citations: q.citations?.map((c) => ({
                 label: c.label,
                 quote: c.quote,
                 document_title: c.document_title,
-                section: c.heading || undefined,
+                section: c.heading || (c.page_number ? `Trang ${c.page_number}` : undefined),
               })),
               escalationReason: q.reason_code,
               escalationNote:
@@ -154,8 +183,8 @@ export function StudentHistoryView({
                 ? {
                     decision: q.final_decision === "APPROVED" ? "Phê duyệt yêu cầu" : "Từ chối yêu cầu",
                     reason: q.final_decision_reason || "Giảng viên đã thẩm định và đưa ra quyết định.",
-                    policyRef: "Quy chế đào tạo & ngoại lệ áp dụng",
-                    reviewer: "TS. Trần Minh Tuấn",
+                    policyRef: q.exception_id ? `Ngoại lệ: #${q.exception_id}` : "Quy chế đào tạo & ngoại lệ áp dụng",
+                    reviewer: catalog?.lecturer.display_name || "TS. Trần Minh Tuấn",
                     date: cleanDate.split(" · ")[0],
                   }
                 : undefined,
@@ -172,6 +201,10 @@ export function StudentHistoryView({
                 (c.rawId && c.rawId.includes(initialSelectedId))
             );
             if (found) setSelectedId(found.id);
+          } else if (mapped.length > 0) {
+            setSelectedId(mapped[0].id);
+          } else {
+            setSelectedId("");
           }
         }
       } catch (e) {
@@ -180,8 +213,45 @@ export function StudentHistoryView({
         setLoading(false);
       }
     }
-    loadData();
-  }, [initialSelectedId, actorId]);
+    void loadData();
+  }, [initialSelectedId, selectedCourseId, selectedGroupId, catalog]);
+
+  async function handleRefreshCurrentCase() {
+    if (!selected?.rawId) return;
+    setRefreshing(true);
+    try {
+      const q = await api<QuestionResponse>(`/api/v1/questions/${selected.rawId}`);
+      setCases((prev) =>
+        prev.map((c) => {
+          if (c.rawId !== q.question_id) return c;
+          let status: CaseStatus = c.status;
+          if (q.final_decision === "APPROVED") status = "approved";
+          else if (q.final_decision === "REJECTED") status = "rejected";
+          return {
+            ...c,
+            status,
+            appliedExceptionId: q.applied_exception_id,
+            exceptionId: q.exception_id,
+            finalDecision: q.final_decision,
+            finalDecisionReason: q.final_decision_reason,
+            lecturerDecision: q.final_decision
+              ? {
+                  decision: q.final_decision === "APPROVED" ? "Phê duyệt yêu cầu" : "Từ chối yêu cầu",
+                  reason: q.final_decision_reason || "Giảng viên đã thẩm định và đưa ra quyết định.",
+                  policyRef: q.exception_id ? `Ngoại lệ: #${q.exception_id}` : "Quy chế đào tạo",
+                  reviewer: catalog?.lecturer.display_name || "TS. Trần Minh Tuấn",
+                  date: new Date().toLocaleDateString("vi-VN"),
+                }
+              : undefined,
+          };
+        })
+      );
+    } catch (e) {
+      console.warn("Could not refresh question", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     if (initialSelectedId && cases.length > 0) {
@@ -198,9 +268,12 @@ export function StudentHistoryView({
 
   const tabs: Array<{ key: "all" | CaseStatus; label: string }> = [
     { key: "all", label: "Tất cả" },
-    { key: "auto_replied", label: "Đã phản hồi tự động" },
-    { key: "pending_lecturer", label: "Đang chờ Giảng viên" },
+    { key: "auto_replied", label: "AI phản hồi" },
+    { key: "pending_lecturer", label: "Chờ giảng viên" },
     { key: "approved", label: "Đã phê duyệt" },
+    { key: "out_of_scope", label: "Ngoài phạm vi" },
+    { key: "rejected", label: "Bị từ chối" },
+    { key: "clarify", label: "Cần bổ sung" },
   ];
 
   const filtered = cases.filter((c) => {
@@ -297,11 +370,16 @@ export function StudentHistoryView({
               <p className="text-sm font-semibold text-slate-800 leading-snug mb-2 line-clamp-2">
                 {c.title}
               </p>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
                 <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">
                   {c.topic}
                 </span>
                 <span>{c.timestamp}</span>
+                {c.appliedExceptionId && (
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold rounded border border-indigo-200">
+                    ✨ Ngoại lệ #{c.appliedExceptionId}
+                  </span>
+                )}
               </div>
             </button>
           ))}
@@ -311,6 +389,61 @@ export function StudentHistoryView({
         <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
           {selected ? (
             <div className="space-y-6 max-w-3xl">
+              {/* Header & Refresh */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Chi tiết hồ sơ #{selected.id}</h2>
+                  {selected.rawId && (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Mã câu hỏi: <span className="font-mono font-semibold text-slate-700">{selected.rawId}</span>
+                    </p>
+                  )}
+                </div>
+                {selected.rawId && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshCurrentCase()}
+                    disabled={refreshing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg shadow-xs transition-colors disabled:opacity-50"
+                  >
+                    <IconRotateCcw size={13} className={refreshing ? "animate-spin" : ""} />
+                    {refreshing ? "Đang làm mới..." : "Làm mới kết quả"}
+                  </button>
+                )}
+              </div>
+
+              {/* Applied Exception Banner */}
+              {selected.appliedExceptionId && (
+                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between text-xs shadow-xs">
+                  <div className="flex items-center gap-2.5 text-indigo-900">
+                    <span className="text-lg">✨</span>
+                    <div>
+                      <p className="font-bold text-indigo-900">
+                        Đã áp dụng ngoại lệ: <span className="font-mono text-indigo-700">#{selected.appliedExceptionId}</span>
+                      </p>
+                      <p className="text-[11px] text-indigo-700 mt-0.5">
+                        Câu hỏi này được tự động bao phủ bởi ngoại lệ quy chế đã lưu trước đó của Giảng viên.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Exception Created Banner */}
+              {selected.exceptionId && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs shadow-xs">
+                  <span className="text-lg">📜</span>
+                  <div>
+                    <p className="font-bold text-emerald-900">
+                      Đã lưu ngoại lệ mới: <span className="font-mono text-emerald-700">#{selected.exceptionId}</span>
+                    </p>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      Giảng viên đã tạo tiền lệ ngoại lệ quy chế từ hồ sơ này cho các câu hỏi tương tự tiếp theo.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Stepper */}
               <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
                 <Stepper status={selected.status} />
@@ -329,7 +462,13 @@ export function StudentHistoryView({
                         ? "AI Xử lý · Hoàn tất"
                         : selected.status === "pending_lecturer"
                         ? "Chuyển tiếp · Chờ thẩm định"
-                        : "Giảng viên phê duyệt",
+                        : selected.status === "approved"
+                        ? "Giảng viên phê duyệt"
+                        : selected.status === "rejected"
+                        ? "Bị từ chối"
+                        : selected.status === "clarify"
+                        ? "Cần bổ sung"
+                        : "Ngoài phạm vi",
                   },
                 ].map((item) => (
                   <div
@@ -402,14 +541,14 @@ export function StudentHistoryView({
                       </div>
                       <div>
                         <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">
-                          Đã chuyển tiếp lên Giảng viên
+                          Đã chuyển tiếp lên Giảng viên (Đang chờ thẩm định)
                         </p>
                         <p className="text-sm text-amber-950 leading-relaxed">
                           {selected.escalationNote ||
                             "Yêu cầu vượt thẩm quyền AI. Hồ sơ đã được chuyển tiếp lên Giảng viên phụ trách xem xét."}
                         </p>
                         <p className="mt-2.5 text-xs text-amber-700 font-medium">
-                          ⏱️ Thời gian phản hồi dự kiến: Trong vòng 48 giờ làm việc.
+                          ⏱️ Thời gian phản hồi dự kiến: Trong vòng 48 giờ làm việc. (Bấm "Làm mới kết quả" ở góc trên để cập nhật khi giảng viên xử lý xong)
                         </p>
                       </div>
                     </div>
@@ -452,7 +591,93 @@ export function StudentHistoryView({
                     </div>
                   </div>
                 )}
+
+                {/* Case 4: Rejected */}
+                {selected.status === "rejected" && (
+                  <div className="p-5 rounded-xl bg-rose-50/70 border border-rose-200 shadow-xs space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-rose-600 flex-shrink-0">
+                        <IconX size={18} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-1.5">
+                          Yêu cầu bị từ chối
+                        </p>
+                        <p className="text-sm text-rose-950 leading-relaxed font-medium">
+                          {selected.finalDecisionReason || selected.aiResponse || "Yêu cầu không được chấp thuận theo quy chế hiện hành hoặc giảng viên đã từ chối."}
+                        </p>
+                        {selected.lecturerDecision && (
+                          <div className="mt-3 pt-3 border-t border-rose-200/60 flex items-center gap-2 text-xs text-slate-500">
+                            <span>Người từ chối:</span>
+                            <span className="font-bold text-slate-800">
+                              {selected.lecturerDecision.reviewer}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Case 5: Clarify */}
+                {selected.status === "clarify" && (
+                  <div className="p-5 rounded-xl bg-purple-50/70 border border-purple-200 shadow-xs space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-purple-600 flex-shrink-0">
+                        <IconWarning size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-purple-800 uppercase tracking-wider mb-1">
+                          Cần bổ sung thông tin
+                        </p>
+                        <p className="text-sm text-purple-950 leading-relaxed">
+                          Hệ thống đã yêu cầu bổ sung thông tin chi tiết để xử lý câu hỏi này. Bạn có thể quay lại tab "Gửi câu hỏi" để tiếp tục hội thoại.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Case 6: Out of Scope */}
+                {selected.status === "out_of_scope" && (
+                  <div className="p-5 rounded-xl bg-slate-100 border border-slate-200 shadow-xs space-y-2">
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      Ngoài phạm vi học vụ môn học
+                    </p>
+                    <p className="text-sm text-slate-700 leading-relaxed">
+                      Câu hỏi không thuộc phạm vi quy chế học vụ môn học được cấu hình.
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {/* Citations List */}
+              {selected.citations && selected.citations.length > 0 && (
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Căn cứ pháp lý & Trích dẫn quy chế ({selected.citations.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selected.citations.map((c, idx) => (
+                      <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+                        <div className="flex items-center justify-between text-slate-600 font-semibold mb-1">
+                          <span className="font-bold text-slate-800">
+                            [{c.label}] {c.document_title}
+                          </span>
+                          {c.section && (
+                            <span className="text-[11px] text-slate-500 font-mono bg-white px-2 py-0.5 rounded border border-slate-200">
+                              {c.section}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-700 italic border-l-2 border-slate-300 pl-2 mt-1">
+                          "{c.quote}"
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-20 text-slate-400">Chọn một hồ sơ để xem chi tiết</div>
