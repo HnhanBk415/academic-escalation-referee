@@ -1,3 +1,4 @@
+from app.schemas.format_checks import FormatSemanticJudgment
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -22,6 +23,20 @@ class UnavailableProvider:
         applicable_exceptions: list[dict],
     ) -> RefereeDecision:
         raise RuntimeError(self.detail)
+
+    async def judge_format_ambiguity(
+        self,
+        rule_type: str,
+        expected_items: list[str],
+        actual_items: list[str],
+        criterion_name: str,
+        source_citation: str,
+    ) -> FormatSemanticJudgment:
+        # AI not configured — stay ambiguous so human reviewer picks it up.
+        return FormatSemanticJudgment(
+            verdict="AMBIGUOUS",
+            reason=f"AI không khả dụng ({self.detail}); cần giảng viên phán đoán.",
+        )
 
     async def health(self) -> AIHealth:
         return AIHealth(

@@ -113,3 +113,9 @@ class FormatMetricResponse(BaseModel):
     needs_fix_checks: int
     unable_to_check_checks: int
 
+
+class FormatSemanticJudgment(BaseModel):
+    """Result of an AI semantic equivalence check for an ambiguous format criterion."""
+
+    verdict: str  # "PASS" | "FAIL" | "AMBIGUOUS"
+    reason: str   # Short Vietnamese explanation (≤ 200 chars)

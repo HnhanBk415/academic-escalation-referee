@@ -297,6 +297,95 @@ class GeminiProvider:
             compact.append({**item, "content": excerpt})
         return compact
 
+    async def judge_format_ambiguity(
+        self,
+        rule_type: str,
+        expected_items: list[str],
+        actual_items: list[str],
+        criterion_name: str,
+        source_citation: str,
+    ) -> "FormatSemanticJudgment":
+        """Ask Gemini whether actual heading/column names are semantically equivalent to expected ones.
+
+        Returns a FormatSemanticJudgment with verdict in {PASS, FAIL, AMBIGUOUS} and a
+        short Vietnamese reason.  Falls back to AMBIGUOUS on any error so human review
+        always acts as the safety net.
+        """
+        from app.schemas.format_checks import FormatSemanticJudgment
+
+        _FORMAT_JUDGE_INSTRUCTION = (
+            "Bạn là công cụ kiểm tra hình thức báo cáo đồ án đại học. "
+            "Nhiệm vụ duy nhất: xác định liệu các tên đề mục / cột bảng mà sinh viên dùng "
+            "có tương đương về MẶT NGỮ NGHĨA với danh sách mẫu hay không. "
+            "Không quan tâm đến số thứ tự, tiền tố 'Chương', cách viết hoa/thường, dấu câu. "
+            "Chỉ quan tâm: ý nghĩa nội dung có tương đương không? "
+            "Trả lời bằng JSON: {\"verdict\": \"PASS\"|\"FAIL\"|\"AMBIGUOUS\", \"reason\": \"<giải thích ngắn ≤120 ký tự>\"}. "
+            "PASS = tương đương rõ ràng. FAIL = khác biệt rõ ràng về nội dung. AMBIGUOUS = không chắc cần giảng viên phán đoán."
+        )
+
+        prompt = json.dumps(
+            {
+                "rule_type": rule_type,
+                "criterion_name": criterion_name,
+                "required_items": expected_items,
+                "student_items": actual_items,
+                "source_citation_excerpt": source_citation[:300],
+            },
+            ensure_ascii=False,
+        )
+
+        print(
+            f"[Gemini FormatJudge] Judging '{criterion_name}' "
+            f"({len(expected_items)} expected vs {len(actual_items)} actual)...",
+            flush=True,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            await self._chat_rate_limiter.acquire()
+            try:
+                async with self._semaphore:
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=self.settings.gemini_chat_model,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=_FORMAT_JUDGE_INSTRUCTION,
+                                temperature=0,
+                                max_output_tokens=200,
+                                response_mime_type="application/json",
+                                response_schema=FormatSemanticJudgment,
+                            ),
+                        ),
+                        timeout=self.settings.ai_request_timeout_seconds,
+                    )
+                if response.parsed:
+                    judgment = (
+                        response.parsed
+                        if isinstance(response.parsed, FormatSemanticJudgment)
+                        else FormatSemanticJudgment.model_validate(response.parsed)
+                    )
+                elif response.text:
+                    judgment = FormatSemanticJudgment.model_validate_json(response.text)
+                else:
+                    raise RuntimeError("Gemini returned an empty format judgment response")
+                # Clamp verdict to valid values
+                if judgment.verdict not in {"PASS", "FAIL", "AMBIGUOUS"}:
+                    judgment = FormatSemanticJudgment(verdict="AMBIGUOUS", reason=judgment.reason or "Phán quyết AI không hợp lệ; cần giảng viên duyệt.")
+                print(f"[Gemini FormatJudge] => {judgment.verdict}: {judgment.reason[:80]}", flush=True)
+                return judgment
+            except Exception as error:
+                last_error = error
+                print(f"[Gemini FormatJudge Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
+                if not self._is_retryable(error) or attempt == _MAX_RETRIES:
+                    break
+                delay = (_BASE_RETRY_DELAY_SECONDS ** attempt) + random.uniform(0.1, 0.4)
+                await asyncio.sleep(delay)
+
+        # Fallback: stay AMBIGUOUS so human reviewer catches it, never crash the check.
+        reason = f"AI gặp lỗi khi phân tích ({type(last_error).__name__ if last_error else 'unknown'}); cần giảng viên phán đoán."
+        return FormatSemanticJudgment(verdict="AMBIGUOUS", reason=reason[:200])
+
     async def health(self) -> AIHealth:
         try:
             await asyncio.wait_for(

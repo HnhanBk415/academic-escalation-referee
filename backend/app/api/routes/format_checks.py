@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_ai_provider
 from app.db.session import get_session
 from app.schemas.format_checks import (
     FormatCheckResponse,
@@ -56,6 +57,7 @@ async def submit_check(
     course_id: Annotated[str, Form(...)],
     actor_id: Annotated[str, Form()] = "demo-student",
     file: UploadFile = File(...),
+    provider=Depends(get_ai_provider),
 ) -> FormatCheckResponse:
     return await check_format(
         session,
@@ -64,6 +66,7 @@ async def submit_check(
         filename=file.filename or "submission",
         payload=await file.read(),
         request_id=request.state.request_id,
+        ai=provider,
     )
 
 

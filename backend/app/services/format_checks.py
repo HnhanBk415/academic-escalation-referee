@@ -3,7 +3,7 @@ import re
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from docx import Document as DocxDocument
 from pypdf import PdfReader
@@ -44,6 +44,9 @@ from app.schemas.format_checks import (
 )
 from app.services.audit import add_audit_event
 from app.services.ids import new_id
+
+if TYPE_CHECKING:
+    from app.ai.base import AIProvider
 
 
 SUPPORTED_MEASUREMENTS = {
@@ -506,7 +509,12 @@ def _measurement_result(criterion: FormatCriterion, structure: dict[str, Any]) -
     )
 
 
-def _presence_result(criterion: FormatCriterion, structure: dict[str, Any]) -> FormatCriterionResult:
+async def _presence_result(
+    criterion: FormatCriterion,
+    structure: dict[str, Any],
+    ai: "AIProvider | None" = None,
+) -> FormatCriterionResult:
+    """Layer 1 (exact string match) then Layer 2 (AI semantic) for PRESENCE rules."""
     expected = criterion.expected_value
     kind = expected.get("kind")
     desired = expected.get("value")
@@ -518,24 +526,70 @@ def _presence_result(criterion: FormatCriterion, structure: dict[str, Any]) -> F
     desired_items = [str(item) for item in desired] if isinstance(desired, list) else [str(desired)]
     normalized_expected = [_fold(item) for item in desired_items]
     normalized_candidates = [_fold(" ".join(item) if isinstance(item, list) else item) for item in candidates]
+
+    # --- Layer 1: Exact string match ---
     if any(value in normalized_candidates for value in normalized_expected):
-        status, message = FormatCriterionResultStatus.PASS, "Đã tìm thấy cấu trúc khớp rõ ràng."
+        return FormatCriterionResult(
+            criterion_id=criterion.id, name=criterion.name,
+            status=FormatCriterionResultStatus.PASS, message="Đã tìm thấy cấu trúc khớp rõ ràng.",
+            expected_value=expected, actual_value={"candidates": candidates},
+            source_citation=criterion.source_citation,
+        )
+
+    # --- Layer 2: AI semantic check (only when there are partial token overlaps worth checking) ---
+    flat_candidates = [
+        " ".join(item) if isinstance(item, list) else item for item in candidates
+    ]
+    partial = any(
+        set(value.split()) & set(candidate.split())
+        for value in normalized_expected for candidate in normalized_candidates
+    )
+    if partial and ai is not None:
+        try:
+            judgment = await ai.judge_format_ambiguity(
+                rule_type="PRESENCE",
+                expected_items=desired_items,
+                actual_items=flat_candidates,
+                criterion_name=criterion.name,
+                source_citation=criterion.source_citation or "",
+            )
+            if judgment.verdict == "PASS":
+                return FormatCriterionResult(
+                    criterion_id=criterion.id, name=criterion.name,
+                    status=FormatCriterionResultStatus.PASS,
+                    message=f"AI xác nhận tương đương ngữ nghĩa: {judgment.reason}",
+                    expected_value=expected, actual_value={"candidates": candidates},
+                    source_citation=criterion.source_citation,
+                )
+            if judgment.verdict == "FAIL":
+                return FormatCriterionResult(
+                    criterion_id=criterion.id, name=criterion.name,
+                    status=FormatCriterionResultStatus.FAIL,
+                    message=f"AI xác nhận không đạt: {judgment.reason}",
+                    expected_value=expected, actual_value={"candidates": candidates},
+                    source_citation=criterion.source_citation,
+                )
+            # AMBIGUOUS → fall through to human review
+            status, message = FormatCriterionResultStatus.AMBIGUOUS, f"AI không chắc chắn: {judgment.reason}"
+        except Exception:
+            status, message = FormatCriterionResultStatus.AMBIGUOUS, "Tìm thấy cấu trúc có vẻ liên quan nhưng AI gặp lỗi; cần giảng viên duyệt."
+    elif partial:
+        status, message = FormatCriterionResultStatus.AMBIGUOUS, "Tìm thấy cấu trúc có vẻ liên quan nhưng không đủ rõ để kết luận."
     else:
-        partial = any(
-            set(value.split()) & set(candidate.split())
-            for value in normalized_expected for candidate in normalized_candidates
-        )
-        status, message = (
-            (FormatCriterionResultStatus.AMBIGUOUS, "Tìm thấy cấu trúc có vẻ liên quan nhưng không đủ rõ để kết luận.")
-            if partial else (FormatCriterionResultStatus.FAIL, "Không tìm thấy cấu trúc bắt buộc.")
-        )
+        status, message = FormatCriterionResultStatus.FAIL, "Không tìm thấy cấu trúc bắt buộc."
+
     return FormatCriterionResult(
         criterion_id=criterion.id, name=criterion.name, status=status, message=message,
         expected_value=expected, actual_value={"candidates": candidates}, source_citation=criterion.source_citation,
     )
 
 
-def _template_result(criterion: FormatCriterion, structure: dict[str, Any]) -> FormatCriterionResult:
+async def _template_result(
+    criterion: FormatCriterion,
+    structure: dict[str, Any],
+    ai: "AIProvider | None" = None,
+) -> FormatCriterionResult:
+    """Layer 1 (exact order match) then Layer 2 (AI semantic) for TEMPLATE rules."""
     expected = criterion.expected_value
     template = [str(item) for item in expected.get("headings", [])]
     headings = [str(item) for item in structure["headings"]]
@@ -544,16 +598,81 @@ def _template_result(criterion: FormatCriterion, structure: dict[str, Any]) -> F
     actual_folded = [_fold(item) for item in headings]
     expected_folded = [_fold(item) for item in template]
     exact_indexes = [actual_folded.index(item) if item in actual_folded else -1 for item in expected_folded]
-    if any(index < 0 for index in exact_indexes):
-        partial = any(set(item.split()) & set(candidate.split()) for item in expected_folded for candidate in actual_folded)
-        status = FormatCriterionResultStatus.AMBIGUOUS if partial else FormatCriterionResultStatus.FAIL
-        message = "Có đề mục gần giống mẫu nhưng tên chưa khớp rõ ràng." if partial else "Thiếu đề mục bắt buộc của mẫu."
-    elif exact_indexes != sorted(exact_indexes):
-        status, message = FormatCriterionResultStatus.FAIL, "Đề mục có đủ nhưng sai thứ tự rõ ràng so với mẫu."
-    elif not expected.get("allow_extra", True) and len(headings) != len(template):
-        status, message = FormatCriterionResultStatus.FAIL, "Bài nộp có đề mục ngoài khung mẫu không được phép."
+
+    # --- Layer 1: Deterministic structural checks ---
+    if exact_indexes == sorted(exact_indexes) and all(i >= 0 for i in exact_indexes):
+        # All headings present in correct order — check allow_extra
+        if not expected.get("allow_extra", True) and len(headings) != len(template):
+            return FormatCriterionResult(
+                criterion_id=criterion.id, name=criterion.name,
+                status=FormatCriterionResultStatus.FAIL,
+                message="Bài nộp có đề mục ngoài khung mẫu không được phép.",
+                expected_value=expected, actual_value={"headings": headings},
+                source_citation=criterion.source_citation,
+            )
+        return FormatCriterionResult(
+            criterion_id=criterion.id, name=criterion.name,
+            status=FormatCriterionResultStatus.PASS, message="Khung đề mục khớp mẫu đã duyệt.",
+            expected_value=expected, actual_value={"headings": headings},
+            source_citation=criterion.source_citation,
+        )
+
+    if all(i >= 0 for i in exact_indexes) and exact_indexes != sorted(exact_indexes):
+        # Headings present but wrong order — clear FAIL, no AI needed
+        return FormatCriterionResult(
+            criterion_id=criterion.id, name=criterion.name,
+            status=FormatCriterionResultStatus.FAIL,
+            message="Đề mục có đủ nhưng sai thứ tự rõ ràng so với mẫu.",
+            expected_value=expected, actual_value={"headings": headings},
+            source_citation=criterion.source_citation,
+        )
+
+    # Some headings are missing (exact_indexes has -1). Check for partial word overlap.
+    missing_expected = [template[i] for i, idx in enumerate(exact_indexes) if idx < 0]
+    partial = any(
+        set(item.split()) & set(candidate.split())
+        for item in [_fold(x) for x in missing_expected]
+        for candidate in actual_folded
+    )
+
+    # --- Layer 2: AI semantic check for partial / near-miss cases ---
+    if partial and ai is not None:
+        try:
+            judgment = await ai.judge_format_ambiguity(
+                rule_type="TEMPLATE",
+                expected_items=template,
+                actual_items=headings,
+                criterion_name=criterion.name,
+                source_citation=criterion.source_citation or "",
+            )
+            if judgment.verdict == "PASS":
+                return FormatCriterionResult(
+                    criterion_id=criterion.id, name=criterion.name,
+                    status=FormatCriterionResultStatus.PASS,
+                    message=f"AI xác nhận dàn ý tương đương ngữ nghĩa: {judgment.reason}",
+                    expected_value=expected, actual_value={"headings": headings},
+                    source_citation=criterion.source_citation,
+                )
+            if judgment.verdict == "FAIL":
+                return FormatCriterionResult(
+                    criterion_id=criterion.id, name=criterion.name,
+                    status=FormatCriterionResultStatus.FAIL,
+                    message=f"AI xác nhận thiếu đề mục bắt buộc: {judgment.reason}",
+                    expected_value=expected, actual_value={"headings": headings},
+                    source_citation=criterion.source_citation,
+                )
+            status = FormatCriterionResultStatus.AMBIGUOUS
+            message = f"AI không chắc về tương đương ngữ nghĩa: {judgment.reason}"
+        except Exception:
+            status = FormatCriterionResultStatus.AMBIGUOUS
+            message = "Có đề mục gần giống mẫu nhưng AI gặp lỗi khi phân tích; cần giảng viên duyệt."
+    elif partial:
+        status = FormatCriterionResultStatus.AMBIGUOUS
+        message = "Có đề mục gần giống mẫu nhưng tên chưa khớp rõ ràng."
     else:
-        status, message = FormatCriterionResultStatus.PASS, "Khung đề mục khớp mẫu đã duyệt."
+        status = FormatCriterionResultStatus.FAIL
+        message = "Thiếu đề mục bắt buộc của mẫu."
+
     return FormatCriterionResult(
         criterion_id=criterion.id, name=criterion.name, status=status, message=message,
         expected_value=expected, actual_value={"headings": headings}, source_citation=criterion.source_citation,
@@ -589,7 +708,14 @@ async def _purge_expired_reviews(session: AsyncSession) -> None:
 
 
 async def check_format(
-    session: AsyncSession, *, course_id: str, actor_id: str, filename: str, payload: bytes, request_id: str | None
+    session: AsyncSession,
+    *,
+    course_id: str,
+    actor_id: str,
+    filename: str,
+    payload: bytes,
+    request_id: str | None,
+    ai: "AIProvider | None" = None,
 ) -> FormatCheckResponse:
     if not filename or not payload:
         raise AppError("FORMAT_FILE_EMPTY", "Chưa nhận được file cần kiểm tra.", status_code=422)
@@ -625,11 +751,14 @@ async def check_format(
         if criterion.review_only or not criterion.automatable:
             results.append(_unmeasurable(criterion, "Tiêu chí này được giảng viên giữ để tự xem, không dùng để kiểm tra tự động."))
         elif criterion.rule_type == FormatCriterionRuleType.MEASUREMENT:
+            # Layer 1 only — numeric measurement never needs AI
             results.append(_measurement_result(criterion, structure))
         elif criterion.rule_type == FormatCriterionRuleType.PRESENCE:
-            results.append(_presence_result(criterion, structure))
+            # Layer 1 + Layer 2 (AI semantic fallback)
+            results.append(await _presence_result(criterion, structure, ai=ai))
         else:
-            results.append(_template_result(criterion, structure))
+            # TEMPLATE: Layer 1 + Layer 2 (AI semantic fallback)
+            results.append(await _template_result(criterion, structure, ai=ai))
     # Criteria intentionally marked review-only are shown transparently, but do
     # not turn an otherwise complete automatic check into an indeterminate one.
     usable_ids = {item.id for item in usable}

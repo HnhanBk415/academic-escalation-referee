@@ -233,5 +233,36 @@ class FakeProvider:
     def _policy_topic(question: str) -> str:
         return infer_policy_topic(question)
 
+    async def judge_format_ambiguity(
+        self,
+        rule_type: str,
+        expected_items: list[str],
+        actual_items: list[str],
+        criterion_name: str,
+        source_citation: str,
+    ) -> "FormatSemanticJudgment":
+        """Deterministic stub: pass when every expected item has enough shared tokens."""
+        from app.schemas.format_checks import FormatSemanticJudgment
+
+        def _normalize(text: str) -> set[str]:
+            text = unicodedata.normalize("NFC", text.lower())
+            return {w for w in re.findall(r"\w+", text) if len(w) > 1}
+
+        for expected in expected_items:
+            exp_tokens = _normalize(expected)
+            matched = any(
+                len(exp_tokens & _normalize(actual)) / max(len(exp_tokens), 1) >= 0.5
+                for actual in actual_items
+            )
+            if not matched:
+                return FormatSemanticJudgment(
+                    verdict="FAIL",
+                    reason=f"[Fake AI] Không tìm thấy đề mục tương đương với '{expected}'.",
+                )
+        return FormatSemanticJudgment(
+            verdict="PASS",
+            reason="[Fake AI] Các đề mục được xem là tương đương về mặt ngữ nghĩa.",
+        )
+
     async def health(self) -> AIHealth:
         return AIHealth(mode="fake", available=True, model="deterministic-fake-v1")
