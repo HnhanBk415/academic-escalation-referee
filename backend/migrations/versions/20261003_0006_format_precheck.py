@@ -1,6 +1,6 @@
 """Add lecturer-approved report-format criteria and ambiguous-review retention.
 
-Revision ID: 20261004_0006
+Revision ID: 20261003_0006
 Revises: 20261002_0005
 """
 
@@ -13,7 +13,7 @@ from app.models.entities import (
     FormatReviewCase,
 )
 
-revision = "20261004_0006"
+revision = "20261003_0006"
 down_revision = "20261002_0005"
 branch_labels = None
 depends_on = None
