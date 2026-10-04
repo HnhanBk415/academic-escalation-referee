@@ -253,6 +253,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
+  const [allowSemanticEquivalent, setAllowSemanticEquivalent] = useState<boolean>(true);
 
   // Danh sách tiêu chí đang chỉnh sửa trực tiếp
   const [editableCriteria, setEditableCriteria] = useState<
@@ -327,6 +328,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
         title: title || "Bộ tiêu chí trích xuất từ tài liệu",
         document_ids: selectedDocs,
         include_template_structure: true,
+        allow_semantic_equivalent: allowSemanticEquivalent,
       });
 
       if (draft.criteria && draft.criteria.length > 0) {
@@ -523,6 +525,43 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                     </label>
                   );
                 })}
+              </div>
+
+              {/* Tùy chọn linh hoạt tên đề mục (tương đương ngữ nghĩa nhưng bảo toàn cấu trúc & thứ tự) */}
+              <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 bg-white/80 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-start gap-2.5 max-w-2xl">
+                  <input
+                    type="checkbox"
+                    id="allow-semantic-equivalent"
+                    checked={allowSemanticEquivalent}
+                    onChange={(e) => setAllowSemanticEquivalent(e.target.checked)}
+                    className="mt-0.5 rounded text-red-700 focus:ring-red-500 w-4 h-4 cursor-pointer"
+                  />
+                  <label htmlFor="allow-semantic-equivalent" className="text-xs text-slate-700 cursor-pointer select-none">
+                    <span className="font-semibold text-slate-900 flex items-center gap-1.5">
+                      <span>{allowSemanticEquivalent ? "✅" : "🔒"}</span>
+                      {allowSemanticEquivalent
+                        ? "Cho phép đề mục mang ý nghĩa tương đương (Khuyến nghị)"
+                        : "Bắt buộc đề mục phải chính xác 100% từng chữ"}
+                    </span>
+                    <span className="text-slate-500 text-[11px] block mt-0.5 leading-relaxed">
+                      {allowSemanticEquivalent
+                        ? "Cho phép sinh viên đặt tên mục có thể khác một chút nhưng cùng ngữ nghĩa (ví dụ: 'Mở đầu' ↔ 'Giới thiệu', 'Hiện thực' ↔ 'Cài đặt và thử nghiệm'). Cấu trúc phân cấp và thứ tự tuần tự giữa các chương vẫn được đối chiếu nghiêm ngặt."
+                        : "Yêu cầu tên các chương và mục con trong báo cáo phải trùng khớp hoàn toàn từng chữ với dàn ý tài liệu mẫu."}
+                    </span>
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
+                      allowSemanticEquivalent
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : "bg-slate-100 text-slate-700 border-slate-300"
+                    }`}
+                  >
+                    {allowSemanticEquivalent ? "Linh hoạt ngữ nghĩa: BẬT" : "Khớp 100% từng chữ: BẬT"}
+                  </span>
+                </div>
               </div>
             </div>
           ) : (

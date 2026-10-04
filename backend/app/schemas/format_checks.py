@@ -36,6 +36,7 @@ class FormatDraftFromDocumentsCreate(BaseModel):
     title: str = Field(min_length=2, max_length=300)
     document_ids: list[str] = Field(min_length=1, max_length=30)
     include_template_structure: bool = False
+    allow_semantic_equivalent: bool = True
 
 
 class FormatCriterionResponse(FormatCriterionInput):

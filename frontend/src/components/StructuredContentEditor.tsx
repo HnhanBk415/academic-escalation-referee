@@ -23,6 +23,38 @@ export function RuleTypeBadge({
       </span>
     );
   }
+  if (
+    expectedValue?.kind === "cover_page" ||
+    expectedValue?.kind === "cover_page_fields" ||
+    norm.includes("trang bìa")
+  ) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200/90 shadow-2xs">
+        🎨 Trang bìa
+      </span>
+    );
+  }
+  if (expectedValue?.kind === "template_chapter") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/90 shadow-2xs">
+        📖 Chương (Cấp 1)
+      </span>
+    );
+  }
+  if (expectedValue?.kind === "template_section") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-violet-50 text-violet-800 border border-violet-200/90 shadow-2xs">
+        📌 Mục con (Cấp 2)
+      </span>
+    );
+  }
+  if (expectedValue?.kind === "template_sequence") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/90 shadow-2xs">
+        🔀 Thứ tự tuần tự
+      </span>
+    );
+  }
   if (ruleType === "MEASUREMENT") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-800 border border-sky-200/90 shadow-2xs">
@@ -72,10 +104,28 @@ export function getCriterionSummary(item: {
     if (prop === "line_spacing") return `Giãn dòng: ${val}`;
   }
   if (rule_type === "TEMPLATE") {
+    if (expected_value?.kind === "template_chapter") {
+      const num = expected_value?.chapter_number;
+      const sem = expected_value?.allow_semantic_equivalent ? "Tương đương ngữ nghĩa" : "Tên chính xác 100%";
+      return `Chương ${num} · ${sem}`;
+    }
+    if (expected_value?.kind === "template_section") {
+      const parent = expected_value?.parent_chapter as string;
+      const sem = expected_value?.allow_semantic_equivalent ? "Tương đương ngữ nghĩa" : "Tên chính xác 100%";
+      return `${parent || "Mục con"} · ${sem}`;
+    }
+    if (expected_value?.kind === "template_sequence") {
+      const chaps = expected_value?.chapters as string[];
+      return `Thứ tự tuần tự (${chaps?.length || 0} chương)`;
+    }
     const count = Array.isArray(expected_value?.headings) ? expected_value.headings.length : 0;
     return `${count} mục theo dàn ý mẫu`;
   }
   if (rule_type === "PRESENCE") {
+    if (expected_value?.kind === "cover_page" || expected_value?.kind === "cover_page_fields" || norm.includes("trang bìa")) {
+      const req = expected_value?.required_fields as string[];
+      return `Trang bìa (${req ? req.length : 5} trường thông tin)`;
+    }
     if (
       expected_value?.citation_style ||
       norm.includes("tham khảo") ||
@@ -109,6 +159,15 @@ export function StructuredContentEditor({
   const normalizedName = (name || "").toLowerCase();
 
   // Phân loại phân hệ cấu hình
+  const isCoverPage =
+    ruleType === "PRESENCE" &&
+    (expectedValue?.kind === "cover_page" ||
+      expectedValue?.kind === "cover_page_fields" ||
+      normalizedName.includes("bìa"));
+  const isGranularChapter = ruleType === "TEMPLATE" && expectedValue?.kind === "template_chapter";
+  const isGranularSection = ruleType === "TEMPLATE" && expectedValue?.kind === "template_section";
+  const isGranularSequence = ruleType === "TEMPLATE" && expectedValue?.kind === "template_sequence";
+
   const isTemplate = ruleType === "TEMPLATE" || Array.isArray(expectedValue?.headings);
   const isReferences =
     ruleType === "PRESENCE" &&
@@ -138,8 +197,8 @@ export function StructuredContentEditor({
   const [measurementSubKind, setMeasurementSubKind] = useState<"margin" | "font" | "page">(
     isPageCount ? "page" : isFont ? "font" : "margin"
   );
-  const [presenceSubKind, setPresenceSubKind] = useState<"reference" | "table">(
-    isTable ? "table" : "reference"
+  const [presenceSubKind, setPresenceSubKind] = useState<"cover" | "reference" | "table">(
+    isCoverPage ? "cover" : isTable ? "table" : "reference"
   );
 
   // Dữ liệu Margins
@@ -244,8 +303,151 @@ export function StructuredContentEditor({
 
   return (
     <div className="space-y-3">
-      {/* ── 1. KHUNG ĐỀ MỤC TEMPLATE (CẤU TRÚC PHÂN CẤP) ────────────────── */}
+      {/* ── 1. KHUNG ĐỀ MỤC TEMPLATE (CẤU TRÚC PHÂN CẤP & TỪNG MỤC RIÊNG BIỆT) ── */}
       {isTemplate ? (
+        isGranularChapter ? (
+          <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 space-y-3.5">
+            <div className="flex items-center justify-between gap-2 border-b border-purple-100 pb-2">
+              <div>
+                <h4 className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                  <span>📖</span> Tiêu chí Chương bắt buộc (Cấp 1)
+                </h4>
+                <p className="text-[11px] text-purple-800/80 mt-0.5">
+                  Kiểm tra sự hiện diện của Chương {String(expectedValue?.chapter_number || "")} theo đúng thứ tự và phân cấp
+                </p>
+              </div>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-200/80 text-purple-900">
+                Chương {String(expectedValue?.chapter_number || "")}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Tên tiêu đề chuẩn của chương:
+                </label>
+                <input
+                  type="text"
+                  value={(expectedValue?.title as string) || ""}
+                  onChange={(e) => onChange({ ...expectedValue, title: e.target.value })}
+                  className="w-full bg-white border border-purple-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Số thứ tự chương:
+                </label>
+                <input
+                  type="number"
+                  value={Number(expectedValue?.chapter_number) || 1}
+                  onChange={(e) => onChange({ ...expectedValue, chapter_number: parseInt(e.target.value) || 1 })}
+                  className="w-full bg-white border border-purple-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
+                />
+              </div>
+            </div>
+            <div className="pt-2 border-t border-purple-200 flex flex-col gap-2 text-xs">
+              <label className="flex items-center gap-2 text-purple-950 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={expectedValue?.allow_semantic_equivalent !== false}
+                  onChange={(e) => onChange({ ...expectedValue, allow_semantic_equivalent: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span>
+                  <b>Cho phép tên tương đương ngữ nghĩa:</b> Chấp nhận từ đồng nghĩa (ví dụ: &quot;Mở đầu&quot; ↔ &quot;Giới thiệu&quot;) nhưng vẫn kiểm soát nghiêm ngặt vị trí và phân cấp chương.
+                </span>
+              </label>
+              <label className="flex items-center gap-2 text-purple-950 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={expectedValue?.allow_extra !== false}
+                  onChange={(e) => onChange({ ...expectedValue, allow_extra: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span>Cho phép có thêm các mục con mở rộng bên trong chương này</span>
+              </label>
+            </div>
+          </div>
+        ) : isGranularSection ? (
+          <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 space-y-3.5">
+            <div className="flex items-center justify-between gap-2 border-b border-purple-100 pb-2">
+              <div>
+                <h4 className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                  <span>📌</span> Tiêu chí Mục con bắt buộc (Cấp 2)
+                </h4>
+                <p className="text-[11px] text-purple-800/80 mt-0.5">
+                  Mục con trực thuộc {(expectedValue?.parent_chapter as string) || "Chương chính"}
+                </p>
+              </div>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-200/80 text-purple-900">
+                Mục con Cấp 2
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Tên tiêu đề mục con:
+                </label>
+                <input
+                  type="text"
+                  value={(expectedValue?.title as string) || ""}
+                  onChange={(e) => onChange({ ...expectedValue, title: e.target.value })}
+                  className="w-full bg-white border border-purple-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Thuộc chương:
+                </label>
+                <input
+                  type="text"
+                  value={(expectedValue?.parent_chapter as string) || ""}
+                  onChange={(e) => onChange({ ...expectedValue, parent_chapter: e.target.value })}
+                  className="w-full bg-white border border-purple-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800"
+                />
+              </div>
+            </div>
+            <div className="pt-2 border-t border-purple-200 text-xs">
+              <label className="flex items-center gap-2 text-purple-950 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={expectedValue?.allow_semantic_equivalent !== false}
+                  onChange={(e) => onChange({ ...expectedValue, allow_semantic_equivalent: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span>
+                  <b>Cho phép tên tương đương ngữ nghĩa:</b> Cho phép đặt tên linh hoạt nhưng phải đúng phân cấp mục con.
+                </span>
+              </label>
+            </div>
+          </div>
+        ) : isGranularSequence ? (
+          <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 space-y-3.5">
+            <div className="border-b border-purple-100 pb-2">
+              <h4 className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                <span>🔀</span> Tiêu chí Thứ tự và phân cấp cấu trúc đề mục
+              </h4>
+              <p className="text-[11px] text-purple-800/80 mt-0.5">
+                Xác thực trật tự xuất hiện của các chương trong báo cáo phải tăng dần tuần tự (không bị đảo lộn thứ tự)
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-slate-700 block">Thứ tự các chương bắt buộc:</span>
+              <div className="flex flex-wrap gap-2">
+                {(Array.isArray(expectedValue?.chapters) ? (expectedValue.chapters as string[]) : []).map((chap, idx) => (
+                  <span key={idx} className="px-2.5 py-1 rounded-lg bg-white border border-purple-300 text-xs font-semibold text-purple-900 flex items-center gap-1">
+                    <span className="w-4 h-4 rounded-full bg-purple-700 text-white text-[10px] flex items-center justify-center font-bold">
+                      {idx + 1}
+                    </span>
+                    <span>{chap}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500 italic pt-1">
+              * Nếu sinh viên đảo lộn thứ tự (ví dụ: đưa Chương 2 lên trước Chương 1), hệ thống sẽ đánh FAIL tiêu chí này.
+            </p>
+          </div>
+        ) : (
         <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-4 space-y-3.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -438,7 +640,8 @@ export function StructuredContentEditor({
             </span>
           </div>
         </div>
-      ) : ruleType === "MEASUREMENT" ? (
+      )
+    ) : ruleType === "MEASUREMENT" ? (
         /* ── 2. CÁC QUY TẮC ĐO LƯỜNG (CĂN LỀ, PHÔNG CHỮ, SỐ TRANG) ────────── */
         <div className="bg-sky-50/50 border border-sky-200 rounded-xl p-4 space-y-3.5">
           {/* Subtype switch bar */}
@@ -847,6 +1050,23 @@ export function StructuredContentEditor({
               <button
                 type="button"
                 onClick={() => {
+                  setPresenceSubKind("cover");
+                  onChange({
+                    kind: "cover_page",
+                    required_fields: ["university", "faculty", "title", "students", "advisor", "year"],
+                  });
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  presenceSubKind === "cover"
+                    ? "bg-amber-700 text-white shadow-2xs"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                🎨 Trang bìa chính
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   setPresenceSubKind("reference");
                   onChange({
                     kind: "heading",
@@ -884,8 +1104,57 @@ export function StructuredContentEditor({
             <span className="text-[11px] text-amber-800 font-medium">Cấu trúc bắt buộc &amp; Trích dẫn</span>
           </div>
 
-          {/* Subtype: Citations & Reference Format */}
-          {presenceSubKind === "reference" ? (
+          {/* Subtype 0: Cover page */}
+          {presenceSubKind === "cover" ? (
+            <div className="space-y-3">
+              <div className="border-b border-amber-200/70 pb-2">
+                <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                  <span>🎨</span> Các trường thông tin bắt buộc trên Trang bìa
+                </h4>
+                <p className="text-[11px] text-amber-800/80 mt-0.5">
+                  Hệ thống phân tích tự động toàn bộ trang đầu tiên (kể cả văn bản trong bảng và khung viền) để đối soát các trường thông tin này.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {[
+                  { id: "university", label: "Tên trường / ĐHQG (VD: ĐẠI HỌC BÁCH KHOA...)" },
+                  { id: "faculty", label: "Khoa / Bộ môn / Viện (VD: KHOA KH&KT MÁY TÍNH...)" },
+                  { id: "title", label: "Tên đề tài / Đồ án / Khóa luận tốt nghiệp" },
+                  { id: "students", label: "Họ tên sinh viên & Mã số SV (MSSV 7-8 chữ số)" },
+                  { id: "advisor", label: "Cán bộ / Giảng viên hướng dẫn (GVHD / CBHD)" },
+                  { id: "year", label: "Địa điểm & Năm / Thời gian (VD: TP.HCM, 2026)" },
+                ].map((f) => {
+                  const reqList = Array.isArray(expectedValue?.required_fields)
+                    ? (expectedValue.required_fields as string[])
+                    : ["university", "faculty", "title", "students", "advisor", "year"];
+                  const isChecked = reqList.includes(f.id);
+                  return (
+                    <label
+                      key={f.id}
+                      className={`p-2.5 rounded-lg border flex items-center gap-2 cursor-pointer transition-all text-xs ${
+                        isChecked
+                          ? "bg-amber-100/70 border-amber-300 font-semibold text-amber-950 shadow-2xs"
+                          : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          const updated = isChecked
+                            ? reqList.filter((x) => x !== f.id)
+                            : [...reqList, f.id];
+                          onChange({ ...expectedValue, kind: "cover_page", required_fields: updated });
+                        }}
+                        className="rounded text-amber-700 focus:ring-amber-500"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : presenceSubKind === "reference" ? (
             <div className="space-y-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-xs font-bold text-slate-800">

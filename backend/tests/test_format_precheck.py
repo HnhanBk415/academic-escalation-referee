@@ -13,6 +13,28 @@ def _docx_with_heading(heading: str) -> bytes:
     return stream.getvalue()
 
 
+def _docx_with_cover_and_headings(headings: list[str], include_cover: bool = True) -> bytes:
+    doc = Document()
+    if include_cover:
+        doc.add_paragraph("ĐẠI HỌC QUỐC GIA TP. HỒ CHÍ MINH\nTRƯỜNG ĐẠI HỌC BÁCH KHOA\nKHOA KHOA HỌC VÀ KỸ THUẬT MÁY TÍNH")
+        doc.add_paragraph("BÁO CÁO ĐỒ ÁN MÔN HỌC")
+        table = doc.add_table(rows=2, cols=2)
+        table.rows[0].cells[0].text = "Giảng viên hướng dẫn: TS. Nguyễn Văn B"
+        table.rows[0].cells[1].text = "Học kỳ: HK242"
+        table.rows[1].cells[0].text = "Sinh viên thực hiện: Lê Văn C"
+        table.rows[1].cells[1].text = "MSSV: 2011003"
+        doc.add_paragraph("TP. HỒ CHÍ MINH, NĂM 2026")
+        doc.add_page_break()
+
+    for h in headings:
+        doc.add_heading(h, level=1 if "Chương" in h else 2)
+        doc.add_paragraph(f"Nội dung chi tiết của phần {h}.")
+
+    stream = io.BytesIO()
+    doc.save(stream)
+    return stream.getvalue()
+
+
 @pytest.mark.asyncio
 async def test_format_check_requires_approved_criteria(client):
     response = await client.post(
@@ -150,3 +172,137 @@ async def test_academic_30_checklist_draft_and_evaluation(client):
     equations_item = next(item for item in summary if item["index"] == 14)
     assert equations_item["status"] == "NOT_SPECIFIED"
     assert equations_item["icon"] == "⚪"
+
+
+@pytest.mark.asyncio
+async def test_cover_page_detection_and_evaluation(client):
+    # 1. Create criteria set with Cover Page
+    draft_res = await client.post(
+        "/api/v1/format-checks/criteria/drafts/from-documents",
+        json={
+            "course_id": "CO3001",
+            "lecturer_id": "lecturer-01",
+            "title": "Quy chế Báo cáo có Trang bìa",
+            "document_ids": ["format-guidelines-v1"],
+            "include_template_structure": True,
+        },
+    )
+    assert draft_res.status_code == 201
+    crit_set_id = draft_res.json()["id"]
+    await client.post(f"/api/v1/format-checks/criteria/{crit_set_id}/approve?lecturer_id=lecturer-01")
+
+    # 2. Submission WITH full cover page
+    file_with_cover = _docx_with_cover_and_headings(["Chương 1: Khái niệm", "1. Mô tả đồ án"], include_cover=True)
+    checked_pass = await client.post(
+        "/api/v1/format-checks/checks",
+        data={"course_id": "CO3001", "actor_id": "demo-student"},
+        files={"file": ("report_with_cover.docx", file_with_cover, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert checked_pass.status_code == 200
+    summary_pass = checked_pass.json()["checklist_summary"]
+    cover_item = next(item for item in summary_pass if item["index"] == 6)
+    assert cover_item["status"] == "PASS", cover_item
+
+    # 3. Submission WITHOUT cover page
+    file_no_cover = _docx_with_cover_and_headings(["Chương 1: Khái niệm"], include_cover=False)
+    checked_fail = await client.post(
+        "/api/v1/format-checks/checks",
+        data={"course_id": "CO3001", "actor_id": "demo-student"},
+        files={"file": ("report_no_cover.docx", file_no_cover, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert checked_fail.status_code == 200
+    summary_fail = checked_fail.json()["checklist_summary"]
+    cover_item_fail = next(item for item in summary_fail if item["index"] == 6)
+    assert cover_item_fail["status"] == "FAIL"
+    assert "trang bìa" in cover_item_fail["error_summary"].lower()
+
+
+@pytest.mark.asyncio
+async def test_granular_template_and_semantic_equivalence_toggle(client):
+    # A. Draft with allow_semantic_equivalent = True
+    draft_semantic = await client.post(
+        "/api/v1/format-checks/criteria/drafts/from-documents",
+        json={
+            "course_id": "CO3001",
+            "lecturer_id": "lecturer-01",
+            "title": "Checklist Cho phép tương đương ngữ nghĩa",
+            "document_ids": ["format-guidelines-v1"],
+            "include_template_structure": True,
+            "allow_semantic_equivalent": True,
+        },
+    )
+    assert draft_semantic.status_code == 201
+    crit_semantic = draft_semantic.json()["criteria"]
+
+    # Verify granular criteria exist for each chapter and section
+    names = [c["name"] for c in crit_semantic]
+    assert any("Chương 1" in n for n in names)
+    assert any("Chương 2" in n for n in names)
+    assert any("Chương 3" in n for n in names)
+    assert any("Mục con:" in n for n in names)
+    assert any("Thứ tự và phân cấp cấu trúc đề mục" in n for n in names)
+
+    await client.post(f"/api/v1/format-checks/criteria/{draft_semantic.json()['id']}/approve?lecturer_id=lecturer-01")
+
+    # Submission using semantically equivalent heading: "Chương 1: Mở đầu" instead of "Chương 1: Khái niệm"
+    sem_doc = _docx_with_cover_and_headings([
+        "Chương 1: Mở đầu",
+        "1.1 Giới thiệu đề tài",
+        "Chương 2: Hiện thực",
+        "Chương 3: Đánh giá và Kết luận",
+    ])
+    res_sem = await client.post(
+        "/api/v1/format-checks/checks",
+        data={"course_id": "CO3001", "actor_id": "demo-student"},
+        files={"file": ("sem_report.docx", sem_doc, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert res_sem.status_code == 200
+    c1_res = next(r for r in res_sem.json()["results"] if "Chương 1" in r["name"])
+    assert c1_res["status"] == "PASS"
+    assert "tương đương ngữ nghĩa" in c1_res["message"]
+
+    # B. Out of order check: Chapter 2 appears before Chapter 1
+    inverted_doc = _docx_with_cover_and_headings([
+        "Chương 2: Hiện thực",
+        "Chương 1: Khái niệm",
+        "Chương 3: Đánh giá và Kết luận",
+    ])
+    res_inverted = await client.post(
+        "/api/v1/format-checks/checks",
+        data={"course_id": "CO3001", "actor_id": "demo-student"},
+        files={"file": ("inverted.docx", inverted_doc, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert res_inverted.status_code == 200
+    seq_res = next(r for r in res_inverted.json()["results"] if "Thứ tự" in r["name"])
+    assert seq_res["status"] == "FAIL"
+
+
+def test_zero_defaults_strict_extraction():
+    from app.services.academic_report_checklist import extract_checklist_from_regulations
+
+    # Document that ONLY specifies top and bottom margins (no left, no right) and NO font size, NO line spacing
+    custom_chunks = [
+        {
+            "content": "Quy chế định dạng: Lề trên 2.0 cm, Lề dưới 2.0 cm. Phông chữ Arial.",
+            "document_id": "custom-doc-1",
+        }
+    ]
+    extracted = extract_checklist_from_regulations(custom_chunks)
+
+    # 1. Margins: top and bottom must be present; left and right MUST NOT be defaulted
+    page_crit = next(c for c in extracted if c.name.startswith("1."))
+    val = page_crit.expected_value["value"]
+    assert val == {"top": 2.0, "bottom": 2.0}
+    assert "left" not in val
+    assert "right" not in val
+
+    # 2. Typography: font_size_pt must be None (no default 13.0 pt)
+    typo_crit = next(c for c in extracted if c.name.startswith("2."))
+    assert typo_crit.expected_value["value"] == "Arial"
+    assert typo_crit.expected_value["font_size_pt"] is None
+
+    # 3. Spacing: line_spacing must NOT be created since not in regulation
+    assert not any(c.name.startswith("3.") for c in extracted)
+
+    # 4. Page count: must NOT be created since not in regulation (no default 50)
+    assert not any("Dung lượng" in c.name for c in extracted)

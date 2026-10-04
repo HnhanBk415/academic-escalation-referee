@@ -47,6 +47,7 @@ from app.schemas.format_checks import (
     FormatReviewCaseResponse,
     FormatReviewDecisionCreate,
 )
+from app.ingestion.service import resolve_source_path
 from app.services.academic_report_checklist import (
     evaluate_academic_checklist,
     extract_checklist_from_regulations,
@@ -78,9 +79,16 @@ def _criterion_is_automatable(item: FormatCriterionInput) -> bool:
     if item.rule_type == FormatCriterionRuleType.MEASUREMENT:
         return str(item.expected_value.get("property", "")) in SUPPORTED_MEASUREMENTS
     if item.rule_type == FormatCriterionRuleType.PRESENCE:
-        return str(item.expected_value.get("kind", "")) in {"heading", "table_columns"}
+        kind = str(item.expected_value.get("kind", ""))
+        return kind in {"heading", "table_columns", "cover_page", "cover_page_fields"} or "trang bìa" in item.name.lower()
     if item.rule_type == FormatCriterionRuleType.TEMPLATE:
-        return bool(item.expected_value.get("headings"))
+        kind = str(item.expected_value.get("kind", ""))
+        return (
+            bool(item.expected_value.get("headings"))
+            or kind in {"template_chapter", "template_section", "template_sequence"}
+            or bool(item.expected_value.get("chapter_name"))
+            or bool(item.expected_value.get("section_name"))
+        )
     return False
 
 
@@ -212,17 +220,47 @@ async def draft_from_documents(
         {"content": chunk.content, "document_id": chunk.document_id, "heading": chunk.heading}
         for chunk in chunks
     ]
+    raw_source_texts: list[str] = []
+    for doc in documents:
+        try:
+            p = resolve_source_path(doc.source_path)
+            if p.is_file():
+                raw_source_texts.append(p.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    if raw_source_texts:
+        for idx, raw_t in enumerate(raw_source_texts):
+            doc_id = documents[idx].id if idx < len(documents) else None
+            chunk_dicts.insert(0, {"content": raw_t, "document_id": doc_id, "heading": None})
+
     template_headings: list[str] | None = None
     if payload.include_template_structure:
-        raw_headings = [chunk.heading for chunk in chunks if chunk.heading]
-        template_headings = [
-            str(h).strip() for h in dict.fromkeys(raw_headings)
-            if h and not re.search(r"^(Quy định|1\.|2\.|3\.|4\.|5\.)", str(h))
-        ]
-        if not template_headings:
-            template_headings = [str(h).strip() for h in dict.fromkeys(raw_headings) if h]
+        if raw_source_texts:
+            headings_from_source = []
+            for raw_t in raw_source_texts:
+                for line in raw_t.splitlines():
+                    m = re.match(r"^#{1,6}\s+([^\n\r]+)", line.strip())
+                    if m:
+                        h = m.group(1).strip()
+                        if h and not re.search(r"^(Quy định|1\.|2\.|3\.|4\.|5\.)", h):
+                            headings_from_source.append(h)
+            template_headings = list(dict.fromkeys(headings_from_source))
 
-    criteria = extract_checklist_from_regulations(chunk_dicts, template_headings=template_headings)
+        if not template_headings:
+            raw_headings = [chunk.heading for chunk in chunks if chunk.heading]
+            template_headings = [
+                str(h).strip() for h in dict.fromkeys(raw_headings)
+                if h and not re.search(r"^(Quy định|1\.|2\.|3\.|4\.|5\.)", str(h))
+            ]
+            if not template_headings:
+                template_headings = [str(h).strip() for h in dict.fromkeys(raw_headings) if h]
+
+    criteria = extract_checklist_from_regulations(
+        chunk_dicts,
+        template_headings=template_headings,
+        allow_semantic_equivalent=payload.allow_semantic_equivalent,
+    )
     return await create_draft(
         session,
         FormatCriteriaDraftCreate(
