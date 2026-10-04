@@ -103,11 +103,143 @@ function CriterionResult({ item }: { item: FormatCriterionResult }) {
 }
 
 function CheckResult({ result }: { result: FormatCheckResponse }) {
-  return <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
-    <div className="flex gap-3 items-start"><ResultBadge status={result.overall_status} /><div><h2 className="font-bold text-slate-900">Kết quả kiểm tra hình thức</h2><p className="text-sm text-slate-600 mt-1">{result.message}</p>{result.criteria_version && <p className="text-xs text-slate-500 mt-2">Bộ tiêu chí phiên bản {result.criteria_version}{result.criteria_approved_at ? ` · duyệt ${new Date(result.criteria_approved_at).toLocaleDateString("vi-VN")}` : ""}</p>}</div></div>
-    {result.review_case_id && <p className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">Một điểm trình bày chưa thể kết luận tự động đã được gửi cho giảng viên xem xét.</p>}
-    {result.results.length > 0 && <div className="space-y-3">{result.results.map((item) => <CriterionResult key={item.criterion_id} item={item} />)}</div>}
-  </section>;
+  const [activeTab, setActiveTab] = useState<"summary" | "criteria">("summary");
+
+  return (
+    <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+      <div className="flex gap-3 items-start">
+        <ResultBadge status={result.overall_status} />
+        <div>
+          <h2 className="font-bold text-slate-900 text-lg">Kết quả kiểm tra hình thức báo cáo</h2>
+          <p className="text-sm text-slate-600 mt-1">{result.message}</p>
+          {result.criteria_version && (
+            <p className="text-xs text-slate-500 mt-2">
+              Bộ tiêu chí phiên bản {result.criteria_version}
+              {result.criteria_approved_at ? ` · duyệt ${new Date(result.criteria_approved_at).toLocaleDateString("vi-VN")}` : ""}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {result.review_case_id && (
+        <p className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
+          Một số điểm trình bày chưa thể kết luận tự động đã được chuyển cho giảng viên xem xét.
+        </p>
+      )}
+
+      {/* Tabs */}
+      {result.checklist_summary && result.checklist_summary.length > 0 && (
+        <div className="flex border-b border-slate-200 gap-6 text-sm font-medium pt-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("summary")}
+            className={`pb-2.5 transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === "summary"
+                ? "border-red-700 text-red-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span>📋 Bảng tổng hợp 30 tiêu chí</span>
+            <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
+              {result.checklist_summary.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("criteria")}
+            className={`pb-2.5 transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === "criteria"
+                ? "border-red-700 text-red-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span>🔍 Chi tiết tiêu chí áp dụng</span>
+            <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
+              {result.results.length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* 30-Category Summary Table */}
+      {activeTab === "summary" && result.checklist_summary && (
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 font-semibold">
+              <tr>
+                <th className="p-3 w-12 text-center">STT</th>
+                <th className="p-3 w-52">Nhóm tiêu chí</th>
+                <th className="p-3 w-32 text-center">Trạng thái</th>
+                <th className="p-3">Chi tiết đánh giá / Lỗi phát hiện</th>
+                <th className="p-3 w-52">Gợi ý khắc phục</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {result.checklist_summary.map((row) => (
+                <tr
+                  key={row.index}
+                  className={`hover:bg-slate-50/80 transition-colors ${
+                    row.status === "FAIL"
+                      ? "bg-rose-50/40"
+                      : row.status === "AMBIGUOUS"
+                      ? "bg-amber-50/40"
+                      : row.status === "PASS"
+                      ? "bg-emerald-50/30"
+                      : "opacity-65"
+                  }`}
+                >
+                  <td className="p-3 text-center font-medium text-slate-500">{row.index}</td>
+                  <td className="p-3 font-semibold text-slate-800">{row.category}</td>
+                  <td className="p-3 text-center">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                        row.status === "PASS"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : row.status === "FAIL"
+                          ? "bg-rose-100 text-rose-800"
+                          : row.status === "AMBIGUOUS"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      <span>{row.icon}</span>
+                      <span>
+                        {row.status === "PASS"
+                          ? "Đạt"
+                          : row.status === "FAIL"
+                          ? "Lỗi"
+                          : row.status === "AMBIGUOUS"
+                          ? "Cảnh báo"
+                          : "Không quy định"}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="p-3 text-slate-700">
+                    <p className="font-medium">{row.error_summary}</p>
+                    {row.evidence && row.status !== "NOT_SPECIFIED" && (
+                      <p className="mt-1 text-[11px] text-slate-500 font-mono bg-white/80 p-1.5 rounded border border-slate-200/80">
+                        {row.evidence.length > 150 ? `${row.evidence.slice(0, 150)}…` : row.evidence}
+                      </p>
+                    )}
+                  </td>
+                  <td className="p-3 text-slate-600 text-[11px]">{row.suggestion}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Applied Criteria Details */}
+      {(activeTab === "criteria" || !result.checklist_summary) && result.results.length > 0 && (
+        <div className="space-y-3">
+          {result.results.map((item) => (
+            <CriterionResult key={item.criterion_id} item={item} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<Props, "role">) {

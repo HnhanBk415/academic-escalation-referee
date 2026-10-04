@@ -217,6 +217,16 @@ export interface FormatCriterionResult {
   source_citation: string | null;
 }
 
+export interface ChecklistSummaryItem {
+  index: number;
+  category: string;
+  status: string;
+  icon: string;
+  error_summary: string;
+  evidence: string;
+  suggestion: string;
+}
+
 export interface FormatCheckResponse {
   overall_status: "PASS" | "NEEDS_FIX" | "UNABLE_TO_CHECK";
   message: string;
@@ -225,6 +235,8 @@ export interface FormatCheckResponse {
   criteria_approved_at: string | null;
   results: FormatCriterionResult[];
   review_case_id: string | null;
+  checklist_summary?: ChecklistSummaryItem[];
+  report_facts?: Record<string, unknown>;
 }
 
 export interface FormatReviewCase {

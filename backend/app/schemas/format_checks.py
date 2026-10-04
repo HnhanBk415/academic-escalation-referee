@@ -66,6 +66,9 @@ class FormatCriterionResult(BaseModel):
     expected_value: dict[str, Any]
     actual_value: dict[str, Any] | None = None
     source_citation: str | None = None
+    category: str | None = None
+    evidence: str | None = None
+    suggestion: str | None = None
 
 
 class FormatCheckResponse(BaseModel):
@@ -76,6 +79,8 @@ class FormatCheckResponse(BaseModel):
     criteria_approved_at: datetime | None = None
     results: list[FormatCriterionResult] = Field(default_factory=list)
     review_case_id: str | None = None
+    checklist_summary: list[dict[str, Any]] | None = None
+    report_facts: dict[str, Any] | None = None
 
 
 class FormatReviewDecisionCreate(BaseModel):

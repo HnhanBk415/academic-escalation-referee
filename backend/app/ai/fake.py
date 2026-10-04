@@ -248,17 +248,25 @@ class FakeProvider:
             text = unicodedata.normalize("NFC", text.lower())
             return {w for w in re.findall(r"\w+", text) if len(w) > 1}
 
+        has_partial = False
         for expected in expected_items:
             exp_tokens = _normalize(expected)
-            matched = any(
-                len(exp_tokens & _normalize(actual)) / max(len(exp_tokens), 1) >= 0.5
-                for actual in actual_items
-            )
-            if not matched:
+            has_exact = any(exp_tokens == _normalize(actual) for actual in actual_items)
+            if has_exact:
+                continue
+            has_some = any(bool(exp_tokens & _normalize(actual)) for actual in actual_items)
+            if has_some:
+                has_partial = True
+            else:
                 return FormatSemanticJudgment(
                     verdict="FAIL",
                     reason=f"[Fake AI] Không tìm thấy đề mục tương đương với '{expected}'.",
                 )
+        if has_partial:
+            return FormatSemanticJudgment(
+                verdict="AMBIGUOUS",
+                reason="[Fake AI] Có đề mục tương tự nhưng cần giảng viên phán đoán cụ thể.",
+            )
         return FormatSemanticJudgment(
             verdict="PASS",
             reason="[Fake AI] Các đề mục được xem là tương đương về mặt ngữ nghĩa.",

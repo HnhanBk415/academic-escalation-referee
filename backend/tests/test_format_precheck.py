@@ -99,3 +99,54 @@ async def test_ambiguous_template_creates_limited_review_case(client):
     )
     assert decided.status_code == 200
     assert decided.json()["status"] == "ACCEPTED"
+
+
+@pytest.mark.asyncio
+async def test_academic_30_checklist_draft_and_evaluation(client):
+    # 1. Trích để tạo checklist từ quy định: cái nào có thì nạp, không có bỏ trống
+    draft_res = await client.post(
+        "/api/v1/format-checks/criteria/drafts/from-documents",
+        json={
+            "course_id": "CO3001",
+            "lecturer_id": "lecturer-01",
+            "title": "Checklist Quy chế Báo cáo 30 Tiêu chí",
+            "document_ids": ["format-guidelines-v1"],
+            "include_template_structure": True,
+        },
+    )
+    assert draft_res.status_code == 201, draft_res.text
+    draft_data = draft_res.json()
+    criteria = draft_data["criteria"]
+    assert len(criteria) >= 4
+
+    # Verify populated items from regulation
+    criteria_names = [c["name"] for c in criteria]
+    assert any("Khổ giấy" in name for name in criteria_names)
+    assert any("Phông chữ" in name for name in criteria_names)
+
+    # Approve criteria
+    crit_set_id = draft_data["id"]
+    await client.post(f"/api/v1/format-checks/criteria/{crit_set_id}/approve?lecturer_id=lecturer-01")
+
+    # 2 & 3. Trích facts từ báo cáo và giao cả 2 cho AI / Rule engine đánh giá
+    checked = await client.post(
+        "/api/v1/format-checks/checks",
+        data={"course_id": "CO3001", "actor_id": "demo-student"},
+        files={"file": ("report_sv.docx", _docx_with_heading("1. Mô tả đồ án"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert checked.status_code == 200, checked.text
+    res_data = checked.json()
+
+    # Bảng tổng hợp kiểm tra 30 tiêu chí (Checklist summary)
+    summary = res_data.get("checklist_summary")
+    assert summary is not None
+    assert len(summary) == 30
+
+    # Tiêu chí có quy định được đánh giá (PASS / FAIL / AMBIGUOUS)
+    page_setup_item = next(item for item in summary if item["index"] == 1)
+    assert page_setup_item["status"] in {"PASS", "FAIL"}
+
+    # Tiêu chí quy định không đề cập thì để trống (NOT_SPECIFIED)
+    equations_item = next(item for item in summary if item["index"] == 14)
+    assert equations_item["status"] == "NOT_SPECIFIED"
+    assert equations_item["icon"] == "⚪"
