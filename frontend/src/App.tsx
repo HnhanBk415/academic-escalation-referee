@@ -3,6 +3,7 @@ import { api } from "./api/client";
 import { Sidebar, type ActiveTab, type Role } from "./components/Sidebar";
 import { AuditPage } from "./pages/AuditPage";
 import { ExceptionsView } from "./pages/ExceptionsView";
+import { FormatPrecheckPage } from "./pages/FormatPrecheckPage";
 import { LecturerInboxView } from "./pages/LecturerInboxView";
 import { StudentHistoryView } from "./pages/StudentHistoryView";
 import { StudentSubmitView } from "./pages/StudentSubmitView";
@@ -140,6 +141,14 @@ export function App() {
             catalog={catalog}
             selectedCourseId={selectedCourseId}
             selectedGroupId={selectedGroupId}
+          />
+        )}
+        {activeTab === "format" && (
+          <FormatPrecheckPage
+            role={role}
+            catalog={catalog}
+            selectedCourseId={selectedCourseId}
+            onSelectCourse={handleSelectCourse}
           />
         )}
         {activeTab === "inbox" && (

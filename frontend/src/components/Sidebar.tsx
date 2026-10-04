@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { api } from "../api/client";
 import {
   IconChevronRight,
+  IconBookOpen,
   IconClipboard,
   IconInbox,
   IconMessageSquare,
@@ -12,7 +13,7 @@ import {
 } from "./Icons";
 
 export type Role = "student" | "lecturer";
-export type ActiveTab = "submit" | "history" | "inbox" | "exceptions" | "audit" | "verify";
+export type ActiveTab = "submit" | "history" | "format" | "inbox" | "exceptions" | "audit" | "verify";
 
 interface SidebarProps {
   role: Role;
@@ -125,6 +126,12 @@ export function Sidebar({
               onClick={() => onSelectTab("history")}
               badge={pendingCount > 0 ? pendingCount : undefined}
             />
+            <NavItem
+              icon={<IconBookOpen size={16} />}
+              label="Kiểm tra hình thức"
+              active={activeTab === "format"}
+              onClick={() => onSelectTab("format")}
+            />
           </>
         ) : (
           <>
@@ -143,6 +150,12 @@ export function Sidebar({
               label="Ngoại lệ quy chế"
               active={activeTab === "exceptions"}
               onClick={() => onSelectTab("exceptions")}
+            />
+            <NavItem
+              icon={<IconBookOpen size={16} />}
+              label="Tiêu chí hình thức"
+              active={activeTab === "format"}
+              onClick={() => onSelectTab("format")}
             />
           </>
         )}

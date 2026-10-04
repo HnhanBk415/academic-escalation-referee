@@ -89,3 +89,34 @@ class ExceptionStatus(StrEnum):
     EXPIRED = "EXPIRED"
     REVOKED = "REVOKED"
 
+
+class FormatCriteriaSetStatus(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class FormatCriterionRuleType(StrEnum):
+    MEASUREMENT = "MEASUREMENT"
+    PRESENCE = "PRESENCE"
+    TEMPLATE = "TEMPLATE"
+
+
+class FormatCriterionResultStatus(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNMEASURABLE = "UNMEASURABLE"
+    AMBIGUOUS = "AMBIGUOUS"
+
+
+class FormatCheckOverallStatus(StrEnum):
+    PASS = "PASS"
+    NEEDS_FIX = "NEEDS_FIX"
+    UNABLE_TO_CHECK = "UNABLE_TO_CHECK"
+
+
+class FormatReviewStatus(StrEnum):
+    UNDER_REVIEW = "UNDER_REVIEW"
+    ACCEPTED = "ACCEPTED"
+    REQUIRES_FIX = "REQUIRES_FIX"
+

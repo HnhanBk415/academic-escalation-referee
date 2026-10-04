@@ -229,3 +229,70 @@ class AuditEvent(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     undo_of_event_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FormatCriteriaSet(Base):
+    __tablename__ = "format_criteria_sets"
+    __table_args__ = (UniqueConstraint("course_id", "version"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    source_document_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_by: Mapped[str] = mapped_column(ForeignKey("actors.id"))
+    approved_by: Mapped[str | None] = mapped_column(ForeignKey("actors.id"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FormatCriterion(Base):
+    __tablename__ = "format_criteria"
+    __table_args__ = (UniqueConstraint("criteria_set_id", "position"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    criteria_set_id: Mapped[str] = mapped_column(ForeignKey("format_criteria_sets.id"), index=True)
+    position: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String(300))
+    description: Mapped[str] = mapped_column(Text)
+    rule_type: Mapped[str] = mapped_column(String(20), index=True)
+    expected_value: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    source_citation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
+    automatable: Mapped[bool] = mapped_column(default=False)
+    review_only: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FormatReviewCase(Base):
+    """The intentionally narrow persistence exception for ambiguous submissions."""
+
+    __tablename__ = "format_review_cases"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
+    criteria_set_id: Mapped[str] = mapped_column(ForeignKey("format_criteria_sets.id"), index=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actors.id"), index=True)
+    assigned_reviewer_id: Mapped[str] = mapped_column(ForeignKey("actors.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(500))
+    extracted_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    ambiguous_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(30), default="UNDER_REVIEW", index=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FormatCheckMetric(Base):
+    __tablename__ = "format_check_metrics"
+    __table_args__ = (UniqueConstraint("course_id", "metric_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
+    metric_date: Mapped[date] = mapped_column(Date, index=True)
+    total_checks: Mapped[int] = mapped_column(Integer, default=0)
+    passed_checks: Mapped[int] = mapped_column(Integer, default=0)
+    needs_fix_checks: Mapped[int] = mapped_column(Integer, default=0)
+    unable_to_check_checks: Mapped[int] = mapped_column(Integer, default=0)

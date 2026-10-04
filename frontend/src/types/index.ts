@@ -176,3 +176,84 @@ export interface AuditEvent {
   duration_ms: number | null;
   created_at: string;
 }
+
+export type FormatRuleType = "MEASUREMENT" | "PRESENCE" | "TEMPLATE";
+export type FormatResultStatus = "PASS" | "FAIL" | "UNMEASURABLE" | "AMBIGUOUS";
+
+export interface FormatCriterion {
+  id: string;
+  position: number;
+  name: string;
+  description: string;
+  rule_type: FormatRuleType;
+  expected_value: Record<string, unknown>;
+  source_citation: string | null;
+  source_document_id: string | null;
+  review_only: boolean;
+  automatable: boolean;
+}
+
+export interface FormatCriteriaSet {
+  id: string;
+  course_id: string;
+  version: number;
+  title: string;
+  status: "DRAFT" | "ACTIVE" | "SUPERSEDED";
+  source_document_ids: string[];
+  created_by: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  criteria: FormatCriterion[];
+}
+
+export interface FormatCriterionResult {
+  criterion_id: string;
+  name: string;
+  status: FormatResultStatus;
+  message: string;
+  expected_value: Record<string, unknown>;
+  actual_value: Record<string, unknown> | null;
+  source_citation: string | null;
+}
+
+export interface FormatCheckResponse {
+  overall_status: "PASS" | "NEEDS_FIX" | "UNABLE_TO_CHECK";
+  message: string;
+  criteria_set_id: string | null;
+  criteria_version: number | null;
+  criteria_approved_at: string | null;
+  results: FormatCriterionResult[];
+  review_case_id: string | null;
+}
+
+export interface FormatReviewCase {
+  id: string;
+  course_id: string;
+  criteria_set_id: string;
+  actor_id: string;
+  filename: string;
+  extracted_snapshot: Record<string, unknown>;
+  ambiguous_results: Array<Record<string, unknown>>;
+  status: "UNDER_REVIEW" | "ACCEPTED" | "REQUIRES_FIX";
+  decision_reason: string | null;
+  decided_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface FormatMetric {
+  course_id: string;
+  metric_date: string;
+  total_checks: number;
+  passed_checks: number;
+  needs_fix_checks: number;
+  unable_to_check_checks: number;
+}
+
+export interface DocumentSummary {
+  id: string;
+  title: string;
+  status: string;
+  course_id: string;
+}

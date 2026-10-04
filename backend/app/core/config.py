@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     ai_request_timeout_seconds: float = 30
     ai_max_concurrency: int = 1
     ai_health_cache_seconds: float = 45
+    format_check_max_upload_bytes: int = 15 * 1024 * 1024
+    format_review_retention_days: int = 30
 
     rag_top_k: int = 8
     rag_context_chunks: int = 5
