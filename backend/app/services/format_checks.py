@@ -1,5 +1,10 @@
 import io
 import re
+import shutil
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
+import zipfile
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -398,6 +403,99 @@ async def get_active_criteria(session: AsyncSession, course_id: str) -> FormatCr
     )
 
 
+def _convert_docx_to_pdf_bytes(payload: bytes) -> bytes | None:
+    """Attempt headless conversion of DOCX bytes to PDF bytes using LibreOffice / soffice."""
+    binary = shutil.which("soffice") or shutil.which("libreoffice")
+    if not binary:
+        return None
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            in_path = Path(tmpdir) / "submission.docx"
+            in_path.write_bytes(payload)
+            cmd = [
+                binary,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                tmpdir,
+                str(in_path),
+            ]
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=25)
+            out_pdf = Path(tmpdir) / "submission.pdf"
+            if out_pdf.exists():
+                return out_pdf.read_bytes()
+    except Exception:
+        pass
+    return None
+
+
+def _extract_docx_page_count(payload: bytes) -> int | None:
+    """Cross-complement DOCX with rendered PDF page count, or fallback to docProps/app.xml metadata."""
+    # 1. Ưu tiên: Chuyển đổi DOCX sang PDF thực tế để đếm số trang vật lý chuẩn 100%
+    converted_pdf = _convert_docx_to_pdf_bytes(payload)
+    if converted_pdf:
+        try:
+            pdf_reader = PdfReader(io.BytesIO(converted_pdf))
+            if len(pdf_reader.pages) > 0:
+                return len(pdf_reader.pages)
+        except Exception:
+            pass
+
+    # 2. Bù trừ qua Metadata: Đọc thẻ <Pages> lưu bởi Word / LibreOffice trong docProps/app.xml
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+            if "docProps/app.xml" in zf.namelist():
+                xml_content = zf.read("docProps/app.xml")
+                root = ET.fromstring(xml_content)
+                for elem in root.iter():
+                    if elem.tag.endswith("Pages") and elem.text and elem.text.strip().isdigit():
+                        count = int(elem.text.strip())
+                        if count > 0:
+                            return count
+    except Exception:
+        pass
+
+    return None
+
+
+def _extract_pdf_fonts_and_sizes(reader: PdfReader) -> tuple[list[str], list[float]]:
+    """Bóc tách phông chữ và kích cỡ chữ từ stream văn bản của tệp PDF kỹ thuật số."""
+    font_names: set[str] = set()
+    font_sizes: set[float] = set()
+
+    def _clean_font_name(raw: str) -> str:
+        name = raw.lstrip("/")
+        # Lọc bỏ tiền tố ngẫu nhiên của font subset PDF (ví dụ: ABCDEF+TimesNewRoman -> TimesNewRoman)
+        clean = re.sub(r"^[A-Z]{6}\+", "", name)
+        clean = re.sub(r"(PSMT|MT|Bold|Italic|Regular|PS)", "", clean).strip("-, ")
+        return clean if clean else name
+
+    def visitor(text: str, cm: Any, tm: Any, font_dict: Any, font_size: float | None):
+        if text and text.strip() and font_size:
+            scale = abs(tm[0]) if (tm and len(tm) > 0 and abs(tm[0]) > 0) else 1.0
+            pt = round(font_size * scale, 1)
+            if 5.0 <= pt <= 96.0:
+                font_sizes.add(pt)
+            if font_dict:
+                base_font = font_dict.get("/BaseFont", "")
+                if base_font:
+                    font_names.add(_clean_font_name(str(base_font)))
+
+    for page in reader.pages:
+        try:
+            page.extract_text(visitor_text=visitor)
+            res_fonts = page.get("/Resources", {}).get("/Font", {})
+            for _, f in res_fonts.items():
+                base = f.get("/BaseFont", "")
+                if base:
+                    font_names.add(_clean_font_name(str(base)))
+        except Exception:
+            pass
+
+    return sorted(font_names), sorted(font_sizes)
+
+
 def _document_structure(filename: str, payload: bytes) -> dict[str, Any]:
     extension = Path(filename).suffix.lower()
     if extension == ".docx":
@@ -427,8 +525,12 @@ def _document_structure(filename: str, payload: bytes) -> dict[str, Any]:
                 if run.font.size:
                     font_sizes.append(round(run.font.size.pt, 2))
         tables = [[cell.text.strip() for cell in table.rows[0].cells] for table in document.tables if table.rows]
+
+        # BÙ TRỪ: Chuyển DOCX sang PDF / đọc metadata để có page_count chính xác
+        page_count = _extract_docx_page_count(payload)
+
         return {
-            "file_type": "DOCX", "page_count": None, "scan": False, "headings": headings,
+            "file_type": "DOCX", "page_count": page_count, "scan": False, "headings": headings,
             "margins_cm": margins, "font_names": list(Counter(font_names).keys()),
             "font_sizes_pt": sorted(set(font_sizes)), "line_spacings": sorted(set(line_spacings)),
             "table_headers": tables,
@@ -442,9 +544,14 @@ def _document_structure(filename: str, payload: bytes) -> dict[str, Any]:
             line for line in lines
             if re.match(r"^(?:\d+(?:\.\d+)*[.)]?\s+|[A-ZÀ-ỴĐ][A-ZÀ-ỴĐ\s]{5,}$)", line)
         ][:80]
+
+        # BÙ TRỪ: Trích xuất Font & Size từ PDF kỹ thuật số
+        font_names, font_sizes_pt = _extract_pdf_fonts_and_sizes(reader) if not scan else ([], [])
+
         return {
             "file_type": "PDF", "page_count": len(reader.pages), "scan": scan, "headings": headings,
-            "margins_cm": None, "font_names": None, "font_sizes_pt": None,
+            "margins_cm": None, "font_names": font_names if font_names else None,
+            "font_sizes_pt": font_sizes_pt if font_sizes_pt else None,
             "line_spacings": None, "table_headers": [],
         }
     raise AppError("FORMAT_FILE_TYPE_UNSUPPORTED", "Chỉ hỗ trợ file .docx hoặc .pdf.", status_code=422)
@@ -462,8 +569,8 @@ def _measurement_result(criterion: FormatCriterion, structure: dict[str, Any]) -
     property_name = str(expected.get("property", ""))
     if property_name not in SUPPORTED_MEASUREMENTS:
         return _unmeasurable(criterion, "Tiêu chí này chưa nằm trong năng lực đo tự động hiện có.")
-    if structure["file_type"] == "PDF" and property_name != "page_count":
-        reason = "PDF là bản scan nên không có lớp văn bản đáng tin cậy." if structure["scan"] else "PDF không cung cấp đủ thông tin định dạng để đo tiêu chí này đáng tin cậy."
+    if structure["file_type"] == "PDF" and property_name not in {"page_count", "font_name", "font_size_pt"}:
+        reason = "PDF là bản scan nên không có lớp văn bản đáng tin cậy." if structure["scan"] else "Định dạng PDF không cung cấp đủ thông tin lề logic Word hoặc giãn dòng để đo tự động."
         return _unmeasurable(criterion, reason)
     structure_key = {
         "font_name": "font_names",
@@ -472,7 +579,7 @@ def _measurement_result(criterion: FormatCriterion, structure: dict[str, Any]) -
     }.get(property_name, property_name)
     actual: Any = structure.get(structure_key)
     if property_name == "page_count" and actual is None:
-        return _unmeasurable(criterion, "Tệp DOCX không có thông tin số trang ổn định để đo mà không render tài liệu.")
+        return _unmeasurable(criterion, "Tệp DOCX chưa có thông tin số trang (chưa chuyển đổi được sang PDF hoặc thiếu metadata số trang).")
     if actual in (None, [], {}):
         return _unmeasurable(criterion, "Không trích xuất được thuộc tính này một cách đáng tin cậy.")
     tolerance = float(expected.get("tolerance", 0.1))
@@ -498,7 +605,13 @@ def _measurement_result(criterion: FormatCriterion, structure: dict[str, Any]) -
             for sample in samples
         )
     elif property_name == "font_name":
-        passed = any(_fold(str(value)) == _fold(str(desired)) for value in actual)
+        desired_norm = re.sub(r"[\s\-_]+", "", _fold(str(desired)))
+        passed = any(
+            _fold(str(value)) == _fold(str(desired))
+            or desired_norm == re.sub(r"[\s\-_]+", "", _fold(str(value)))
+            or desired_norm in re.sub(r"[\s\-_]+", "", _fold(str(value)))
+            for value in actual
+        )
     elif property_name in {"font_size_pt", "line_spacing"}:
         passed = any(abs(float(value) - float(desired)) <= tolerance for value in actual)
     return FormatCriterionResult(
