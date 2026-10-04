@@ -43,14 +43,18 @@ def resolve_source_path(source_path: str) -> Path:
     if not candidate.is_absolute():
         candidate = REPOSITORY_ROOT / candidate
     resolved = candidate.resolve()
+    if not resolved.is_file():
+        matches = [p for p in ALLOWED_DOCUMENT_ROOT.rglob(candidate.name) if p.is_file()]
+        if matches:
+            resolved = matches[0].resolve()
+        else:
+            raise AppError("DOCUMENT_FILE_NOT_FOUND", "Không tìm thấy file tài liệu.", status_code=404)
     if not resolved.is_relative_to(ALLOWED_DOCUMENT_ROOT):
         raise AppError(
             "DOCUMENT_PATH_NOT_ALLOWED",
             "Tài liệu phải nằm trong data/sample-documents.",
             status_code=422,
         )
-    if not resolved.is_file():
-        raise AppError("DOCUMENT_FILE_NOT_FOUND", "Không tìm thấy file tài liệu.", status_code=404)
     return resolved
 
 
@@ -225,6 +229,11 @@ KNOWN_DOCUMENT_MAP = {
         "Kế hoạch làm việc Đồ án Đa ngành HK242",
         "DADN-HK242",
     ),
+    "format-guidelines-v1.md": (
+        "format-guidelines-v1",
+        "Quy định hình thức và cấu trúc báo cáo đồ án",
+        "CO3001",
+    ),
 }
 
 EXTENSION_MAP = {
@@ -248,9 +257,12 @@ async def scan_and_sync_documents(
         return []
 
     results: list[IngestResponse] = []
-    files = sorted(ALLOWED_DOCUMENT_ROOT.iterdir(), key=lambda p: p.name)
+    files = sorted(
+        [p for p in ALLOWED_DOCUMENT_ROOT.rglob("*") if p.is_file()],
+        key=lambda p: p.name,
+    )
     for file_path in files:
-        if not file_path.is_file() or file_path.name.startswith((".", "~")):
+        if file_path.name.startswith((".", "~")):
             continue
         ext = file_path.suffix.lower()
         if ext not in EXTENSION_MAP:
@@ -258,17 +270,26 @@ async def scan_and_sync_documents(
 
         doc_type = EXTENSION_MAP[ext]
         filename = file_path.name
+
+        # Infer course_id from parent folder if inside a subfolder (e.g. CO3001, DADN-HK242)
+        inferred_course_id = (
+            file_path.parent.name
+            if file_path.parent != ALLOWED_DOCUMENT_ROOT and file_path.parent.name
+            else default_course_id
+        )
+
         if filename in KNOWN_DOCUMENT_MAP:
-            doc_id, title, course_id = KNOWN_DOCUMENT_MAP[filename]
+            doc_id, title, mapped_course_id = KNOWN_DOCUMENT_MAP[filename]
+            course_id = inferred_course_id if inferred_course_id != default_course_id else mapped_course_id
         else:
             clean_stem = re.sub(r"[^a-zA-Z0-9_-]", "-", file_path.stem.lower()).strip("-")
             doc_id = f"doc-{clean_stem}" if clean_stem else f"doc-{new_id('doc')}"
             title = file_path.stem.replace("-", " ").replace("_", " ").title()
-            course_id = default_course_id
+            course_id = inferred_course_id
 
         raw = file_path.read_bytes()
         content_hash = hashlib.sha256(raw).hexdigest()
-        rel_path = f"data/sample-documents/{filename}"
+        rel_path = file_path.relative_to(REPOSITORY_ROOT).as_posix()
 
         doc = await session.get(Document, doc_id)
         if doc is None:
@@ -286,9 +307,15 @@ async def scan_and_sync_documents(
             )
             session.add(doc)
             await session.commit()
-            print(f"[Auto-Scan] Registered new document: {doc_id} ('{filename}')", flush=True)
+            print(f"[Auto-Scan] Registered new document: {doc_id} ('{filename}' in course '{course_id}')", flush=True)
         else:
             needs_update = False
+            if doc.source_path != rel_path:
+                doc.source_path = rel_path
+                needs_update = True
+            if doc.course_id != course_id:
+                doc.course_id = course_id
+                needs_update = True
             if doc.effective_until is None or doc.effective_until < date(2030, 1, 1):
                 doc.effective_until = date(2030, 12, 31)
                 needs_update = True

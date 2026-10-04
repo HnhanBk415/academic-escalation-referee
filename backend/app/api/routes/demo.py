@@ -88,6 +88,7 @@ async def reset_demo(
         "dadn-hk242-rubric",
         "dadn-hk242-course-plan",
         "dadn-hk242-work-plan",
+        "format-guidelines-v1",
     )
     await session.execute(
         delete(DocumentChunk).where(DocumentChunk.document_id.not_in(seed_document_ids))

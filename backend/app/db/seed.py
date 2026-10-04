@@ -96,20 +96,11 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
     from app.ingestion.service import scan_and_sync_documents
     from app.models import Document
 
-    existing_docs = await session.scalar(select(func.count()).select_from(Document))
-    if not existing_docs:
-        print(
-            "[Seed] No documents found. "
-            "Ingesting sample policies from data/sample-documents/...",
-            flush=True,
-        )
-        await scan_and_sync_documents(session, provider=embedding_provider)
-    else:
-        print(
-            f"[Seed] Database already contains {existing_docs} document(s). "
-            "Skipping ingestion.",
-            flush=True,
-        )
+    print(
+        "[Seed] Scanning and syncing documents from data/sample-documents/...",
+        flush=True,
+    )
+    await scan_and_sync_documents(session, provider=embedding_provider)
     await session.commit()
 
 
