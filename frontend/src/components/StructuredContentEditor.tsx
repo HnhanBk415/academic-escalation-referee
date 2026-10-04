@@ -150,6 +150,7 @@ export function StructuredContentEditor({
   const bottom = marginsObj.bottom ?? 2.5;
   const left = marginsObj.left ?? 3.0;
   const right = marginsObj.right ?? 2.0;
+  const currentMargins = { top, bottom, left, right };
   const tolerance = typeof expectedValue?.tolerance === "number" ? expectedValue.tolerance : 0.15;
 
   // Dữ liệu Page Count
@@ -526,7 +527,7 @@ export function StructuredContentEditor({
                         onChange({
                           ...expectedValue,
                           property: "margins_cm",
-                          value: { ...marginsObj, top: parseFloat(e.target.value) || 0 },
+                          value: { ...currentMargins, top: parseFloat(e.target.value) || 0 },
                           tolerance,
                         })
                       }
@@ -549,7 +550,7 @@ export function StructuredContentEditor({
                           onChange({
                             ...expectedValue,
                             property: "margins_cm",
-                            value: { ...marginsObj, left: parseFloat(e.target.value) || 0 },
+                            value: { ...currentMargins, left: parseFloat(e.target.value) || 0 },
                             tolerance,
                           })
                         }
@@ -576,7 +577,7 @@ export function StructuredContentEditor({
                           onChange({
                             ...expectedValue,
                             property: "margins_cm",
-                            value: { ...marginsObj, right: parseFloat(e.target.value) || 0 },
+                            value: { ...currentMargins, right: parseFloat(e.target.value) || 0 },
                             tolerance,
                           })
                         }
@@ -599,7 +600,7 @@ export function StructuredContentEditor({
                         onChange({
                           ...expectedValue,
                           property: "margins_cm",
-                          value: { ...marginsObj, bottom: parseFloat(e.target.value) || 0 },
+                          value: { ...currentMargins, bottom: parseFloat(e.target.value) || 0 },
                           tolerance,
                         })
                       }
