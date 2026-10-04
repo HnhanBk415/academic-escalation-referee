@@ -579,31 +579,6 @@ export function StructuredContentEditor({
                 >
                   ➕ Thêm đề mục
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const bkTemplate = [
-                      "Trang bìa chính",
-                      "Bảng phân công đóng góp thành viên",
-                      "Mục lục",
-                      "Danh mục bảng biểu và hình ảnh",
-                      "Chương 1: Khái niệm",
-                      "1) Mô tả đồ án",
-                      "2) Tại sao cần",
-                      "Chương 2: Hiện thực",
-                      "1) Thiết kế hệ thống",
-                      "2) Cài đặt và thử nghiệm",
-                      "Chương 3: Đánh giá và Kết luận",
-                      "1) Kết quả đạt được",
-                      "2) Hướng phát triển",
-                      "Tài liệu tham khảo",
-                    ];
-                    onChange({ ...expectedValue, headings: bkTemplate, allow_extra: true, strict_names: true });
-                  }}
-                  className="text-xs text-purple-800 hover:text-purple-950 font-bold underline cursor-pointer"
-                >
-                  ⚡ Nạp mẫu đề án ĐHBK chuẩn
-                </button>
               </div>
             </div>
           ) : (

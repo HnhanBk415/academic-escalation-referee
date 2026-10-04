@@ -85,47 +85,42 @@ CHECKLIST_30_CATEGORIES: list[dict[str, Any]] = [
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SYNONYM CLUSTERS FOR SEMANTIC HEADING RECOGNITION
+# ALGORITHMIC HEADING NORMALIZATION & MATCHING (ZERO HARDCODED SYNONYMS)
+# Semantic equivalence for diverse wording is evaluated via the AI model.
 # ─────────────────────────────────────────────────────────────────────────────
 
-SYNONYM_CLUSTERS: list[set[str]] = [
-    {"khai niem", "mo dau", "gioi thieu", "tong quan", "dat van de", "gioi thieu tong quan", "tong quan de tai"},
-    {"hien thuc", "cai dat", "thiet ke va cai dat", "trien khai", "thuc nghiem", "phuong phap va hien thuc", "xay dung he thong"},
-    {"danh gia va ket luan", "ket luan va huong phat trien", "ket luan", "danh gia ket qua", "tong ket", "ket luan va khuyen nghi"},
-    {"mo ta do an", "mo ta bai toan", "tong quan de tai", "gioi thieu de tai", "mo ta he thong", "mo dau do an", "mo ta du an"},
-    {"tai sao can", "ly do chon de tai", "tinh cap thiet", "tai sao can thuc hien", "muc tieu va ly do", "su can thiet"},
-    {"thiet ke he thong", "kien truc he thong", "thiet ke tong the", "thiet ke giai phap", "thiet ke kien truc"},
-    {"cai dat va thu nghiem", "hien thuc va kiem thu", "cai dat he thong", "thuc nghiem va danh gia", "trien khai va thu nghiem", "thu nghiem va danh gia"},
-    {"ket qua dat duoc", "ket qua thuc nghiem", "ket qua nghien cuu", "tong ket ket qua", "ket qua"},
-    {"huong phat trien", "huong nghien cuu tiep theo", "dinh huong phat trien", "cac buoc tiep theo", "huong di tuong lai"},
-]
+def _clean_heading_title(name: str) -> str:
+    """Strip chapter prefixes, numbers, Roman numerals, and punctuation."""
+    cleaned = re.sub(
+        r"^(?:chương\s+[0-9ivxlcdm]+[:\.\s–-]+|\d+(?:\.\d+)*\s*[:\.\)]?\s*|[a-z0-9]\)\s*)",
+        "",
+        name.strip(),
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip()
 
 
-def _is_semantically_equivalent(expected_name: str, actual_name: str) -> tuple[bool, str]:
-    """Check if actual heading matches expected heading semantically or exactly."""
-    exp_f = _fold(re.sub(r"^(?:chương\s+[0-9ivxlcdm]+[:\.\s–-]+|\d+(?:\.\d+)*\s*[:\.\)]?\s*)", "", expected_name, flags=re.I))
-    act_f = _fold(re.sub(r"^(?:chương\s+[0-9ivxlcdm]+[:\.\s–-]+|\d+(?:\.\d+)*\s*[:\.\)]?\s*)", "", actual_name, flags=re.I))
+def _is_heading_matching_algorithmically(expected_name: str, actual_name: str) -> tuple[bool, str]:
+    """Algorithmic check for exact or close normalized heading match without hardcoded synonyms."""
+    exp_c = _clean_heading_title(expected_name)
+    act_c = _clean_heading_title(actual_name)
+    exp_f = _fold(exp_c)
+    act_f = _fold(act_c)
 
     # Exact normalized match
-    if exp_f == act_f or exp_f in act_f or act_f in exp_f:
+    if exp_f and act_f and (exp_f == act_f or exp_f in act_f or act_f in exp_f):
         return True, "Khớp chính xác tên đề mục"
 
-    # Token overlap (if majority of words match)
+    # Token overlap (if majority of words match algorithmically)
     exp_tokens = set(exp_f.split())
     act_tokens = set(act_f.split())
     if exp_tokens and act_tokens:
         overlap = len(exp_tokens & act_tokens) / max(len(exp_tokens), len(act_tokens))
-        if overlap >= 0.5:
-            return True, f"Trùng khớp {int(overlap * 100)}% từ khóa cốt lõi"
+        if overlap >= 0.70:
+            return True, f"Trùng khớp {int(overlap * 100)}% từ khóa đề mục"
 
-    # Synonym cluster matching
-    for cluster in SYNONYM_CLUSTERS:
-        exp_in = any(syn in exp_f for syn in cluster)
-        act_in = any(syn in act_f for syn in cluster)
-        if exp_in and act_in:
-            return True, "Thuộc nhóm thuật ngữ tương đương ngữ nghĩa chuẩn"
+    return False, "Không khớp thuật toán"
 
-    return False, "Không tìm thấy tương đồng ngữ nghĩa"
 
 
 def _parse_template_tree(full_text: str, template_headings: list[str] | None = None) -> list[dict[str, Any]]:
@@ -424,7 +419,7 @@ def extract_checklist_from_regulations(
             req_fields.append("năm thực hiện")
 
         if not req_fields:
-            req_fields = ["tên trường", "tên đề tài", "giảng viên hướng dẫn", "sinh viên", "mssv"]
+            req_fields = ["trang bìa"]
 
         criteria.append(
             FormatCriterionInput(
@@ -446,14 +441,15 @@ def extract_checklist_from_regulations(
         citation, doc_id = _find_citation(r"lời\s+cam\s+đoan|bảng\s+phân\s+công")
         seen_codes.add("front_matter")
         has_contrib_table = bool(re.search(r"bảng\s+phân\s+công", full_text, flags=re.IGNORECASE))
+        desc = "Bắt buộc có Bảng phân công đóng góp thành viên." if has_contrib_table else "Bắt buộc có phần Lời cam đoan."
         criteria.append(
             FormatCriterionInput(
                 name="7. Trang phụ và Lời cam đoan / Bảng phân công",
-                description="Bắt buộc có phần Lời cam đoan và Bảng phân công đóng góp thành viên (STT, Họ tên, MSSV, Nhiệm vụ, Tỷ lệ %).",
+                description=desc,
                 rule_type=FormatCriterionRuleType.PRESENCE,
                 expected_value={
                     "kind": "table_columns" if has_contrib_table else "heading",
-                    "value": ["STT", "Họ và tên", "MSSV", "Nhiệm vụ", "Tỷ lệ đóng góp"] if has_contrib_table else "Lời cam đoan",
+                    "value": ["Bảng phân công"] if has_contrib_table else "Lời cam đoan",
                     "category": "7. Trang phụ / trang thông tin",
                 },
                 source_citation=citation,
@@ -596,25 +592,23 @@ def extract_checklist_from_regulations(
             allowed_exts.append(".docx")
         if ".pdf" in full_text.lower():
             allowed_exts.append(".pdf")
-        if not allowed_exts:
-            allowed_exts = [".docx", ".pdf"]
-
-        seen_codes.add("file_naming")
-        criteria.append(
-            FormatCriterionInput(
-                name="29. Định dạng tệp nộp và tên file",
-                description=f"Nộp file định dạng {' hoặc '.join(allowed_exts)} xuất trực tiếp (không dùng bản scan ảnh).",
-                rule_type=FormatCriterionRuleType.MEASUREMENT,
-                expected_value={
-                    "property": "file_type",
-                    "allowed_extensions": allowed_exts,
-                    "reject_scans": True,
-                    "category": "29. Kiểm tra tên file & định dạng",
-                },
-                source_citation=citation,
-                source_document_id=doc_id,
+        if allowed_exts:
+            seen_codes.add("file_naming")
+            criteria.append(
+                FormatCriterionInput(
+                    name="29. Định dạng tệp nộp và tên file",
+                    description=f"Nộp file định dạng {' hoặc '.join(allowed_exts)} xuất trực tiếp (không dùng bản scan ảnh).",
+                    rule_type=FormatCriterionRuleType.MEASUREMENT,
+                    expected_value={
+                        "property": "file_type",
+                        "allowed_extensions": allowed_exts,
+                        "reject_scans": True,
+                        "category": "29. Kiểm tra tên file & định dạng",
+                    },
+                    source_citation=citation,
+                    source_document_id=doc_id,
+                )
             )
-        )
 
     # Notice: All other items not mentioned in the regulation document are intentionally
     # left empty / omitted, exactly satisfying: "cái nào có thì nạp, không có bỏ trống"!
@@ -664,80 +658,17 @@ def _convert_docx_to_pdf_bytes_safe(payload: bytes) -> bytes | None:
 
 
 def _extract_cover_page_from_text(raw_text: str) -> dict[str, Any]:
-    """Analyze text from early pages/tables to recognize academic cover page elements."""
-    folded = _fold(raw_text)
-
-    # 1. School / University
-    has_univ = bool(re.search(r"truong\s+dai\s+hoc|dai\s+hoc\s+quoc\s+gia|bo\s+giao\s+duc|hoc\s+vien|dai\s+hoc|dhqg", folded))
-    univ_m = re.search(r"((?:TRƯỜNG\s+ĐẠI\s+HỌC|ĐẠI\s+HỌC\s+QUỐC\s+GIA|HỌC\s+VIỆN|BỘ\s+GIÁO\s+DỤC|ĐẠI\s+HỌC)[^\n\r,]+)", raw_text, flags=re.I)
-    univ_text = univ_m.group(1).strip() if univ_m else ("Đại học / Cơ sở đào tạo" if has_univ else None)
-
-    # 2. Faculty / Department
-    has_faculty = bool(re.search(r"\bkhoa\b|\bbo\s+mon\b|\bvien\b", folded))
-    faculty_m = re.search(r"((?:KHOA|BỘ\s+MÔN|VIỆN)\s+[^\n\r,]+)", raw_text, flags=re.I)
-    faculty_text = faculty_m.group(1).strip() if faculty_m else ("Khoa / Bộ môn" if has_faculty else None)
-
-    # 3. Title / Project
-    has_title = bool(re.search(r"do\s+an|bao\s+cao|luan\s+van|tieu\s+luan|bai\s+tap\s+lon|de\s+tai", folded))
-    title_m = re.search(r"((?:BÁO\s+CÁO|ĐỒ\s+ÁN|LUẬN\s+VĂN|TIỂU\s+LUẬN|BÀI\s+TẬP\s+LỚN|ĐỀ\s+TÀI)[^\n\r]+)", raw_text, flags=re.I)
-    title_text = title_m.group(1).strip() if title_m else ("Tên đề tài / Đồ án" if has_title else None)
-
-    # 4. Supervisor
-    has_supervisor = bool(re.search(r"giang\s+vien\s+huong\s+dan|can\s+bo\s+huong\s+dan|gvhd|nguoi\s+huong\s+dan", folded))
-    sup_m = re.search(r"(?:giảng\s+viên\s+hướng\s+dẫn|cán\s+bộ\s+hướng\s+dẫn|gvhd|người\s+hướng\s+dẫn)[:\s]+([^\n\r]+)", raw_text, flags=re.I)
-    sup_text = sup_m.group(1).strip() if sup_m else ("Giảng viên hướng dẫn" if has_supervisor else None)
-
-    # 5. Students & MSSV
-    has_students = bool(re.search(r"sinh\s+vien\s+thuc\s+hien|sinh\s+vien|svth|ho\s+va\s+ten", folded))
-    student_ids = re.findall(r"\b(\d{7,8})\b", raw_text)
-    has_mssv = bool(student_ids) or bool(re.search(r"\bmssv\b|ma\s+so\s+sinh\s+vien", folded))
-
-    # 6. Location & Year
-    year_m = re.search(r"(?:tp\.?\s*hồ\s+chí\s+minh|hà\s+nội|đà\s+nẵng|tháng\s+\d+)?\s*(?:năm\s+)?(202[0-9]|203[0-9])", raw_text, flags=re.I)
-    has_year = bool(year_m)
-    year_text = year_m.group(0).strip() if year_m else None
-
-    found_fields: list[str] = []
-    if has_univ:
-        found_fields.append("tên trường")
-    if has_faculty:
-        found_fields.append("tên khoa")
-    if has_title:
-        found_fields.append("tên đề tài")
-    if has_supervisor:
-        found_fields.append("giảng viên hướng dẫn")
-    if has_students:
-        found_fields.append("sinh viên")
-    if has_mssv:
-        found_fields.append("mssv")
-    if has_year:
-        found_fields.append("năm thực hiện")
-
-    # Cover page is detected if it has academic markers or title or student/supervisor
-    is_detected = (
-        len(found_fields) >= 3
-        or (has_students and has_mssv)
-        or (has_univ and (has_title or has_supervisor))
-    )
-
+    """Capture raw text and metrics from first page/tables for AI model-based cover page recognition."""
+    cleaned = raw_text.strip()
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
     return {
-        "detected": is_detected,
-        "found_fields": found_fields,
-        "has_university": has_univ,
-        "university_text": univ_text,
-        "has_faculty": has_faculty,
-        "faculty_text": faculty_text,
-        "has_title": has_title,
-        "title_text": title_text,
-        "has_supervisor": has_supervisor,
-        "supervisor_text": sup_text,
-        "has_students": has_students,
-        "has_mssv": has_mssv,
-        "student_ids": student_ids,
-        "has_year": has_year,
-        "year_text": year_text,
-        "preview": raw_text[:600].strip(),
+        "raw_text": cleaned,
+        "preview": cleaned[:1200],
+        "line_count": len(lines),
+        "char_count": len(cleaned),
+        "has_content": len(cleaned) > 20,
     }
+
 
 
 def extract_report_facts(filename: str, payload: bytes) -> dict[str, Any]:
@@ -1167,47 +1098,75 @@ async def evaluate_academic_checklist(
 
         # B. PRESENCE RULES (Cover Page, Tables, Headings)
         elif criterion.rule_type == FormatCriterionRuleType.PRESENCE:
-            # 6. Cover page check
+            # 6. Cover page check (Model-driven)
             if kind == "cover_page" or "trang bìa" in criterion.name.lower():
                 cover_data = structure.get("cover_page") or {}
-                detected = cover_data.get("detected", False)
-                found_fields = cover_data.get("found_fields", [])
-                required_fields = expected.get("required_fields", ["tên trường", "tên đề tài", "giảng viên hướng dẫn", "sinh viên", "mssv"])
-                missing_fields = [f for f in required_fields if f not in found_fields]
+                first_page_text = cover_data.get("raw_text") or cover_data.get("preview") or ""
+                required_fields = expected.get("required_fields") or ["trang bìa"]
 
-                if detected and len(missing_fields) <= 1:
-                    results.append(
-                        FormatCriterionResult(
-                            criterion_id=criterion.id,
-                            name=criterion.name,
-                            status=FormatCriterionResultStatus.PASS,
-                            message=f"Đã nhận diện đầy đủ trang bìa: {', '.join(found_fields)}.",
-                            expected_value=expected,
-                            actual_value={"found_fields": found_fields, "cover_page": cover_data},
-                            source_citation=criterion.source_citation,
+                if ai_provider is not None:
+                    try:
+                        cover_judgment = await ai_provider.judge_cover_page(first_page_text, required_fields)
+                        if cover_judgment.is_cover_page and not cover_judgment.missing_elements:
+                            results.append(
+                                FormatCriterionResult(
+                                    criterion_id=criterion.id,
+                                    name=criterion.name,
+                                    status=FormatCriterionResultStatus.PASS,
+                                    message=f"Mô hình AI xác nhận trang bìa đạt yêu cầu: {cover_judgment.reason}",
+                                    expected_value=expected,
+                                    actual_value={"detected_elements": cover_judgment.detected_elements, "is_cover_page": True},
+                                    source_citation=criterion.source_citation,
+                                )
+                            )
+                        elif cover_judgment.is_cover_page and cover_judgment.missing_elements:
+                            results.append(
+                                FormatCriterionResult(
+                                    criterion_id=criterion.id,
+                                    name=criterion.name,
+                                    status=FormatCriterionResultStatus.FAIL,
+                                    message=f"Mô hình AI nhận diện trang bìa còn thiếu: {', '.join(cover_judgment.missing_elements)}. ({cover_judgment.reason})",
+                                    expected_value=expected,
+                                    actual_value={"missing_elements": cover_judgment.missing_elements, "detected_elements": cover_judgment.detected_elements},
+                                    source_citation=criterion.source_citation,
+                                )
+                            )
+                        else:
+                            results.append(
+                                FormatCriterionResult(
+                                    criterion_id=criterion.id,
+                                    name=criterion.name,
+                                    status=FormatCriterionResultStatus.FAIL,
+                                    message=f"Mô hình AI xác định: {cover_judgment.reason}",
+                                    expected_value=expected,
+                                    actual_value={"is_cover_page": False, "preview": first_page_text[:200]},
+                                    source_citation=criterion.source_citation,
+                                )
+                            )
+                    except Exception as err:
+                        results.append(
+                            FormatCriterionResult(
+                                criterion_id=criterion.id,
+                                name=criterion.name,
+                                status=FormatCriterionResultStatus.AMBIGUOUS,
+                                message=f"Không thể phân tích trang bìa bằng AI ({err}); cần giảng viên xem xét.",
+                                expected_value=expected,
+                                actual_value={"preview": first_page_text[:200]},
+                                source_citation=criterion.source_citation,
+                            )
                         )
-                    )
-                elif detected and len(found_fields) >= 2:
-                    results.append(
-                        FormatCriterionResult(
-                            criterion_id=criterion.id,
-                            name=criterion.name,
-                            status=FormatCriterionResultStatus.FAIL,
-                            message=f"Trang bìa chưa đầy đủ thông tin bắt buộc, còn thiếu: {', '.join(missing_fields)}.",
-                            expected_value=expected,
-                            actual_value={"found_fields": found_fields, "missing_fields": missing_fields},
-                            source_citation=criterion.source_citation,
-                        )
-                    )
                 else:
+                    has_content = cover_data.get("has_content", False)
+                    status = FormatCriterionResultStatus.PASS if has_content else FormatCriterionResultStatus.FAIL
+                    msg = "Trang đầu tiên có chứa nội dung thông tin trang bìa." if has_content else "Chưa phát hiện trang bìa hợp lệ ở đầu báo cáo."
                     results.append(
                         FormatCriterionResult(
                             criterion_id=criterion.id,
                             name=criterion.name,
-                            status=FormatCriterionResultStatus.FAIL,
-                            message="Chưa phát hiện trang bìa hợp lệ ở đầu báo cáo (thiếu Tên trường, Đề tài, GVHD, Sinh viên, MSSV).",
+                            status=status,
+                            message=msg,
                             expected_value=expected,
-                            actual_value={"found_fields": found_fields},
+                            actual_value={"preview": first_page_text[:200]},
                             source_citation=criterion.source_citation,
                         )
                     )
@@ -1294,25 +1253,34 @@ async def evaluate_academic_checklist(
             match_reason = ""
 
             for idx, h in enumerate(actual_headings):
-                # Match chapter number prefix (e.g. "Chương 1")
+                # 1. Algorithmic check (exact or close normalized match)
+                is_algo, reason = _is_heading_matching_algorithmically(chap_name, h)
                 num_match = bool(chap_num and re.search(rf"\bchương\s+{chap_num}\b|\bchương\s+0{chap_num}\b", h, flags=re.I))
-                exact_name = _fold(chap_name) in _fold(h) or _fold(h) in _fold(chap_name)
-
-                if exact_name or (num_match and not allow_semantic and _fold(re.sub(r"^chương\s+\d+[:\.\s–-]+", "", chap_name, flags=re.I)) == _fold(re.sub(r"^chương\s+\d+[:\.\s–-]+", "", h, flags=re.I))):
+                if is_algo or (num_match and _fold(_clean_heading_title(chap_name)) == _fold(_clean_heading_title(h))):
                     found_heading = h
                     found_idx = idx
                     is_semantic = False
-                    match_reason = "Khớp chính xác tên chương"
+                    match_reason = reason or "Khớp chính xác tên chương"
                     break
 
-                if num_match or allow_semantic:
-                    equiv, reason = _is_semantically_equivalent(chap_name, h)
-                    if equiv:
-                        found_heading = h
-                        found_idx = idx
-                        is_semantic = True
-                        match_reason = reason
-                        break
+                # 2. Model-driven semantic check when allow_semantic is True
+                if (num_match or allow_semantic) and ai_provider is not None:
+                    try:
+                        judgment = await ai_provider.judge_format_ambiguity(
+                            rule_type="TEMPLATE",
+                            expected_items=[chap_name],
+                            actual_items=[h],
+                            criterion_name=criterion.name,
+                            source_citation=criterion.source_citation or "",
+                        )
+                        if judgment.verdict in ("PASS", "AMBIGUOUS"):
+                            found_heading = h
+                            found_idx = idx
+                            is_semantic = True
+                            match_reason = judgment.reason
+                            break
+                    except Exception:
+                        pass
 
             if found_heading and not is_semantic:
                 results.append(
@@ -1333,7 +1301,7 @@ async def evaluate_academic_checklist(
                             criterion_id=criterion.id,
                             name=criterion.name,
                             status=FormatCriterionResultStatus.PASS,
-                            message=f"Đã tìm thấy: '{found_heading}' (Chấp nhận tương đương ngữ nghĩa với '{chap_name}').",
+                            message=f"Đã tìm thấy: '{found_heading}' (tương đương ngữ nghĩa: {match_reason}).",
                             expected_value=expected,
                             actual_value={"found_heading": found_heading, "index": found_idx},
                             source_citation=criterion.source_citation,
@@ -1376,22 +1344,33 @@ async def evaluate_academic_checklist(
             match_reason = ""
 
             for idx, h in enumerate(actual_headings):
-                exact_name = _fold(sec_name) in _fold(h) or _fold(h) in _fold(sec_name)
-                if exact_name:
+                # 1. Algorithmic check
+                is_algo, reason = _is_heading_matching_algorithmically(sec_name, h)
+                if is_algo:
                     found_heading = h
                     found_idx = idx
                     is_semantic = False
-                    match_reason = "Khớp chính xác tên mục con"
+                    match_reason = reason or "Khớp chính xác tên mục con"
                     break
 
-                if allow_semantic:
-                    equiv, reason = _is_semantically_equivalent(sec_name, h)
-                    if equiv:
-                        found_heading = h
-                        found_idx = idx
-                        is_semantic = True
-                        match_reason = reason
-                        break
+                # 2. Model-driven semantic check when allow_semantic is True
+                if allow_semantic and ai_provider is not None:
+                    try:
+                        judgment = await ai_provider.judge_format_ambiguity(
+                            rule_type="TEMPLATE",
+                            expected_items=[sec_name],
+                            actual_items=[h],
+                            criterion_name=criterion.name,
+                            source_citation=criterion.source_citation or "",
+                        )
+                        if judgment.verdict in ("PASS", "AMBIGUOUS"):
+                            found_heading = h
+                            found_idx = idx
+                            is_semantic = True
+                            match_reason = judgment.reason
+                            break
+                    except Exception:
+                        pass
 
             if found_heading and not is_semantic:
                 results.append(
@@ -1412,7 +1391,7 @@ async def evaluate_academic_checklist(
                             criterion_id=criterion.id,
                             name=criterion.name,
                             status=FormatCriterionResultStatus.PASS,
-                            message=f"Đã tìm thấy mục con: '{found_heading}' (Chấp nhận tương đương ngữ nghĩa với '{sec_name}').",
+                            message=f"Đã tìm thấy mục con: '{found_heading}' (tương đương ngữ nghĩa: {match_reason}).",
                             expected_value=expected,
                             actual_value={"found_heading": found_heading, "index": found_idx},
                             source_citation=criterion.source_citation,
@@ -1446,6 +1425,7 @@ async def evaluate_academic_checklist(
         elif kind == "template_sequence":
             chapters = expected.get("chapters", [])
             actual_headings = [str(h) for h in structure.get("headings", [])]
+            allow_semantic = expected.get("allow_semantic_equivalent", True)
 
             chapter_positions: list[tuple[str, int]] = []
             for chap in chapters:
@@ -1456,10 +1436,24 @@ async def evaluate_academic_checklist(
                     if num and re.search(rf"\bchương\s+{num}\b", act, flags=re.I):
                         pos = idx
                         break
-                    equiv, _ = _is_semantically_equivalent(chap, act)
-                    if equiv:
+                    algo_match, _ = _is_heading_matching_algorithmically(chap, act)
+                    if algo_match:
                         pos = idx
                         break
+                    if allow_semantic and ai_provider is not None:
+                        try:
+                            judgment = await ai_provider.judge_format_ambiguity(
+                                rule_type="TEMPLATE",
+                                expected_items=[chap],
+                                actual_items=[act],
+                                criterion_name=criterion.name,
+                                source_citation=criterion.source_citation or "",
+                            )
+                            if judgment.verdict in ("PASS", "AMBIGUOUS"):
+                                pos = idx
+                                break
+                        except Exception:
+                            pass
                 if pos >= 0:
                     chapter_positions.append((chap, pos))
 

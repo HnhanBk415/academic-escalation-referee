@@ -125,3 +125,13 @@ class FormatSemanticJudgment(BaseModel):
 
     verdict: str  # "PASS" | "FAIL" | "AMBIGUOUS"
     reason: str   # Short Vietnamese explanation (≤ 200 chars)
+
+
+class CoverPageJudgment(BaseModel):
+    """Result of an AI model assessment of a report's cover page."""
+
+    is_cover_page: bool = Field(description="True nếu văn bản trang đầu chứa cấu trúc trang bìa học thuật hợp lệ")
+    detected_elements: list[str] = Field(default_factory=list, description="Các thành phần trang bìa phát hiện được")
+    missing_elements: list[str] = Field(default_factory=list, description="Các thành phần bắt buộc chưa tìm thấy")
+    reason: str = Field(default="", description="Nhận xét tóm tắt bằng tiếng Việt (≤ 200 ký tự)")
+

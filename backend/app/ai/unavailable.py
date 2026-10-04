@@ -38,6 +38,20 @@ class UnavailableProvider:
             reason=f"AI không khả dụng ({self.detail}); cần giảng viên phán đoán.",
         )
 
+    async def judge_cover_page(
+        self,
+        first_page_text: str,
+        required_elements: list[str],
+    ) -> "CoverPageJudgment":
+        from app.schemas.format_checks import CoverPageJudgment
+
+        return CoverPageJudgment(
+            is_cover_page=False,
+            detected_elements=[],
+            missing_elements=required_elements,
+            reason=f"AI không khả dụng ({self.detail}); cần giảng viên phán đoán trang bìa.",
+        )
+
     async def health(self) -> AIHealth:
         return AIHealth(
             mode=self.mode,

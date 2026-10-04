@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.schemas.format_checks import FormatSemanticJudgment
+from app.schemas.format_checks import CoverPageJudgment, FormatSemanticJudgment
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -29,4 +29,11 @@ class AIProvider(Protocol):
         source_citation: str,
     ) -> FormatSemanticJudgment: ...
 
+    async def judge_cover_page(
+        self,
+        first_page_text: str,
+        required_elements: list[str],
+    ) -> CoverPageJudgment: ...
+
     async def health(self) -> AIHealth: ...
+

@@ -272,5 +272,45 @@ class FakeProvider:
             reason="[Fake AI] Các đề mục được xem là tương đương về mặt ngữ nghĩa.",
         )
 
+    async def judge_cover_page(
+        self,
+        first_page_text: str,
+        required_elements: list[str],
+    ) -> "CoverPageJudgment":
+        """Deterministic cover page judgment for tests and local development."""
+        from app.schemas.format_checks import CoverPageJudgment
+
+        norm = unicodedata.normalize("NFC", first_page_text.lower())
+        detected: list[str] = []
+        for req in required_elements:
+            req_norm = unicodedata.normalize("NFC", req.lower())
+            words = [w for w in re.findall(r"\w+", req_norm) if len(w) > 1]
+            if ("đề tài" in req_norm or "tiêu đề" in req_norm or "tên báo cáo" in req_norm) and any(t in norm for t in ("đồ án", "báo cáo", "luận văn", "đề tài", "tiêu đề")):
+                detected.append(req)
+            elif words and any(w in norm for w in words):
+                detected.append(req)
+
+        # Basic check for presence of academic structure on page 1
+        has_academic_indicators = any(
+            token in norm
+            for token in ("trường", "đại học", "khoa", "báo cáo", "đồ án", "luận văn", "gvhd", "hướng dẫn", "sinh viên", "mssv", "học kỳ", "năm")
+        )
+        is_cover = len(first_page_text.strip()) > 30 and (has_academic_indicators or len(detected) >= 2)
+        missing = [r for r in required_elements if r not in detected]
+
+        if is_cover and not missing:
+            reason = "[Fake AI] Trang bìa hợp lệ, đầy đủ các trường thông tin theo yêu cầu."
+        elif is_cover:
+            reason = f"[Fake AI] Đã nhận diện trang bìa nhưng còn thiếu: {', '.join(missing)}."
+        else:
+            reason = "[Fake AI] Trang đầu tiên không chứa cấu trúc trang bìa hợp lệ."
+
+        return CoverPageJudgment(
+            is_cover_page=is_cover,
+            detected_elements=detected,
+            missing_elements=missing,
+            reason=reason,
+        )
+
     async def health(self) -> AIHealth:
         return AIHealth(mode="fake", available=True, model="deterministic-fake-v1")

@@ -386,6 +386,83 @@ class GeminiProvider:
         reason = f"AI gặp lỗi khi phân tích ({type(last_error).__name__ if last_error else 'unknown'}); cần giảng viên phán đoán."
         return FormatSemanticJudgment(verdict="AMBIGUOUS", reason=reason[:200])
 
+    async def judge_cover_page(
+        self,
+        first_page_text: str,
+        required_elements: list[str],
+    ) -> "CoverPageJudgment":
+        """Ask Gemini whether the first page text is a valid academic cover page and extract its elements."""
+        from app.schemas.format_checks import CoverPageJudgment
+
+        _COVER_JUDGE_INSTRUCTION = (
+            "Bạn là chuyên gia thẩm định trang bìa báo cáo học thuật / đồ án sinh viên. "
+            "Nhiệm vụ: Phân tích nội dung trang đầu tiên của văn bản nộp để xác định: "
+            "1. Đây có phải là trang bìa báo cáo học thuật hay không (is_cover_page: true/false). "
+            "2. Trích xuất các thành phần có mặt (detected_elements) như: tên trường, tên khoa, tên đề tài, cán bộ/GVHD, họ tên sinh viên, MSSV, năm/thời gian. "
+            "3. Liệt kê các thành phần bắt buộc chưa có (missing_elements) dựa trên danh sách yêu cầu. "
+            "4. Đưa ra nhận xét ngắn gọn (reason ≤ 150 ký tự bằng tiếng Việt). "
+            "Không phân biệt chữ hoa thường hay dấu câu, tập trung vào ý nghĩa nội dung."
+        )
+
+        prompt = json.dumps(
+            {
+                "required_elements": required_elements,
+                "first_page_text": first_page_text[:1500],
+            },
+            ensure_ascii=False,
+        )
+
+        print(
+            f"[Gemini CoverJudge] Judging cover page ({len(first_page_text)} chars)...",
+            flush=True,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            await self._chat_rate_limiter.acquire()
+            try:
+                async with self._semaphore:
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=self.settings.gemini_chat_model,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=_COVER_JUDGE_INSTRUCTION,
+                                temperature=0,
+                                max_output_tokens=300,
+                                response_mime_type="application/json",
+                                response_schema=CoverPageJudgment,
+                            ),
+                        ),
+                        timeout=self.settings.ai_request_timeout_seconds,
+                    )
+                if response.parsed:
+                    judgment = (
+                        response.parsed
+                        if isinstance(response.parsed, CoverPageJudgment)
+                        else CoverPageJudgment.model_validate(response.parsed)
+                    )
+                elif response.text:
+                    judgment = CoverPageJudgment.model_validate_json(response.text)
+                else:
+                    raise RuntimeError("Gemini returned an empty cover judgment response")
+                print(f"[Gemini CoverJudge] => is_cover={judgment.is_cover_page}: {judgment.reason[:80]}", flush=True)
+                return judgment
+            except Exception as error:
+                last_error = error
+                print(f"[Gemini CoverJudge Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
+                if not self._is_retryable(error) or attempt == _MAX_RETRIES:
+                    break
+                delay = (_BASE_RETRY_DELAY_SECONDS ** attempt) + random.uniform(0.1, 0.4)
+                await asyncio.sleep(delay)
+
+        return CoverPageJudgment(
+            is_cover_page=False,
+            detected_elements=[],
+            missing_elements=required_elements,
+            reason=f"Lỗi AI khi phân tích trang bìa: {last_error}",
+        )
+
     async def health(self) -> AIHealth:
         try:
             await asyncio.wait_for(
