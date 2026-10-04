@@ -11,6 +11,11 @@ import type {
   FormatReviewCase,
   FormatRuleType,
 } from "../types";
+import {
+  RuleTypeBadge,
+  getCriterionSummary,
+  StructuredContentEditor,
+} from "../components/StructuredContentEditor";
 
 type Role = "student" | "lecturer";
 
@@ -115,6 +120,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
   const [message, setMessage] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
   // Danh sách tiêu chí đang chỉnh sửa trực tiếp
   const [editableCriteria, setEditableCriteria] = useState<
@@ -466,94 +472,231 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {editableCriteria.map((item, index) => (
-                <div
-                  key={`${item.id || index}-${index}`}
-                  className="border border-slate-200 rounded-xl p-4 bg-slate-50/60 hover:bg-white hover:border-slate-300 transition-all space-y-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-1 min-w-64">
-                      <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                        {index + 1}
-                      </span>
-                      <input
-                        value={item.name}
-                        onChange={(e) => handleUpdateCriterion(index, { name: e.target.value })}
-                        className="font-semibold text-sm text-slate-900 bg-white px-2.5 py-1.5 border border-slate-200 rounded-lg flex-1"
-                        placeholder="Tên tiêu chí (ví dụ: Số trang, Lề trái, Cấu trúc...)"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={item.rule_type}
-                        onChange={(e) =>
-                          handleUpdateCriterion(index, { rule_type: e.target.value as FormatRuleType })
-                        }
-                        className="text-xs px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-slate-700"
-                      >
-                        <option value="MEASUREMENT">Số đo (MEASUREMENT)</option>
-                        <option value="PRESENCE">Hiện diện / Bảng (PRESENCE)</option>
-                        <option value="TEMPLATE">Khung đề mục mẫu (TEMPLATE)</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCriterion(index)}
-                        className="text-xs px-2.5 py-1.5 text-rose-700 hover:bg-rose-50 rounded-lg font-semibold transition-all cursor-pointer"
-                        title="Xóa tiêu chí này"
-                      >
-                        🗑 Xóa
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <label className="block text-slate-500 font-medium mb-1">Mô tả chi tiết:</label>
-                      <input
-                        value={item.description}
-                        onChange={(e) => handleUpdateCriterion(index, { description: e.target.value })}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800"
-                        placeholder="Mô tả yêu cầu..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-500 font-medium mb-1">
-                        Giá trị kỳ vọng (JSON cấu hình):
-                      </label>
-                      <input
-                        value={JSON.stringify(item.expected_value)}
-                        onChange={(e) => {
-                          try {
-                            const parsed = JSON.parse(e.target.value) as Record<string, unknown>;
-                            handleUpdateCriterion(index, { expected_value: parsed });
-                          } catch {
-                            // tạm giữ nếu người dùng đang gõ
-                          }
-                        }}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-mono text-[11px] text-slate-800"
-                        title="Cấu hình JSON: {'property':'page_count', 'operator':'max', 'value': 50} hoặc {'headings':['Chương 1...']}"
-                      />
-                    </div>
-                  </div>
-
-                  {item.rule_type === "TEMPLATE" && Array.isArray(item.expected_value?.headings) && (
-                    <div className="p-2.5 bg-sky-50/70 border border-sky-100 rounded-lg text-xs space-y-1">
-                      <p className="font-semibold text-sky-900">Khung đề mục sẽ kiểm tra:</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(item.expected_value.headings as string[]).map((heading, hIdx) => (
-                          <span
-                            key={hIdx}
-                            className="bg-white border border-sky-200 text-sky-950 px-2 py-0.5 rounded text-[11px]"
-                          >
-                            {hIdx + 1}. {heading}
+            <div className="space-y-3.5">
+              {editableCriteria.map((item, index) => {
+                const summary = getCriterionSummary(item);
+                const isExpanded = expandedIndex === index;
+                return (
+                  <div
+                    key={`${item.id || index}-${index}`}
+                    className={`border rounded-2xl transition-all p-4 shadow-xs space-y-3 ${
+                      isExpanded
+                        ? "bg-white border-slate-300 ring-2 ring-slate-200/60"
+                        : "bg-white border-slate-200/90 hover:border-slate-300"
+                    }`}
+                  >
+                    {/* HÀNG HEADER: #index + Tên tiêu chí + Badge loại + Tóm tắt + Chỉnh sửa/Thu gọn + Xóa */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2 flex-1 min-w-64">
+                        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center border border-slate-200 flex-shrink-0">
+                          {index + 1}
+                        </span>
+                        <input
+                          value={item.name}
+                          onChange={(e) => handleUpdateCriterion(index, { name: e.target.value })}
+                          className="font-bold text-sm text-slate-900 bg-transparent hover:bg-slate-50 focus:bg-white px-2.5 py-1 rounded-lg border border-transparent hover:border-slate-200 focus:border-slate-300 focus:ring-1 focus:ring-slate-400 flex-1 transition-all"
+                          placeholder="Tên tiêu chí (ví dụ: Căn lề trang, Khung đề mục, Chuẩn trích dẫn...)"
+                        />
+                        <RuleTypeBadge
+                          ruleType={item.rule_type}
+                          name={item.name}
+                          expectedValue={item.expected_value}
+                        />
+                        {summary && (
+                          <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200/70 hidden sm:inline-block">
+                            {summary}
                           </span>
-                        ))}
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedIndex(isExpanded ? null : index)}
+                          className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                            isExpanded
+                              ? "bg-slate-800 text-white"
+                              : "text-slate-700 bg-slate-100 hover:bg-slate-200"
+                          }`}
+                        >
+                          {isExpanded ? "Thu gọn ▴" : "Chỉnh sửa ▾"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCriterion(index)}
+                          className="text-xs px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-800 rounded-lg font-bold transition-all cursor-pointer"
+                          title="Xóa tiêu chí này"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* HIỂN THỊ KHI THU GỌN: Trích đoạn ngắn + Mô tả ngắn */}
+                    {!isExpanded && (
+                      <div className="pl-8 space-y-2">
+                        {item.source_citation && (
+                          <div className="bg-amber-50/70 border-l-3 border-amber-400 px-3 py-1.5 rounded-r-lg text-xs text-amber-950 flex items-start gap-2">
+                            <span className="text-amber-500 font-serif text-sm leading-none mt-0.5 select-none">❝</span>
+                            <div className="flex-1 leading-normal line-clamp-2">
+                              <span className="font-semibold text-amber-800">Trích đoạn nguồn: </span>
+                              <span className="italic">{item.source_citation}</span>
+                            </div>
+                          </div>
+                        )}
+                        {item.description && (
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            {item.description}
+                          </p>
+                        )}
+                        {item.rule_type === "TEMPLATE" && Array.isArray(item.expected_value?.headings) && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[11px] font-semibold text-slate-400">Các mục:</span>
+                            {(item.expected_value.headings as string[]).slice(0, 6).map((heading, hIdx) => (
+                              <span
+                                key={hIdx}
+                                className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px] font-medium"
+                              >
+                                <span className="text-slate-400 font-mono text-[10px]">{hIdx + 1}.</span>
+                                <span>{heading}</span>
+                              </span>
+                            ))}
+                            {(item.expected_value.headings as string[]).length > 6 && (
+                              <span className="text-[10px] text-slate-400 font-medium italic">
+                                +{(item.expected_value.headings as string[]).length - 6} mục khác...
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* HIỂN THỊ KHI MỞ RỘNG: TUÂN THỦ TUYỆT ĐỐI THỨ TỰ: TRÍCH -> MÔ TẢ -> LOẠI QUY TẮC -> Ô SỬA NỘI DUNG */}
+                    {isExpanded && (
+                      <div className="pl-8 pt-3 border-t border-slate-200/80 space-y-4">
+                        {/* 1. TRÍCH ĐOẠN NGUỒN */}
+                        <div className="bg-amber-50/60 border border-amber-200/90 rounded-xl p-3.5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                              <span className="text-amber-600 font-serif text-sm">❝</span>
+                              <span>1. Trích dẫn quy chế nguồn:</span>
+                            </label>
+                            <span className="text-[11px] text-amber-800/80 font-medium">
+                              Điều khoản hoặc hướng dẫn gốc từ tài liệu
+                            </span>
+                          </div>
+                          <textarea
+                            value={item.source_citation || ""}
+                            onChange={(e) => handleUpdateCriterion(index, { source_citation: e.target.value })}
+                            rows={3}
+                            className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg text-xs text-amber-950 italic focus:ring-2 focus:ring-amber-400 focus:outline-none transition-all leading-relaxed"
+                            placeholder="Dán hoặc chỉnh sửa đoạn văn bản quy định trích từ tài liệu học phần..."
+                          />
+                        </div>
+
+                        {/* 2. MÔ TẢ TIÊU CHÍ */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <span>📝</span>
+                              <span>2. Mô tả tiêu chí đối chiếu:</span>
+                            </label>
+                            <span className="text-[11px] text-slate-400">Yêu cầu cụ thể để đối chiếu</span>
+                          </div>
+                          <input
+                            value={item.description}
+                            onChange={(e) => handleUpdateCriterion(index, { description: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-slate-400 focus:outline-none transition-all"
+                            placeholder="Mô tả điều cần đối chiếu (ví dụ: Khổ giấy A4 in 1 mặt, lề trái 3.0cm, lề phải 2.0cm...)"
+                          />
+                        </div>
+
+                        {/* 3. LOẠI QUY TẮC */}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <span>⚙️</span>
+                            <span>3. Loại quy tắc kiểm tra:</span>
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateCriterion(index, { rule_type: "MEASUREMENT" })}
+                              className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
+                                item.rule_type === "MEASUREMENT"
+                                  ? "bg-sky-50 border-sky-400 text-sky-950 font-bold ring-2 ring-sky-400/50 shadow-xs"
+                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 text-xs font-bold">
+                                <span>📏</span>
+                                <span>Số đo (MEASUREMENT)</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                Lề trang, khổ giấy, cỡ chữ, phông, số trang
+                              </p>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateCriterion(index, { rule_type: "TEMPLATE" })}
+                              className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
+                                item.rule_type === "TEMPLATE"
+                                  ? "bg-purple-50 border-purple-400 text-purple-950 font-bold ring-2 ring-purple-400/50 shadow-xs"
+                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 text-xs font-bold">
+                                <span>📑</span>
+                                <span>Khung đề mục (TEMPLATE)</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                Dàn ý các chương mục theo thứ tự phân cấp
+                              </p>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateCriterion(index, { rule_type: "PRESENCE" })}
+                              className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
+                                item.rule_type === "PRESENCE"
+                                  ? "bg-amber-50 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-400/50 shadow-xs"
+                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 text-xs font-bold">
+                                <span>📚</span>
+                                <span>Bảng &amp; Trích dẫn (PRESENCE)</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                Tài liệu tham khảo, bảng phân công, trang bìa
+                              </p>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 4. Ô SỬA NỘI DUNG (CẤU TRÚC TRỰC QUAN, DỄ SỬ DỤNG) */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <span>🎯</span>
+                              <span>4. Ô sửa nội dung quy chuẩn:</span>
+                            </label>
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              Thiết kế có tính cấu trúc, trực quan, dễ sử dụng
+                            </span>
+                          </div>
+                          <StructuredContentEditor
+                            ruleType={item.rule_type}
+                            expectedValue={item.expected_value}
+                            name={item.name}
+                            onChange={(val) => handleUpdateCriterion(index, { expected_value: val })}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 

@@ -196,48 +196,134 @@ async def draft_from_documents(
         )
     ).all()
     criteria: list[FormatCriterionInput] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[str] = set()
     for chunk in chunks:
         text = chunk.content
-        for label, property_name, pattern in (
-            ("Lề trái", "margins_cm", r"lề\s+trái\D{0,30}(\d+(?:[.,]\d+)?)\s*cm"),
-            ("Lề phải", "margins_cm", r"lề\s+phải\D{0,30}(\d+(?:[.,]\d+)?)\s*cm"),
-            ("Số trang", "page_count", r"(?:tối đa|không quá|từ)\s*(\d+)\s*trang"),
-        ):
-            match = re.search(pattern, text, flags=re.IGNORECASE)
-            if not match:
-                continue
-            value = float(match.group(1).replace(",", "."))
-            key = (property_name, label)
-            if key in seen:
-                continue
-            seen.add(key)
-            expected: dict[str, Any]
-            if property_name == "margins_cm":
-                expected = {"property": property_name, "value": {"left" if "trái" in label.lower() else "right": value}, "tolerance": 0.15}
-            else:
-                expected = {"property": property_name, "operator": "max", "value": int(value)}
+
+        # 1. Căn lề trang & Khổ giấy (Margins & Paper Size) - Gom thành 1 quy chuẩn có cấu trúc
+        if "margins" not in seen and re.search(r"căn\s+lề|lề\s+trái|lề\s+phải", text, flags=re.IGNORECASE):
+            margins: dict[str, float] = {}
+            for side, pattern in (
+                ("top", r"lề\s+trên(?:\s*\(top\))?\D{0,25}(\d+(?:[.,]\d+)?)\s*cm"),
+                ("bottom", r"lề\s+dưới(?:\s*\(bottom\))?\D{0,25}(\d+(?:[.,]\d+)?)\s*cm"),
+                ("left", r"lề\s+trái(?:\s*\(left[^\)]*\))?\D{0,25}(\d+(?:[.,]\d+)?)\s*cm"),
+                ("right", r"lề\s+phải(?:\s*\(right\))?\D{0,25}(\d+(?:[.,]\d+)?)\s*cm"),
+            ):
+                m = re.search(pattern, text, flags=re.IGNORECASE)
+                if m:
+                    margins[side] = float(m.group(1).replace(",", "."))
+            if not margins:
+                left_m = re.search(r"lề\s+trái\D{0,30}(\d+(?:[.,]\d+)?)\s*cm", text, flags=re.IGNORECASE)
+                right_m = re.search(r"lề\s+phải\D{0,30}(\d+(?:[.,]\d+)?)\s*cm", text, flags=re.IGNORECASE)
+                if left_m:
+                    margins["left"] = float(left_m.group(1).replace(",", "."))
+                if right_m:
+                    margins["right"] = float(right_m.group(1).replace(",", "."))
+                margins.setdefault("top", 2.5)
+                margins.setdefault("bottom", 2.5)
+            if margins:
+                seen.add("margins")
+                desc_parts = [
+                    f"trên {margins.get('top', 2.5)}cm",
+                    f"dưới {margins.get('bottom', 2.5)}cm",
+                    f"trái {margins.get('left', 3.0)}cm",
+                    f"phải {margins.get('right', 2.0)}cm",
+                ]
+                criteria.append(
+                    FormatCriterionInput(
+                        name="Căn lề trang & Khổ giấy A4",
+                        description=f"Khổ giấy tiêu chuẩn A4 (in một mặt), căn lề: {', '.join(desc_parts)}.",
+                        rule_type=FormatCriterionRuleType.MEASUREMENT,
+                        expected_value={"property": "margins_cm", "value": margins, "tolerance": 0.15},
+                        source_citation=text.strip()[:600],
+                        source_document_id=chunk.document_id,
+                    )
+                )
+
+        # 2. Phông chữ và khoảng cách dòng (Typography & Spacing)
+        if "typography" not in seen and re.search(r"phông\s+chữ|times\s+new\s+roman|cỡ\s+chữ|giãn\s+dòng", text, flags=re.IGNORECASE):
+            font_name = "Times New Roman"
+            if re.search(r"arial", text, flags=re.IGNORECASE):
+                font_name = "Arial"
+            size_m = re.search(r"(?:cỡ\s+chữ|font\s+size)\D{0,25}(\d+(?:[.,]\d+)?)\s*pt", text, flags=re.IGNORECASE)
+            font_size = float(size_m.group(1).replace(",", ".")) if size_m else 13.0
+            spacing_m = re.search(r"(?:khoảng\s+cách\s+dòng|giãn\s+dòng|line\s+spacing)\D{0,25}(\d+(?:[.,]\d+)?)", text, flags=re.IGNORECASE)
+            line_spacing = float(spacing_m.group(1).replace(",", ".")) if spacing_m else 1.5
+            seen.add("typography")
             criteria.append(
                 FormatCriterionInput(
-                    name=label,
-                    description=f"Giá trị được trích nháp từ tài liệu: {label.lower()} {value}.",
+                    name="Phông chữ và giãn dòng",
+                    description=f"Sử dụng phông {font_name}, cỡ chữ thân bài {font_size} pt, khoảng cách giãn dòng {line_spacing} lines.",
                     rule_type=FormatCriterionRuleType.MEASUREMENT,
-                    expected_value=expected,
-                    source_citation=text[:500],
+                    expected_value={"property": "font_name", "value": font_name, "font_size_pt": font_size, "line_spacing": line_spacing},
+                    source_citation=text.strip()[:600],
                     source_document_id=chunk.document_id,
                 )
             )
+
+        # 3. Dung lượng số trang (Page Count)
+        if "page_count" not in seen:
+            page_m = re.search(r"(?:tối đa|không quá)\s*(\d+)\s*trang", text, flags=re.IGNORECASE)
+            if page_m:
+                seen.add("page_count")
+                max_pages = int(page_m.group(1))
+                criteria.append(
+                    FormatCriterionInput(
+                        name="Dung lượng số trang",
+                        description=f"Báo cáo có độ dài tối đa không quá {max_pages} trang.",
+                        rule_type=FormatCriterionRuleType.MEASUREMENT,
+                        expected_value={"property": "page_count", "operator": "max", "value": max_pages},
+                        source_citation=text.strip()[:600],
+                        source_document_id=chunk.document_id,
+                    )
+                )
+
+        # 4. Bảng phân công đóng góp thành viên (Team Contribution Table)
+        if "table_contribution" not in seen and re.search(r"bảng\s+phân\s+công\s+đóng\s+góp|phân\s+công\s+đóng\s+góp", text, flags=re.IGNORECASE):
+            seen.add("table_contribution")
+            criteria.append(
+                FormatCriterionInput(
+                    name="Bảng phân công đóng góp thành viên",
+                    description="Bắt buộc có Bảng phân công đóng góp thành viên đặt sau trang Lời cam đoan với các cột: STT, Họ và tên, MSSV, Nhiệm vụ, Tỷ lệ đóng góp (%), Chữ ký.",
+                    rule_type=FormatCriterionRuleType.PRESENCE,
+                    expected_value={"kind": "table_columns", "value": ["STT", "Họ và tên", "Mã số sinh viên (MSSV)", "Nhiệm vụ đảm nhiệm", "Tỷ lệ đóng góp (%)", "Chữ ký xác nhận"]},
+                    source_citation=text.strip()[:600],
+                    source_document_id=chunk.document_id,
+                )
+            )
+
+        # 5. Format trích dẫn & Tài liệu tham khảo (Citations & Reference Format)
+        if "citation_references" not in seen and re.search(r"tài\s+liệu\s+tham\s+khảo|chuẩn\s+(?:ieee|apa)", text, flags=re.IGNORECASE):
+            seen.add("citation_references")
+            style = "IEEE" if re.search(r"ieee", text, flags=re.IGNORECASE) else "APA"
+            criteria.append(
+                FormatCriterionInput(
+                    name="Định dạng trích dẫn & Tài liệu tham khảo",
+                    description=f"Bắt buộc có danh mục Tài liệu tham khảo ở cuối bài viết, định dạng theo chuẩn học thuật {style}.",
+                    rule_type=FormatCriterionRuleType.PRESENCE,
+                    expected_value={"kind": "heading", "value": "Tài liệu tham khảo", "citation_style": style},
+                    source_citation=text.strip()[:600],
+                    source_document_id=chunk.document_id,
+                )
+            )
+
     if payload.include_template_structure:
-        headings = [chunk.heading for chunk in chunks if chunk.heading]
-        headings = list(dict.fromkeys(str(value) for value in headings))
+        raw_headings = [chunk.heading for chunk in chunks if chunk.heading]
+        # Filter and deduplicate headings
+        headings = [
+            str(h).strip() for h in dict.fromkeys(raw_headings)
+            if h and not re.search(r"^(Quy định|1\.|2\.|3\.|4\.|5\.)", str(h))
+        ]
+        if not headings:
+            headings = [str(h).strip() for h in dict.fromkeys(raw_headings) if h]
         if headings:
             criteria.append(
                 FormatCriterionInput(
-                    name="Tuân thủ cấu trúc theo mẫu",
-                    description="Khung đề mục được trích nháp từ cấu trúc tài liệu nguồn; giảng viên phải xác nhận trước khi dùng.",
+                    name="Khung cấu trúc báo cáo (Template)",
+                    description="Khung đề cương phân cấp theo mẫu chuẩn bắt buộc của học phần.",
                     rule_type=FormatCriterionRuleType.TEMPLATE,
                     expected_value={"headings": headings, "allow_extra": True, "strict_names": True},
-                    source_citation="Khung đề mục trích từ tài liệu nguồn.",
+                    source_citation="Khung cấu trúc và đề mục trích từ quy định mẫu của học phần.",
                     source_document_id=documents[0].id,
                 )
             )
