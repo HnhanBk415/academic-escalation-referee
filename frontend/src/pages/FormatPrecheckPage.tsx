@@ -111,16 +111,25 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
   const [reviews, setReviews] = useState<FormatReviewCase[]>([]);
   const [metrics, setMetrics] = useState<FormatMetric[]>([]);
   const [title, setTitle] = useState("Bộ tiêu chí hình thức báo cáo");
-  const [criterionName, setCriterionName] = useState("");
-  const [criterionDescription, setCriterionDescription] = useState("");
-  const [criterionCitation, setCriterionCitation] = useState("");
-  const [ruleType, setRuleType] = useState<FormatRuleType>("MEASUREMENT");
-  const [expectedJson, setExpectedJson] = useState('{"property":"page_count","operator":"max","value":20}');
-  const [criteria, setCriteria] = useState<Array<{ name: string; description: string; rule_type: FormatRuleType; expected_value: Record<string, unknown>; source_citation?: string }>>([]);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Danh sách tiêu chí đang chỉnh sửa trực tiếp
+  const [editableCriteria, setEditableCriteria] = useState<
+    Array<{
+      id?: string;
+      name: string;
+      description: string;
+      rule_type: FormatRuleType;
+      expected_value: Record<string, unknown>;
+      source_citation?: string;
+    }>
+  >([]);
 
   const active = useMemo(() => sets.find((item) => item.status === "ACTIVE"), [sets]);
+
   async function load() {
     try {
       const [criteriaData, docs, reviewData, metricData] = await Promise.all([
@@ -129,45 +138,537 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
         api<FormatReviewCase[]>(`/api/v1/format-checks/reviews?course_id=${encodeURIComponent(selectedCourseId)}&lecturer_id=lecturer-01`),
         api<FormatMetric[]>(`/api/v1/format-checks/metrics?course_id=${encodeURIComponent(selectedCourseId)}&lecturer_id=lecturer-01`),
       ]);
-      setSets(criteriaData); setDocuments(docs); setReviews(reviewData); setMetrics(metricData);
-    } catch (err) { setMessage(err instanceof Error ? err.message : "Không thể tải dữ liệu kiểm tra hình thức."); }
-  }
-  useEffect(() => { void load(); }, [selectedCourseId]);
+      setSets(criteriaData);
+      setDocuments(docs);
+      setReviews(reviewData);
+      setMetrics(metricData);
 
-  function addCriterion() {
+      // Tự động chọn tài liệu nếu chưa chọn
+      if (docs.length > 0 && selectedDocs.length === 0) {
+        setSelectedDocs(docs.map((d) => d.id));
+      }
+
+      // Nạp tiêu chí của bộ tiêu chí ACTIVE nếu danh sách đang sửa trống
+      const currentActive = criteriaData.find((item) => item.status === "ACTIVE");
+      if (currentActive && currentActive.criteria.length > 0) {
+        setTitle(currentActive.title || "Bộ tiêu chí hình thức báo cáo");
+        setEditableCriteria(
+          currentActive.criteria.map((c) => ({
+            id: c.id,
+            name: c.name,
+            description: c.description || "",
+            rule_type: c.rule_type,
+            expected_value: c.expected_value,
+            source_citation: c.source_citation || undefined,
+          }))
+        );
+      }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không thể tải dữ liệu kiểm tra hình thức.");
+    }
+  }
+
+  useEffect(() => {
+    setEditableCriteria([]);
+    setSelectedDocs([]);
+    void load();
+  }, [selectedCourseId]);
+
+  // 1. Trích xuất tiêu chí từ tài liệu
+  async function handleExtractFromDocs() {
+    if (!selectedDocs.length) {
+      setMessage("Vui lòng tick chọn ít nhất một tài liệu nguồn để trích xuất.");
+      return;
+    }
+    setExtracting(true);
+    setMessage("");
     try {
-      const expected_value = JSON.parse(expectedJson) as Record<string, unknown>;
-      if (!criterionName.trim() || !criterionDescription.trim()) throw new Error("Nhập tên và mô tả tiêu chí.");
-      setCriteria((old) => [...old, { name: criterionName.trim(), description: criterionDescription.trim(), rule_type: ruleType, expected_value, source_citation: criterionCitation.trim() || undefined }]);
-      setCriterionName(""); setCriterionDescription(""); setCriterionCitation(""); setMessage("");
-    } catch (err) { setMessage(err instanceof Error ? err.message : "Giá trị kỳ vọng phải là JSON hợp lệ."); }
-  }
-  async function createDraft() {
-    if (!criteria.length) { setMessage("Thêm ít nhất một tiêu chí trước khi tạo bản nháp."); return; }
-    try { await postJson("/api/v1/format-checks/criteria/drafts", { course_id: selectedCourseId, lecturer_id: "lecturer-01", title, criteria }); setCriteria([]); setMessage("Đã tạo bản nháp. Hãy xem khả năng tự động trước khi duyệt."); await load(); } catch (err) { setMessage(err instanceof Error ? err.message : "Không thể tạo bản nháp."); }
-  }
-  async function draftFromDocuments() {
-    if (!selectedDocs.length) { setMessage("Chọn ít nhất một tài liệu nguồn."); return; }
-    try { await postJson("/api/v1/format-checks/criteria/drafts/from-documents", { course_id: selectedCourseId, lecturer_id: "lecturer-01", title, document_ids: selectedDocs, include_template_structure: true }); setMessage("Đã trích bản nháp từ tài liệu. Hãy kiểm tra rồi duyệt."); await load(); } catch (err) { setMessage(err instanceof Error ? err.message : "Không thể trích nháp."); }
-  }
-  async function approve(item: FormatCriteriaSet) { try { await postJson(`/api/v1/format-checks/criteria/${item.id}/approve?lecturer_id=lecturer-01`, {}); setMessage(`Đã duyệt phiên bản ${item.version}.`); await load(); } catch (err) { setMessage(err instanceof Error ? err.message : "Không thể duyệt."); } }
-  async function decideReview(item: FormatReviewCase, decision: "ACCEPTED" | "REQUIRES_FIX") { const reason = window.prompt(decision === "ACCEPTED" ? "Lý do chấp thuận:" : "Yêu cầu sinh viên sửa:"); if (!reason) return; try { await postJson(`/api/v1/format-checks/reviews/${item.id}/decision`, { reviewer_id: "lecturer-01", decision, reason }); await load(); } catch (err) { setMessage(err instanceof Error ? err.message : "Không thể ghi quyết định."); } }
-  const totals = metrics.reduce((sum, item) => ({ total: sum.total + item.total_checks, pass: sum.pass + item.passed_checks, fix: sum.fix + item.needs_fix_checks, unable: sum.unable + item.unable_to_check_checks }), { total: 0, pass: 0, fix: 0, unable: 0 });
+      const draft = await postJson<FormatCriteriaSet>("/api/v1/format-checks/criteria/drafts/from-documents", {
+        course_id: selectedCourseId,
+        lecturer_id: "lecturer-01",
+        title: title || "Bộ tiêu chí trích xuất từ tài liệu",
+        document_ids: selectedDocs,
+        include_template_structure: true,
+      });
 
-  return <div className="flex-1 overflow-y-auto bg-slate-50 p-8"><div className="max-w-5xl mx-auto space-y-6">
-    <header className="flex flex-wrap justify-between gap-3"><div><p className="text-xs font-bold tracking-wider text-red-700 uppercase">Giảng viên phụ trách</p><h1 className="text-2xl font-bold text-slate-900 mt-1">Bộ tiêu chí kiểm tra hình thức</h1><p className="text-sm text-slate-500 mt-2">Mỗi học phần chỉ có một phiên bản đang áp dụng; chỉnh sửa luôn bắt đầu bằng bản nháp mới.</p></div><CriteriaSelect catalog={catalog} courseId={selectedCourseId} onChange={onSelectCourse} /></header>
-    {message && <p className="p-3 rounded-lg bg-sky-50 border border-sky-200 text-sm text-sky-800">{message}</p>}
-    <section className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["Lượt kiểm tra", totals.total], ["Đạt", totals.pass], ["Cần sửa", totals.fix], ["Chưa kết luận", totals.unable]].map(([label, value]) => <div key={String(label)} className="bg-white border border-slate-200 rounded-xl p-4"><p className="text-xs text-slate-500">{label}</p><p className="text-2xl font-bold text-slate-800 mt-1">{value}</p></div>)}</section>
-    <section className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4"><div><h2 className="font-bold text-slate-900">Tạo bản nháp tiêu chí</h2><p className="text-xs text-slate-500 mt-1">Không có danh mục mặc định: nhập đúng quy định của học phần hoặc trích nháp từ tài liệu hiện có.</p></div><input value={title} onChange={(event) => setTitle(event.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm" placeholder="Tên bộ tiêu chí" />
-      <div className="grid md:grid-cols-2 gap-3"><input value={criterionName} onChange={(event) => setCriterionName(event.target.value)} className="p-2 border border-slate-300 rounded-lg text-sm" placeholder="Tên tiêu chí" /><select value={ruleType} onChange={(event) => setRuleType(event.target.value as FormatRuleType)} className="p-2 border border-slate-300 rounded-lg text-sm"><option value="MEASUREMENT">Số đo</option><option value="PRESENCE">Hiện diện/cấu trúc</option><option value="TEMPLATE">Theo mẫu đề mục</option></select></div>
-      <textarea value={criterionDescription} onChange={(event) => setCriterionDescription(event.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="Mô tả điều cần đối chiếu" /><textarea value={criterionCitation} onChange={(event) => setCriterionCitation(event.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm" rows={2} placeholder="Trích dẫn điều khoản nguồn (tuỳ chọn)" /><textarea value={expectedJson} onChange={(event) => setExpectedJson(event.target.value)} className="w-full p-2 border border-slate-300 rounded-lg font-mono text-xs" rows={3} aria-label="Giá trị kỳ vọng JSON" />
-      <div className="flex gap-2"><button type="button" onClick={addCriterion} className="px-3 py-2 text-sm font-bold border border-slate-300 rounded-lg">Thêm tiêu chí</button><button type="button" onClick={createDraft} className="px-3 py-2 text-sm font-bold text-white bg-red-700 rounded-lg">Tạo bản nháp ({criteria.length})</button></div>
-      {criteria.length > 0 && <ul className="text-xs space-y-1">{criteria.map((item, index) => <li key={`${item.name}-${index}`} className="flex justify-between p-2 bg-slate-50 rounded"><span>{item.name} · {item.rule_type}</span><button type="button" className="text-rose-700" onClick={() => setCriteria((old) => old.filter((_, i) => i !== index))}>Bỏ</button></li>)}</ul>}
-      <div className="border-t pt-4"><p className="text-sm font-semibold text-slate-700">Hoặc trích nháp từ tài liệu đã ingest</p><div className="mt-2 flex flex-wrap gap-2">{documents.map((doc) => <label key={doc.id} className="text-xs p-2 border rounded cursor-pointer"><input type="checkbox" checked={selectedDocs.includes(doc.id)} onChange={() => setSelectedDocs((old) => old.includes(doc.id) ? old.filter((id) => id !== doc.id) : [...old, doc.id])} /> {doc.title}</label>)}</div><button type="button" onClick={draftFromDocuments} className="mt-3 px-3 py-2 text-sm font-bold border border-slate-300 rounded-lg">Trích nháp (kèm khung mẫu nếu có)</button></div>
-    </section>
-    <section className="bg-white border border-slate-200 rounded-2xl p-5"><h2 className="font-bold text-slate-900 mb-3">Phiên bản tiêu chí</h2>{sets.length === 0 ? <p className="text-sm text-slate-500">Chưa có bộ tiêu chí.</p> : <div className="space-y-3">{sets.map((item) => <article key={item.id} className="border border-slate-200 rounded-xl p-4"><div className="flex justify-between gap-3"><div><p className="font-semibold">v{item.version} · {item.title}</p><p className="text-xs text-slate-500 mt-1">{item.criteria.length} tiêu chí · {item.criteria.filter((criterion) => criterion.automatable && !criterion.review_only).length} tự động</p></div><div className="text-right"><ResultBadge status={item.status === "ACTIVE" ? "PASS" : item.status} />{item.status === "DRAFT" && <button type="button" onClick={() => approve(item)} className="block mt-2 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded">Duyệt áp dụng</button>}</div></div><ul className="mt-3 text-xs text-slate-600 space-y-1">{item.criteria.map((criterion) => <li key={criterion.id}>• {criterion.name} — {criterion.automatable && !criterion.review_only ? "tự động" : "GV tự xem"}</li>)}</ul></article>)}</div>}</section>
-    <section className="bg-white border border-slate-200 rounded-2xl p-5"><h2 className="font-bold text-slate-900 mb-3">Ca cần người phán đoán</h2>{reviews.filter((item) => item.status === "UNDER_REVIEW").length === 0 ? <p className="text-sm text-slate-500">Không có ca nào đang chờ.</p> : <div className="space-y-3">{reviews.filter((item) => item.status === "UNDER_REVIEW").map((item) => <article key={item.id} className="p-4 border border-amber-200 bg-amber-50 rounded-xl"><div className="flex justify-between gap-3"><div><p className="font-semibold text-slate-800">{item.filename}</p><p className="text-xs text-slate-600">Sinh viên: {item.actor_id} · hết hạn lưu {new Date(item.expires_at).toLocaleDateString("vi-VN")}</p></div><ResultBadge status={item.status} /></div><details className="mt-2 text-xs"><summary className="cursor-pointer">Xem cấu trúc trích xuất và phần mơ hồ</summary><pre className="whitespace-pre-wrap mt-2 p-2 bg-white rounded overflow-auto">{JSON.stringify({ snapshot: item.extracted_snapshot, ambiguous: item.ambiguous_results }, null, 2)}</pre></details><div className="mt-3 flex gap-2"><button type="button" onClick={() => decideReview(item, "ACCEPTED")} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded">Chấp thuận</button><button type="button" onClick={() => decideReview(item, "REQUIRES_FIX")} className="px-3 py-1.5 bg-rose-600 text-white text-xs font-bold rounded">Yêu cầu sửa</button></div></article>)}</div>}</section>
-  </div></div>;
+      if (draft.criteria && draft.criteria.length > 0) {
+        setEditableCriteria(
+          draft.criteria.map((c) => ({
+            id: c.id,
+            name: c.name,
+            description: c.description || "",
+            rule_type: c.rule_type,
+            expected_value: c.expected_value,
+            source_citation: c.source_citation || undefined,
+          }))
+        );
+        setMessage(`⚡ Đã trích xuất thành công ${draft.criteria.length} tiêu chí từ tài liệu. Bạn có thể sửa, bổ sung và bấm "Lưu & Áp dụng".`);
+      } else {
+        setMessage("Không tìm thấy quy định hình thức tự động nào trong tài liệu đã chọn.");
+      }
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Lỗi khi trích xuất tiêu chí.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  // 2. Thêm tiêu chí mới
+  function handleAddCriterion() {
+    setEditableCriteria((prev) => [
+      ...prev,
+      {
+        name: "Tiêu chí mới",
+        description: "Mô tả yêu cầu hình thức",
+        rule_type: "MEASUREMENT",
+        expected_value: { property: "page_count", operator: "max", value: 30 },
+      },
+    ]);
+  }
+
+  // 3. Sửa một tiêu chí
+  function handleUpdateCriterion(index: number, patch: Partial<(typeof editableCriteria)[0]>) {
+    setEditableCriteria((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
+  }
+
+  // 4. Xóa tiêu chí
+  function handleRemoveCriterion(index: number) {
+    setEditableCriteria((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // 5. Lưu và Duyệt Áp Dụng ngay cho học phần
+  async function handleSaveAndApprove() {
+    if (!editableCriteria.length) {
+      setMessage("Danh sách tiêu chí đang trống. Hãy thêm hoặc trích xuất tiêu chí trước khi lưu.");
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    try {
+      // Tạo draft
+      const draft = await postJson<FormatCriteriaSet>("/api/v1/format-checks/criteria/drafts", {
+        course_id: selectedCourseId,
+        lecturer_id: "lecturer-01",
+        title: title.trim() || "Bộ tiêu chí hình thức báo cáo",
+        criteria: editableCriteria.map((c) => ({
+          name: c.name.trim(),
+          description: c.description.trim(),
+          rule_type: c.rule_type,
+          expected_value: c.expected_value,
+          source_citation: c.source_citation?.trim() || undefined,
+        })),
+        source_document_ids: selectedDocs,
+      });
+
+      // Duyệt active luôn
+      await postJson(`/api/v1/format-checks/criteria/${draft.id}/approve?lecturer_id=lecturer-01`, {});
+      setMessage(`✅ Đã lưu và phê duyệt áp dụng thành công bộ tiêu chí phiên bản v${draft.version}! Sinh viên có thể kiểm tra bài nộp ngay.`);
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không thể lưu bộ tiêu chí.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Xử lý thẩm định ca mơ hồ của sinh viên
+  async function decideReview(item: FormatReviewCase, decision: "ACCEPTED" | "REQUIRES_FIX") {
+    const reason = window.prompt(decision === "ACCEPTED" ? "Lý do chấp thuận (ví dụ: cách trình bày hợp lý):" : "Yêu cầu sinh viên sửa lại:");
+    if (!reason) return;
+    try {
+      await postJson(`/api/v1/format-checks/reviews/${item.id}/decision`, {
+        reviewer_id: "lecturer-01",
+        decision,
+        reason,
+      });
+      setMessage("Đã gửi phản hồi thành công đến sinh viên.");
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không thể ghi quyết định.");
+    }
+  }
+
+  const totals = metrics.reduce(
+    (sum, item) => ({
+      total: sum.total + item.total_checks,
+      pass: sum.pass + item.passed_checks,
+      fix: sum.fix + item.needs_fix_checks,
+      unable: sum.unable + item.unable_to_check_checks,
+    }),
+    { total: 0, pass: 0, fix: 0, unable: 0 }
+  );
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-slate-50 p-8">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <header className="flex flex-wrap justify-between items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div>
+            <p className="text-xs font-bold tracking-wider text-red-700 uppercase">Giảng viên phụ trách</p>
+            <h1 className="text-2xl font-bold text-slate-900 mt-1">Quản lý Tiêu chí Hình thức</h1>
+            <p className="text-sm text-slate-500 mt-1">Trích xuất từ đề cương, bổ sung/sửa đổi tiêu chí và phê duyệt cho học phần.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-slate-600">Học phần:</span>
+            <CriteriaSelect catalog={catalog} courseId={selectedCourseId} onChange={onSelectCourse} />
+          </div>
+        </header>
+
+        {message && (
+          <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 text-sm text-sky-800 flex items-center justify-between">
+            <span>{message}</span>
+            <button type="button" onClick={() => setMessage("")} className="text-xs text-sky-600 hover:text-sky-900 font-bold ml-2">Đóng</button>
+          </div>
+        )}
+
+        {/* ── 1. KHU VỰC TRÍCH XUẤT TIÊU CHÍ Ở TRÊN ────────────────────────── */}
+        <section className="bg-gradient-to-r from-red-900/10 via-slate-900/5 to-white border border-red-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span>⚡ Trích xuất tiêu chí từ tài liệu học phần</span>
+              </h2>
+              <p className="text-xs text-slate-600 mt-1">
+                Hệ thống tự động quét các văn bản hướng dẫn/rubric để bóc tách quy định căn lề, số trang và khung đề mục (Template).
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={extracting || documents.length === 0}
+              onClick={handleExtractFromDocs}
+              className="px-5 py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-xl text-sm font-bold shadow-md shadow-red-900/20 disabled:opacity-50 flex items-center gap-2 transition-all cursor-pointer"
+            >
+              {extracting ? (
+                <>
+                  <span className="animate-spin inline-block">⏳</span>
+                  <span>Đang phân tích tài liệu…</span>
+                </>
+              ) : (
+                <>
+                  <span>⚡ Trích xuất tiêu chí</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {documents.length > 0 ? (
+            <div className="pt-2 border-t border-slate-200/80">
+              <p className="text-xs font-semibold text-slate-700 mb-2">Tài liệu nguồn đang áp dụng:</p>
+              <div className="flex flex-wrap gap-2">
+                {documents.map((doc) => {
+                  const isChecked = selectedDocs.includes(doc.id);
+                  return (
+                    <label
+                      key={doc.id}
+                      className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition-all flex items-center gap-2 ${
+                        isChecked
+                          ? "bg-red-50 border-red-300 text-red-900 font-semibold"
+                          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() =>
+                          setSelectedDocs((prev) =>
+                            prev.includes(doc.id) ? prev.filter((id) => id !== doc.id) : [...prev, doc.id]
+                          )
+                        }
+                        className="rounded text-red-700 focus:ring-red-500"
+                      />
+                      <span>📄 {doc.title}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+              Chưa có tài liệu nào trong thư mục của học phần này để trích xuất.
+            </p>
+          )}
+        </section>
+
+        {/* ── 2. DANH SÁCH TIÊU CHÍ (CHỈNH SỬA, BỔ SUNG & LƯU) ─────────────── */}
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4 border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">Danh sách tiêu chí đối soát</h2>
+                {active ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                    Đang áp dụng v{active.version}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                    Chưa kích hoạt
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Xem lại các tiêu chí sau trích xuất, chỉnh sửa giá trị kỳ vọng hoặc bổ sung tiêu chí mới trước khi lưu.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAddCriterion}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <span>➕ Bổ sung tiêu chí</span>
+              </button>
+              <button
+                type="button"
+                disabled={saving || editableCriteria.length === 0}
+                onClick={handleSaveAndApprove}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md shadow-emerald-900/20 disabled:opacity-50 flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                {saving ? "Đang lưu…" : "💾 Lưu & Phê duyệt áp dụng"}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold text-slate-600">Tên bộ tiêu chí:</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-600"
+              placeholder="Ví dụ: Quy chuẩn báo cáo đồ án HK242"
+            />
+          </div>
+
+          {/* Danh sách các thẻ tiêu chí */}
+          {editableCriteria.length === 0 ? (
+            <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-xl space-y-3">
+              <p className="text-sm text-slate-500 font-medium">Chưa có tiêu chí nào trong danh sách.</p>
+              <div className="flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleExtractFromDocs}
+                  disabled={documents.length === 0}
+                  className="px-4 py-2 bg-red-700 text-white rounded-lg text-xs font-bold hover:bg-red-800 cursor-pointer"
+                >
+                  ⚡ Trích xuất ngay từ tài liệu
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddCriterion}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  ➕ Thêm tiêu chí thủ công
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {editableCriteria.map((item, index) => (
+                <div
+                  key={`${item.id || index}-${index}`}
+                  className="border border-slate-200 rounded-xl p-4 bg-slate-50/60 hover:bg-white hover:border-slate-300 transition-all space-y-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-1 min-w-64">
+                      <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                        {index + 1}
+                      </span>
+                      <input
+                        value={item.name}
+                        onChange={(e) => handleUpdateCriterion(index, { name: e.target.value })}
+                        className="font-semibold text-sm text-slate-900 bg-white px-2.5 py-1.5 border border-slate-200 rounded-lg flex-1"
+                        placeholder="Tên tiêu chí (ví dụ: Số trang, Lề trái, Cấu trúc...)"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={item.rule_type}
+                        onChange={(e) =>
+                          handleUpdateCriterion(index, { rule_type: e.target.value as FormatRuleType })
+                        }
+                        className="text-xs px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-slate-700"
+                      >
+                        <option value="MEASUREMENT">Số đo (MEASUREMENT)</option>
+                        <option value="PRESENCE">Hiện diện / Bảng (PRESENCE)</option>
+                        <option value="TEMPLATE">Khung đề mục mẫu (TEMPLATE)</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCriterion(index)}
+                        className="text-xs px-2.5 py-1.5 text-rose-700 hover:bg-rose-50 rounded-lg font-semibold transition-all cursor-pointer"
+                        title="Xóa tiêu chí này"
+                      >
+                        🗑 Xóa
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-slate-500 font-medium mb-1">Mô tả chi tiết:</label>
+                      <input
+                        value={item.description}
+                        onChange={(e) => handleUpdateCriterion(index, { description: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800"
+                        placeholder="Mô tả yêu cầu..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 font-medium mb-1">
+                        Giá trị kỳ vọng (JSON cấu hình):
+                      </label>
+                      <input
+                        value={JSON.stringify(item.expected_value)}
+                        onChange={(e) => {
+                          try {
+                            const parsed = JSON.parse(e.target.value) as Record<string, unknown>;
+                            handleUpdateCriterion(index, { expected_value: parsed });
+                          } catch {
+                            // tạm giữ nếu người dùng đang gõ
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-mono text-[11px] text-slate-800"
+                        title="Cấu hình JSON: {'property':'page_count', 'operator':'max', 'value': 50} hoặc {'headings':['Chương 1...']}"
+                      />
+                    </div>
+                  </div>
+
+                  {item.rule_type === "TEMPLATE" && Array.isArray(item.expected_value?.headings) && (
+                    <div className="p-2.5 bg-sky-50/70 border border-sky-100 rounded-lg text-xs space-y-1">
+                      <p className="font-semibold text-sky-900">Khung đề mục sẽ kiểm tra:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(item.expected_value.headings as string[]).map((heading, hIdx) => (
+                          <span
+                            key={hIdx}
+                            className="bg-white border border-sky-200 text-sky-950 px-2 py-0.5 rounded text-[11px]"
+                          >
+                            {hIdx + 1}. {heading}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {editableCriteria.length > 0 && (
+            <div className="flex justify-between items-center pt-2">
+              <span className="text-xs text-slate-500">Tổng cộng {editableCriteria.length} tiêu chí</span>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSaveAndApprove}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md shadow-emerald-900/20 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {saving ? "Đang lưu…" : "💾 Lưu & Phê duyệt áp dụng"}
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* ── 3. KHU VỰC CÁC PHẢN HỒI (CA CẦN PHÁN ĐOÁN) ──────────────────── */}
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b pb-3 border-slate-100">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span>Phản hồi ca cần thẩm định</span>
+                {reviews.filter((item) => item.status === "UNDER_REVIEW").length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900">
+                    {reviews.filter((item) => item.status === "UNDER_REVIEW").length} ca chờ duyệt
+                  </span>
+                )}
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Các bài nộp của sinh viên có cấu trúc gần khớp hoặc cần giảng viên xác nhận trực tiếp.
+              </p>
+            </div>
+          </div>
+
+          {reviews.length === 0 ? (
+            <p className="text-sm text-slate-500 py-4 text-center">Chưa có ca nào cần giảng viên xem xét.</p>
+          ) : (
+            <div className="space-y-3">
+              {reviews.map((item) => (
+                <article
+                  key={item.id}
+                  className={`p-4 border rounded-xl space-y-2 transition-all ${
+                    item.status === "UNDER_REVIEW"
+                      ? "border-amber-300 bg-amber-50/60"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div className="flex flex-wrap justify-between items-start gap-2">
+                    <div>
+                      <p className="font-semibold text-sm text-slate-900">{item.filename}</p>
+                      <p className="text-xs text-slate-500">
+                        Sinh viên: <b>{item.actor_id}</b> · Gửi lúc: {new Date(item.created_at).toLocaleString("vi-VN")}
+                      </p>
+                    </div>
+                    <ResultBadge status={item.status} />
+                  </div>
+
+                  <details className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200">
+                    <summary className="cursor-pointer font-semibold text-slate-800">
+                      Xem cấu trúc trích xuất từ bài nộp &amp; điểm mơ hồ
+                    </summary>
+                    <pre className="whitespace-pre-wrap mt-2 p-2 bg-slate-50 rounded text-[11px] overflow-auto max-h-48">
+                      {JSON.stringify({ snapshot: item.extracted_snapshot, ambiguous: item.ambiguous_results }, null, 2)}
+                    </pre>
+                  </details>
+
+                  {item.status === "UNDER_REVIEW" ? (
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => decideReview(item, "ACCEPTED")}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all"
+                      >
+                        ✓ Chấp thuận hợp lệ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => decideReview(item, "REQUIRES_FIX")}
+                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-all"
+                      >
+                        ✕ Yêu cầu sinh viên sửa
+                      </button>
+                    </div>
+                  ) : (
+                    item.decision_reason && (
+                      <p className="text-xs text-slate-700 bg-white p-2 rounded border border-slate-200">
+                        <b>Phản hồi của giảng viên:</b> {item.decision_reason}
+                      </p>
+                    )
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── 4. THỐNG KÊ LƯỢT KIỂM TRA ────────────────────────────────────── */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            ["Lượt kiểm tra", totals.total, "text-slate-800"],
+            ["Đạt chuẩn", totals.pass, "text-emerald-700"],
+            ["Cần sửa lại", totals.fix, "text-rose-700"],
+            ["Cần xem xét", totals.unable, "text-amber-700"],
+          ].map(([label, value, colorClass]) => (
+            <div key={String(label)} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <p className="text-xs text-slate-500 font-medium">{label}</p>
+              <p className={`text-2xl font-bold mt-1 ${colorClass}`}>{value}</p>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
 }
 
 export function FormatPrecheckPage({ role, catalog, selectedCourseId, onSelectCourse }: Props) {
