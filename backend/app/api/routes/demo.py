@@ -2,14 +2,20 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.factory import build_ai_provider
 from app.core.errors import AppError
 from app.db.session import get_session
+from app.ingestion.service import scan_and_sync_documents
 from app.models import (
     Actor,
     Course,
     Document,
     DocumentChunk,
     EscalationCase,
+    FormatCheckMetric,
+    FormatCriteriaSet,
+    FormatCriterion,
+    FormatReviewCase,
     Group,
     HumanDecision,
     PolicyException,
@@ -68,44 +74,47 @@ async def reset_demo(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    deleted_counts = {
-        model.__tablename__: int(
-            await session.scalar(select(func.count()).select_from(model)) or 0
-        )
-        for model in (PolicyException, HumanDecision, EscalationCase, RetrievalEvidence, Question)
-    }
-    for model in (
+    from app.db.seed import seed_demo
+
+    models_to_reset = (
         PolicyException,
         HumanDecision,
         EscalationCase,
         RetrievalEvidence,
         Question,
-    ):
+        FormatReviewCase,
+        FormatCheckMetric,
+        FormatCriterion,
+        FormatCriteriaSet,
+    )
+    deleted_counts = {
+        model.__tablename__: int(
+            await session.scalar(select(func.count()).select_from(model)) or 0
+        )
+        for model in models_to_reset
+    }
+    for model in models_to_reset:
         await session.execute(delete(model))
-    seed_document_ids = (
-        "group-policy-v1",
-        "project-rubric-v1",
-        "dadn-hk242-rubric",
-        "dadn-hk242-course-plan",
-        "dadn-hk242-work-plan",
-        "format-guidelines-v1",
-    )
-    await session.execute(
-        delete(DocumentChunk).where(DocumentChunk.document_id.not_in(seed_document_ids))
-    )
-    await session.execute(delete(Document).where(Document.id.not_in(seed_document_ids)))
+    await session.commit()
+
+    # Re-seed lecturers, students, groups from demo-config.json & sync documents
+    ai_provider = getattr(request.app.state, "ai_provider", None) or build_ai_provider()
+    await seed_demo(session, provider=ai_provider)
+
     add_audit_event(
         session,
         event_type="DEMO_RESET",
         entity_type="demo",
         entity_id="demo",
         request_id=request.state.request_id,
-        output_snapshot={"deleted_counts": deleted_counts},
+        output_snapshot={
+            "deleted_counts": deleted_counts,
+        },
     )
     await session.commit()
     return {
         "status": "reset",
         "seeded": True,
-        "documents_reingested": False,
+        "documents_reingested": True,
         "audit_preserved": True,
     }

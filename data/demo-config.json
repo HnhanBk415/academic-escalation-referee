@@ -1,0 +1,60 @@
+{
+  "lecturers": [
+    {
+      "id": "lecturer-01",
+      "display_name": "TS. Trần Minh Tuấn"
+    }
+  ],
+  "students": [
+    {
+      "id": "demo-student",
+      "display_name": "Sinh viên demo"
+    },
+    {
+      "id": "student-a1",
+      "display_name": "Nguyễn Văn A (Student A1)"
+    },
+    {
+      "id": "student-b1",
+      "display_name": "Trần Thị B (Student B1)"
+    },
+    {
+      "id": "student-dadn-a1",
+      "display_name": "Lê Văn C (DADN A1)"
+    },
+    {
+      "id": "student-dadn-b1",
+      "display_name": "Phạm Thị D (DADN B1)"
+    }
+  ],
+  "groups": [
+    {
+      "id": "group-a",
+      "course_id": "CO3001",
+      "name": "Nhóm 01 - CO3001",
+      "semester": "261",
+      "member_ids": ["demo-student", "student-a1"]
+    },
+    {
+      "id": "group-b",
+      "course_id": "CO3001",
+      "name": "Nhóm 02 - CO3001",
+      "semester": "261",
+      "member_ids": ["student-b1"]
+    },
+    {
+      "id": "dadn-group-a",
+      "course_id": "DADN-HK242",
+      "name": "Nhóm A - DADN HK242",
+      "semester": "242",
+      "member_ids": ["demo-student", "student-dadn-a1"]
+    },
+    {
+      "id": "dadn-group-b",
+      "course_id": "DADN-HK242",
+      "name": "Nhóm B - DADN HK242",
+      "semester": "242",
+      "member_ids": ["student-dadn-b1"]
+    }
+  ]
+}

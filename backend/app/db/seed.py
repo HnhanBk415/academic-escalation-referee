@@ -1,4 +1,6 @@
 import asyncio
+import json
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,97 +12,118 @@ from app.db.session import SessionLocal
 from app.models import Actor, Course, Group, GroupMembership
 
 
+def _find_data_root() -> Path:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "data").is_dir():
+            return parent / "data"
+    return current.parents[2] / "data" if len(current.parents) > 2 else current.parent / "data"
+
+
+def load_demo_config() -> dict:
+    """Reads data/demo-config.json if present, or returns default structure."""
+    config_file = _find_data_root() / "demo-config.json"
+    if config_file.is_file():
+        try:
+            return json.loads(config_file.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"[Seed] Error reading {config_file}: {e}", flush=True)
+    return {
+        "lecturers": [{"id": "lecturer-01", "display_name": "TS. Trần Minh Tuấn"}],
+        "students": [
+            {"id": "demo-student", "display_name": "Sinh viên demo"},
+            {"id": "student-a1", "display_name": "Nguyễn Văn A (Student A1)"},
+            {"id": "student-b1", "display_name": "Trần Thị B (Student B1)"},
+            {"id": "student-dadn-a1", "display_name": "Lê Văn C (DADN A1)"},
+            {"id": "student-dadn-b1", "display_name": "Phạm Thị D (DADN B1)"},
+        ],
+        "groups": [],
+    }
+
+
 async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -> None:
     embedding_provider = provider or build_ai_provider()
-    actors = [
-        Actor(id="demo-student", display_name="Sinh viên demo", role=ActorRole.STUDENT),
-        Actor(id="student-a1", display_name="Student A1", role=ActorRole.STUDENT),
-        Actor(id="student-b1", display_name="Student B1", role=ActorRole.STUDENT),
-        Actor(
-            id="student-dadn-a1",
-            display_name="Student DADN A1",
-            role=ActorRole.STUDENT,
-        ),
-        Actor(
-            id="student-dadn-b1",
-            display_name="Student DADN B1",
-            role=ActorRole.STUDENT,
-        ),
-        Actor(
-            id="lecturer-01",
-            display_name="TS. Trần Minh Tuấn",
-            role=ActorRole.LECTURER,
-        ),
-    ]
-    for actor in actors:
-        existing_actor = await session.get(Actor, actor.id)
-        if existing_actor is None:
-            session.add(actor)
-        elif actor.id == "lecturer-01":
-            existing_actor.display_name = actor.display_name
+    cfg = load_demo_config()
 
-    if await session.get(Course, "CO3001") is None:
-        session.add(
-            Course(id="CO3001", code="CO3001", name="Đồ án chuyên ngành", semester="261")
-        )
-    if await session.get(Course, "DADN-HK242") is None:
-        session.add(
-            Course(
-                id="DADN-HK242",
-                code="DADN",
-                name="Đồ án Đa ngành (tài liệu HK242)",
-                semester="242",
-            )
-        )
-    await session.flush()
-
-    groups = [
-        Group(id="group-a", course_id="CO3001", name="Group A", semester="261"),
-        Group(id="group-b", course_id="CO3001", name="Group B", semester="261"),
-        Group(
-            id="dadn-group-a",
-            course_id="DADN-HK242",
-            name="DADN Group A",
-            semester="242",
-        ),
-        Group(
-            id="dadn-group-b",
-            course_id="DADN-HK242",
-            name="DADN Group B",
-            semester="242",
-        ),
-    ]
-    for group in groups:
-        if await session.get(Group, group.id) is None:
-            session.add(group)
-    await session.flush()
-
-    memberships = [
-        ("student-a1", "group-a"),
-        ("student-b1", "group-b"),
-        ("student-dadn-a1", "dadn-group-a"),
-        ("student-dadn-b1", "dadn-group-b"),
-    ]
-    for actor_id, group_id in memberships:
-        existing = await session.scalar(
-            select(GroupMembership).where(
-                GroupMembership.actor_id == actor_id,
-                GroupMembership.group_id == group_id,
-            )
-        )
+    # 1. Seed Lecturers from config
+    for item in cfg.get("lecturers", []):
+        actor_id = item["id"]
+        display_name = item.get("display_name", actor_id)
+        existing = await session.get(Actor, actor_id)
         if existing is None:
-            session.add(GroupMembership(actor_id=actor_id, group_id=group_id))
+            session.add(Actor(id=actor_id, display_name=display_name, role=ActorRole.LECTURER))
+        else:
+            existing.display_name = display_name
+            existing.role = ActorRole.LECTURER
 
-    from sqlalchemy import func
+    # 2. Seed Students from config
+    student_ids: list[str] = []
+    for item in cfg.get("students", []):
+        actor_id = item["id"]
+        display_name = item.get("display_name", actor_id)
+        student_ids.append(actor_id)
+        existing = await session.get(Actor, actor_id)
+        if existing is None:
+            session.add(Actor(id=actor_id, display_name=display_name, role=ActorRole.STUDENT))
+        else:
+            existing.display_name = display_name
+            existing.role = ActorRole.STUDENT
+    await session.commit()
 
+    # 3. Scan and sync all documents and courses dynamically from data/sample-documents/
     from app.ingestion.service import scan_and_sync_documents
-    from app.models import Document
 
     print(
         "[Seed] Scanning and syncing documents from data/sample-documents/...",
         flush=True,
     )
     await scan_and_sync_documents(session, provider=embedding_provider)
+    await session.commit()
+
+    # 4. Seed Configured Groups & Memberships from demo-config.json
+    configured_groups = cfg.get("groups", [])
+    configured_group_ids: set[str] = set()
+    for g_item in configured_groups:
+        grp_id = g_item["id"]
+        course_id = g_item["course_id"]
+        grp_name = g_item.get("name", grp_id)
+        sem = g_item.get("semester", "261")
+        configured_group_ids.add(grp_id)
+
+        existing_grp = await session.get(Group, grp_id)
+        if existing_grp is None:
+            session.add(Group(id=grp_id, course_id=course_id, name=grp_name, semester=sem))
+        else:
+            existing_grp.name = grp_name
+            existing_grp.course_id = course_id
+            existing_grp.semester = sem
+        await session.flush()
+
+        # Add specified members
+        member_ids = g_item.get("member_ids", [])
+        for m_id in member_ids:
+            existing_mem = await session.scalar(
+                select(GroupMembership).where(
+                    GroupMembership.actor_id == m_id,
+                    GroupMembership.group_id == grp_id,
+                )
+            )
+            if existing_mem is None:
+                session.add(GroupMembership(actor_id=m_id, group_id=grp_id))
+
+    # 5. For any auto-discovered groups not explicitly in config, ensure demo students are attached
+    all_groups = (await session.scalars(select(Group))).all()
+    for grp in all_groups:
+        if grp.id not in configured_group_ids:
+            for s_id in student_ids:
+                existing_mem = await session.scalar(
+                    select(GroupMembership).where(
+                        GroupMembership.actor_id == s_id,
+                        GroupMembership.group_id == grp.id,
+                    )
+                )
+                if existing_mem is None:
+                    session.add(GroupMembership(actor_id=s_id, group_id=grp.id))
     await session.commit()
 
 

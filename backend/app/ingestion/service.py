@@ -203,39 +203,6 @@ async def ingest_document(
         raise
 
 
-KNOWN_DOCUMENT_MAP = {
-    "group-policy-v1.md": (
-        "group-policy-v1",
-        "Quy định nhóm đồ án CO3001",
-        "CO3001",
-    ),
-    "project-rubric-v1.md": (
-        "project-rubric-v1",
-        "Rubric đánh giá đồ án CO3001",
-        "CO3001",
-    ),
-    "dadn-rubric.pdf": (
-        "dadn-hk242-rubric",
-        "Hướng dẫn chấm bài môn Đồ án Đa ngành",
-        "DADN-HK242",
-    ),
-    "dadn-course-plan.pdf": (
-        "dadn-hk242-course-plan",
-        "Kế hoạch môn học Đồ án Đa ngành HK242",
-        "DADN-HK242",
-    ),
-    "dadn-work-plan.pdf": (
-        "dadn-hk242-work-plan",
-        "Kế hoạch làm việc Đồ án Đa ngành HK242",
-        "DADN-HK242",
-    ),
-    "format-guidelines-v1.md": (
-        "format-guidelines-v1",
-        "Quy định hình thức và cấu trúc báo cáo đồ án",
-        "CO3001",
-    ),
-}
-
 EXTENSION_MAP = {
     ".pdf": "PDF",
     ".md": "MARKDOWN",
@@ -243,24 +210,67 @@ EXTENSION_MAP = {
 }
 
 
+def _extract_document_title(file_path: Path, ext: str) -> str:
+    """Extract a human-friendly title from markdown header or filename."""
+    if ext in (".md", ".txt"):
+        try:
+            for line in file_path.read_text(encoding="utf-8").splitlines()[:10]:
+                line = line.strip()
+                if line.startswith("#"):
+                    cleaned = line.lstrip("#").strip()
+                    if cleaned:
+                        return cleaned
+        except Exception:
+            pass
+    stem = file_path.stem
+    clean_title = re.sub(r"[-_]+", " ", stem).strip()
+    return clean_title.title()
+
+
 async def scan_and_sync_documents(
     session: AsyncSession,
     provider: AIProvider,
-    default_course_id: str = "DADN-HK242",
+    default_course_id: str = "DADN",
 ) -> list[IngestResponse]:
     """
-    Scans the data/sample-documents directory for all PDF/MD/TXT files,
-    registers any missing Document entities, and ingests them into the vector database.
+    Scans the data/sample-documents directory for all PDF/MD/TXT files across all course subdirectories,
+    dynamically discovers courses and groups based on folder names, registers Document entities,
+    and ingests them into the vector database.
     """
+    from app.models import Course, Group
+
     if not ALLOWED_DOCUMENT_ROOT.is_dir():
         print(f"[Auto-Scan] Directory not found: {ALLOWED_DOCUMENT_ROOT}", flush=True)
         return []
 
+    # 1. Discover all course subdirectories and ensure courses & groups exist
+    course_dirs = [
+        d for d in ALLOWED_DOCUMENT_ROOT.iterdir()
+        if d.is_dir() and not d.name.startswith((".", "~"))
+    ]
+    for c_dir in course_dirs:
+        c_id = c_dir.name
+        existing_course = await session.get(Course, c_id)
+        if existing_course is None:
+            code = c_id.split("-")[0].strip()
+            c_name = re.sub(r"[-_]+", " ", c_id).strip().title()
+            sem = "242" if "242" in c_id else "261"
+            session.add(Course(id=c_id, code=code, name=c_name, semester=sem))
+
+            grp_a_id = f"{c_id.lower()}-group-a"
+            grp_b_id = f"{c_id.lower()}-group-b"
+            if await session.get(Group, grp_a_id) is None:
+                session.add(Group(id=grp_a_id, course_id=c_id, name=f"{code} Group A", semester=sem))
+            if await session.get(Group, grp_b_id) is None:
+                session.add(Group(id=grp_b_id, course_id=c_id, name=f"{code} Group B", semester=sem))
+            await session.commit()
+
     results: list[IngestResponse] = []
     files = sorted(
         [p for p in ALLOWED_DOCUMENT_ROOT.rglob("*") if p.is_file()],
-        key=lambda p: p.name,
+        key=lambda p: (str(p.parent), p.name),
     )
+
     for file_path in files:
         if file_path.name.startswith((".", "~")):
             continue
@@ -271,22 +281,30 @@ async def scan_and_sync_documents(
         doc_type = EXTENSION_MAP[ext]
         filename = file_path.name
 
-        # Infer course_id from parent folder if inside a subfolder (e.g. CO3001, DADN-HK242)
+        # Infer course_id from parent folder if inside a subfolder
         inferred_course_id = (
             file_path.parent.name
             if file_path.parent != ALLOWED_DOCUMENT_ROOT and file_path.parent.name
             else default_course_id
         )
+        course_id = inferred_course_id
 
-        if filename in KNOWN_DOCUMENT_MAP:
-            doc_id, title, mapped_course_id = KNOWN_DOCUMENT_MAP[filename]
-            course_id = inferred_course_id if inferred_course_id != default_course_id else mapped_course_id
+        # Derive clean document ID and Title dynamically from file and folder name
+        clean_stem = re.sub(r"[^a-zA-Z0-9_-]", "-", file_path.stem.lower()).strip("-")
+        clean_course = re.sub(r"[^a-zA-Z0-9_-]", "-", course_id.lower()).strip("-")
+
+        # Keep document ID stable and unique per course
+        if clean_stem.startswith(clean_course):
+            doc_id = clean_stem
         else:
-            clean_stem = re.sub(r"[^a-zA-Z0-9_-]", "-", file_path.stem.lower()).strip("-")
-            doc_id = f"doc-{clean_stem}" if clean_stem else f"doc-{new_id('doc')}"
-            title = file_path.stem.replace("-", " ").replace("_", " ").title()
-            course_id = inferred_course_id
+            is_shared_filename = any(
+                (other_dir / filename).is_file()
+                for other_dir in course_dirs
+                if other_dir.name != course_id
+            )
+            doc_id = f"{clean_course}-{clean_stem}" if is_shared_filename else clean_stem
 
+        title = _extract_document_title(file_path, ext)
         raw = file_path.read_bytes()
         content_hash = hashlib.sha256(raw).hexdigest()
         rel_path = file_path.relative_to(REPOSITORY_ROOT).as_posix()
@@ -315,6 +333,9 @@ async def scan_and_sync_documents(
                 needs_update = True
             if doc.course_id != course_id:
                 doc.course_id = course_id
+                needs_update = True
+            if doc.title != title and title:
+                doc.title = title
                 needs_update = True
             if doc.effective_until is None or doc.effective_until < date(2030, 1, 1):
                 doc.effective_until = date(2030, 12, 31)
