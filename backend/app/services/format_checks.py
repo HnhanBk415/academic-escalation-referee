@@ -73,21 +73,16 @@ def _fold(value: str) -> str:
 
 
 def _criterion_is_automatable(item: FormatCriterionInput) -> bool:
-    if item.review_only:
+    if getattr(item, "review_only", False):
         return False
-    if item.rule_type == FormatCriterionRuleType.MEASUREMENT:
-        return str(item.expected_value.get("property", "")) in SUPPORTED_MEASUREMENTS
-    if item.rule_type == FormatCriterionRuleType.PRESENCE:
-        kind = str(item.expected_value.get("kind", ""))
-        return kind in {"heading", "table_columns", "cover_page", "cover_page_fields"} or "trang bìa" in item.name.lower()
-    if item.rule_type == FormatCriterionRuleType.TEMPLATE:
-        kind = str(item.expected_value.get("kind", ""))
-        return (
-            bool(item.expected_value.get("headings"))
-            or kind in {"template_chapter", "template_section", "template_sequence"}
-            or bool(item.expected_value.get("chapter_name"))
-            or bool(item.expected_value.get("section_name"))
-        )
+    rule_type_str = item.rule_type.value if hasattr(item.rule_type, "value") else str(item.rule_type)
+    exp = item.expected_value or {}
+    kind = str(exp.get("kind", ""))
+
+    if rule_type_str == "MEASUREMENT":
+        return str(exp.get("property", "")) in SUPPORTED_MEASUREMENTS
+    if rule_type_str in ("PRESENCE", "TEMPLATE"):
+        return True
     return False
 
 
@@ -759,8 +754,10 @@ async def check_format(
             overall_status=FormatCheckOverallStatus.UNABLE_TO_CHECK,
             message="Chưa có bộ tiêu chí hình thức được giảng viên duyệt cho học phần này.",
         )
-    criteria = (await session.scalars(select(FormatCriterion).where(FormatCriterion.criteria_set_id == active.id).order_by(FormatCriterion.position))).all()
-    usable = [item for item in criteria if item.automatable and not item.review_only]
+    usable = [
+        item for item in criteria
+        if not item.review_only and (item.automatable or _criterion_is_automatable(item) or str(item.rule_type) in ("PRESENCE", "TEMPLATE"))
+    ]
     if not usable:
         return FormatCheckResponse(
             overall_status=FormatCheckOverallStatus.UNABLE_TO_CHECK,

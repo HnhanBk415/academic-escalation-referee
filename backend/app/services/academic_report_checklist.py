@@ -310,16 +310,35 @@ async def extract_report_facts(
         all_text = "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
 
         ai_facts = LLMSubmissionContentFacts()
-        if ai_provider is not None:
+        provider = ai_provider
+        if provider is None:
             try:
-                ai_facts = await ai_provider.extract_submission_content_facts(
+                from app.ai.fake import FakeProvider
+                provider = FakeProvider()
+            except Exception:
+                provider = None
+
+        if provider is not None:
+            try:
+                ai_facts = await provider.extract_submission_content_facts(
                     full_text=all_text[:60000],
                     cover_text=cover_text[:3500],
                 )
             except Exception as e:
                 print(f"[AcademicChecklist] AI submission extraction fallback: {e}", flush=True)
 
-        combined_headings = list(dict.fromkeys(style_headings + ai_facts.headings))
+        if not style_headings and not ai_facts.headings:
+            fallback_h = [
+                p.text.strip()
+                for p in doc.paragraphs
+                if p.text.strip() and len(p.text.strip()) < 120 and (
+                    any(p.text.strip().lower().startswith(prefix) for prefix in ("chương", "phần", "mục", "1.", "2.", "3.", "4.", "5.", "6.", "1)", "2)", "3)", "i.", "ii."))
+                    or p.text.strip().isupper()
+                )
+            ][:40]
+            combined_headings = fallback_h
+        else:
+            combined_headings = list(dict.fromkeys(style_headings + ai_facts.headings))
 
         return {
             "file_type": "DOCX",
@@ -385,9 +404,17 @@ async def extract_report_facts(
         all_text = "\n".join(page_texts)
 
         ai_facts = LLMSubmissionContentFacts()
-        if ai_provider is not None:
+        provider = ai_provider
+        if provider is None:
             try:
-                ai_facts = await ai_provider.extract_submission_content_facts(
+                from app.ai.fake import FakeProvider
+                provider = FakeProvider()
+            except Exception:
+                provider = None
+
+        if provider is not None:
+            try:
+                ai_facts = await provider.extract_submission_content_facts(
                     full_text=all_text[:60000],
                     cover_text=cover_text[:3500],
                 )
@@ -547,15 +574,14 @@ async def evaluate_academic_checklist(
     # 1. Prepare semantic criteria for separate, dedicated per-criterion LLM evaluation
     semantic_criteria_items: list[dict[str, Any]] = []
     for c in criteria:
-        if getattr(c, "review_only", False) or not getattr(c, "automatable", True):
+        c_rule_type = c.rule_type.value if hasattr(c.rule_type, "value") else str(c.rule_type)
+        if getattr(c, "review_only", False):
             continue
-        rule_type = getattr(c, "rule_type", None)
-        rule_type_val = rule_type.value if hasattr(rule_type, "value") else str(rule_type)
-        if rule_type in (FormatCriterionRuleType.PRESENCE, FormatCriterionRuleType.TEMPLATE) or rule_type_val in ("PRESENCE", "TEMPLATE"):
+        if c.rule_type in (FormatCriterionRuleType.PRESENCE, FormatCriterionRuleType.TEMPLATE) or c_rule_type in ("PRESENCE", "TEMPLATE"):
             semantic_criteria_items.append({
                 "criterion_id": str(getattr(c, "id", "")),
                 "name": str(getattr(c, "name", "")),
-                "rule_type": rule_type_val,
+                "rule_type": c_rule_type,
                 "expected_value": getattr(c, "expected_value", {}) or {},
                 "source_citation": getattr(c, "source_citation", "") or "",
             })
@@ -579,7 +605,11 @@ async def evaluate_academic_checklist(
     # 2. Evaluate Individual Criteria
     for criterion in criteria:
         cid_str = str(getattr(criterion, "id", ""))
-        if getattr(criterion, "review_only", False) or not getattr(criterion, "automatable", True):
+        c_rule_type = getattr(criterion, "rule_type", None)
+        c_rule_type_val = c_rule_type.value if hasattr(c_rule_type, "value") else str(c_rule_type)
+
+        is_automatable = getattr(criterion, "automatable", True) or c_rule_type_val in ("PRESENCE", "TEMPLATE")
+        if getattr(criterion, "review_only", False) or not is_automatable:
             results.append(
                 FormatCriterionResult(
                     criterion_id=criterion.id,
@@ -597,7 +627,7 @@ async def evaluate_academic_checklist(
         kind = expected.get("kind")
 
         # A. MEASUREMENT RULES (Direct mathematical & structural calculations - 0 AI calls)
-        if criterion.rule_type == FormatCriterionRuleType.MEASUREMENT:
+        if criterion.rule_type == FormatCriterionRuleType.MEASUREMENT or c_rule_type_val == "MEASUREMENT":
             if prop == "margins_cm":
                 actual_margins = structure.get("margins_cm")
                 if structure.get("file_type") == "PDF":
@@ -724,7 +754,7 @@ async def evaluate_academic_checklist(
                     )
 
         # B. PRESENCE RULES (Checked from single batch judgment or fallback)
-        elif criterion.rule_type == FormatCriterionRuleType.PRESENCE:
+        elif criterion.rule_type == FormatCriterionRuleType.PRESENCE or c_rule_type_val == "PRESENCE":
             if cid_str in batch_judgments:
                 bj = batch_judgments[cid_str]
                 v_map = {
@@ -740,7 +770,7 @@ async def evaluate_academic_checklist(
                         status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
                         message=bj.reason,
                         expected_value=expected,
-                        actual_value={"detected": bj.detected_element, "location": getattr(bj, "location", None)},
+                        actual_value={"detected": bj.detected_element, "location": getattr(bj, "location", "Tại bài nộp")},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -804,7 +834,7 @@ async def evaluate_academic_checklist(
                 )
 
         # C. TEMPLATE RULES (Granular Chapters & Sections from single batch judgment)
-        elif criterion.rule_type == FormatCriterionRuleType.TEMPLATE:
+        elif criterion.rule_type == FormatCriterionRuleType.TEMPLATE or c_rule_type_val == "TEMPLATE":
             if cid_str in batch_judgments:
                 bj = batch_judgments[cid_str]
                 v_map = {
@@ -813,6 +843,7 @@ async def evaluate_academic_checklist(
                     "AMBIGUOUS": FormatCriterionResultStatus.AMBIGUOUS,
                     "MISSING_STUDENT_INPUT": FormatCriterionResultStatus.FAIL,
                 }
+                detected_val = bj.detected_element if getattr(bj, "detected_element", None) else structure.get("headings", [])[:6]
                 results.append(
                     FormatCriterionResult(
                         criterion_id=criterion.id,
@@ -820,7 +851,7 @@ async def evaluate_academic_checklist(
                         status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
                         message=bj.reason,
                         expected_value=expected,
-                        actual_value={"detected": bj.detected_element, "location": getattr(bj, "location", None)},
+                        actual_value={"detected": detected_val, "location": getattr(bj, "location", "Tại đề mục bài nộp")},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -885,81 +916,82 @@ async def evaluate_academic_checklist(
                     )
                 )
 
-            elif kind == "template_sequence":
-                chapters = expected.get("chapters", [])
+            elif kind in ("template_outline", "template_sequence") or not kind:
+                template = expected.get("outline_headings") or expected.get("headings", []) or expected.get("chapters", [])
+                if not template and expected.get("requirement_text"):
+                    req_txt = expected.get("requirement_text")
+                    if isinstance(req_txt, str):
+                        template = [h.strip() for h in re.split(r"[,;\n]+", req_txt) if h.strip()]
+
                 actual_headings = [str(h) for h in structure.get("headings", [])]
-                positions: list[int] = []
-
-                for chap in chapters:
-                    pos = -1
-                    for idx, act in enumerate(actual_headings):
-                        if _is_heading_matching_algorithmically(chap, act)[0]:
-                            pos = idx
-                            break
-                    if pos >= 0:
-                        positions.append(pos)
-
-                is_ordered = len(positions) >= 2 and all(positions[i] < positions[i + 1] for i in range(len(positions) - 1))
-                status = FormatCriterionResultStatus.PASS if is_ordered else (FormatCriterionResultStatus.FAIL if len(positions) >= 2 else FormatCriterionResultStatus.AMBIGUOUS)
-                msg = "Thứ tự các chương xuất hiện tuần tự đúng quy định." if is_ordered else "Thứ tự các chương chưa đúng tuần tự hoặc thiếu một số chương."
-
-                results.append(
-                    FormatCriterionResult(
-                        criterion_id=criterion.id,
-                        name=criterion.name,
-                        status=status,
-                        message=msg,
-                        expected_value=expected,
-                        actual_value={"headings": actual_headings[:8], "location": "Thứ tự các chương"},
-                        source_citation=criterion.source_citation,
-                    )
-                )
-
-            else:
-                template = [str(item) for item in expected.get("headings", [])]
-                headings = [str(item) for item in structure.get("headings", [])]
-                if not template or not headings:
+                if not actual_headings:
                     results.append(
                         FormatCriterionResult(
                             criterion_id=criterion.id,
                             name=criterion.name,
-                            status=FormatCriterionResultStatus.UNMEASURABLE if not headings else FormatCriterionResultStatus.FAIL,
-                            message="Không trích xuất được đề mục bài nộp để so khớp mẫu." if not headings else "Thiếu đề mục bắt buộc theo khung mẫu.",
+                            status=FormatCriterionResultStatus.UNMEASURABLE,
+                            message="Không trích xuất được danh mục đề mục từ bài nộp.",
                             expected_value=expected,
-                            actual_value={"headings": headings},
+                            actual_value={"headings": []},
+                            source_citation=criterion.source_citation,
+                        )
+                    )
+                elif not template:
+                    results.append(
+                        FormatCriterionResult(
+                            criterion_id=criterion.id,
+                            name=criterion.name,
+                            status=FormatCriterionResultStatus.PASS,
+                            message="Khung cấu trúc bài nộp đã được ghi nhận.",
+                            expected_value=expected,
+                            actual_value={"headings": actual_headings[:10], "location": "Tại đề mục bài nộp"},
                             source_citation=criterion.source_citation,
                         )
                     )
                 else:
-                    actual_folded = [_fold(item) for item in headings]
-                    expected_folded = [_fold(item) for item in template]
-                    all_found = all(any(e == a or e in a for a in actual_folded) for e in expected_folded)
-                    exact_match = all(e in actual_folded for e in expected_folded)
+                    missing_items = []
+                    matched_items = []
+                    for t_item in template:
+                        found = any(_is_heading_matching_algorithmically(t_item, a)[0] for a in actual_headings)
+                        if not found and "mục lục" in t_item.lower() and structure.get("has_table_of_contents"):
+                            found = True
+                        if not found and "tham khảo" in t_item.lower() and structure.get("has_references_section"):
+                            found = True
+                        if not found and ("bìa" in t_item.lower() or "trang bìa" in t_item.lower()) and structure.get("cover_sample"):
+                            found = True
+                        if not found and "phân công" in t_item.lower() and structure.get("has_member_contribution_table"):
+                            found = True
+                        if not found and ("bảng biểu" in t_item.lower() or "danh mục bảng" in t_item.lower()) and structure.get("has_list_of_tables"):
+                            found = True
+                        if not found and ("hình ảnh" in t_item.lower() or "danh mục hình" in t_item.lower()) and structure.get("has_list_of_figures"):
+                            found = True
 
-                    if exact_match:
-                        results.append(
-                            FormatCriterionResult(
-                                criterion_id=criterion.id,
-                                name=criterion.name,
-                                status=FormatCriterionResultStatus.PASS,
-                                message="Khung đề mục khớp mẫu đã duyệt.",
-                                expected_value=expected,
-                                actual_value={"headings": headings, "location": "Toàn bộ khung đề mục"},
-                                source_citation=criterion.source_citation,
-                            )
-                        )
+                        if found:
+                            matched_items.append(t_item)
+                        else:
+                            missing_items.append(t_item)
+
+                    if not missing_items:
+                        status = FormatCriterionResultStatus.PASS
+                        msg = "Đầy đủ các chương mục và phần bắt buộc theo khung đề cương."
+                    elif len(matched_items) >= len(template) * 0.6:
+                        status = FormatCriterionResultStatus.AMBIGUOUS
+                        msg = f"Thiếu hoặc có sự khác biệt từ ngữ ở một số mục: {', '.join(missing_items[:2])}."
                     else:
-                        results.append(
-                            FormatCriterionResult(
-                                criterion_id=criterion.id,
-                                name=criterion.name,
-                                status=FormatCriterionResultStatus.AMBIGUOUS if all_found else FormatCriterionResultStatus.FAIL,
-                                message="Đề mục gần giống mẫu nhưng chưa khớp chính xác tên." if all_found else "Thiếu đề mục bắt buộc theo khung mẫu.",
-                                expected_value=expected,
-                                actual_value={"headings": headings, "location": "Tại các đề mục liên quan"},
-                                source_citation=criterion.source_citation,
-                            )
+                        status = FormatCriterionResultStatus.FAIL
+                        msg = f"Thiếu các mục bắt buộc theo khung đề cương: {', '.join(missing_items[:3])}."
+
+                    results.append(
+                        FormatCriterionResult(
+                            criterion_id=criterion.id,
+                            name=criterion.name,
+                            status=status,
+                            message=msg,
+                            expected_value=expected,
+                            actual_value={"matched": matched_items, "missing": missing_items, "headings": actual_headings[:8], "location": "Toàn bộ khung đề mục bài nộp"},
+                            source_citation=criterion.source_citation,
                         )
+                    )
 
     # 2. BUILD FULLY DYNAMIC SUMMARY TABLE DIRECTLY FROM EVALUATED CRITERIA
     checklist_summary: list[dict[str, Any]] = []
@@ -1052,7 +1084,13 @@ async def evaluate_academic_checklist(
         })
 
     # Overall status
-    usable_ids = {c.id for c in criteria if getattr(c, "automatable", True) and not getattr(c, "review_only", False)}
+    usable_ids = {
+        c.id for c in criteria
+        if not getattr(c, "review_only", False) and (
+            getattr(c, "automatable", True)
+            or (c.rule_type.value if hasattr(c.rule_type, "value") else str(c.rule_type)) in ("PRESENCE", "TEMPLATE")
+        )
+    }
     usable_statuses = {r.status for r in results if r.criterion_id in usable_ids}
     if FormatCriterionResultStatus.FAIL in usable_statuses:
         overall = FormatCheckOverallStatus.NEEDS_FIX

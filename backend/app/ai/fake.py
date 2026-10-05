@@ -591,6 +591,10 @@ class FakeProvider:
                 )
         elif kind in ("template_outline", "template_sequence"):
             outline_headings = exp.get("outline_headings") or exp.get("chapters", [])
+            if not outline_headings and exp.get("requirement_text"):
+                req_txt = exp.get("requirement_text")
+                if isinstance(req_txt, str):
+                    outline_headings = [h.strip() for h in re.split(r"[,;\n]+", req_txt) if h.strip()]
             headings = submission_facts.get("headings", [])
             if outline_headings:
                 missing_h = []
