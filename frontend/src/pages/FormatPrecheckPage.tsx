@@ -2077,7 +2077,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                                   type="button"
                                   onClick={() => {
                                     setExpandedIndex(isExpanded ? null : originalIndex);
-                                    if (viewMode !== "cards") setViewMode("cards");
+                                    setViewMode("cards");
                                   }}
                                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
                                   title="Chỉnh sửa tiêu chí"
