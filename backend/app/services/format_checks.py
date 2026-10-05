@@ -787,10 +787,21 @@ async def check_format(
     review_case_id: str | None = None
     ambiguous = [item.model_dump(mode="json") for item in results if item.status == FormatCriterionResultStatus.AMBIGUOUS]
     if ambiguous:
+        full_snapshot = dict(structure)
+        full_snapshot["results"] = [item.model_dump(mode="json") for item in results]
+        full_snapshot["checklist_summary"] = checklist_summary
+        full_snapshot["overall_status"] = overall
+
         review = FormatReviewCase(
-            id=new_id("format_review"), course_id=course_id, criteria_set_id=active.id, actor_id=actor_id,
-            assigned_reviewer_id="lecturer-01", filename=filename, extracted_snapshot=structure,
-            ambiguous_results=ambiguous, status=FormatReviewStatus.UNDER_REVIEW,
+            id=new_id("format_review"),
+            course_id=course_id,
+            criteria_set_id=active.id,
+            actor_id=actor_id,
+            assigned_reviewer_id="lecturer-01",
+            filename=filename,
+            extracted_snapshot=full_snapshot,
+            ambiguous_results=ambiguous,
+            status=FormatReviewStatus.UNDER_REVIEW,
             expires_at=datetime.now(UTC) + timedelta(days=get_settings().format_review_retention_days),
         )
         session.add(review)
