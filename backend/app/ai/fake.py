@@ -574,45 +574,63 @@ class FakeProvider:
                         verdict="PASS",
                         reason="Trang bìa đầy đủ các trường yêu cầu.",
                         detected_element=", ".join(cov_res.detected_elements),
+                        location="Tại trang đầu tiên (Trang bìa)",
                     )
                 elif cov_res.is_cover_page:
                     results[cid] = LLMBatchCriterionJudgment(
                         criterion_id=cid,
                         verdict="MISSING_STUDENT_INPUT",
                         reason=f"Trang bìa thiếu trường: {', '.join(cov_res.missing_elements)}",
+                        detected_element=", ".join(cov_res.detected_elements),
+                        location="Tại trang đầu tiên (Trang bìa)",
                     )
                 else:
                     results[cid] = LLMBatchCriterionJudgment(
                         criterion_id=cid,
                         verdict="FAIL",
                         reason=cov_res.reason,
+                        location="Tại trang đầu tiên",
                     )
             elif kind in ("template_outline", "template_sequence"):
                 outline_headings = exp.get("outline_headings") or exp.get("chapters", [])
                 headings = submission_facts.get("headings", [])
                 if outline_headings:
                     missing_h = []
+                    ambiguous_h = []
                     for req_h in outline_headings:
                         sem = await self.judge_format_ambiguity("TEMPLATE", [req_h], headings, c_name, "")
                         if sem.verdict == "FAIL":
                             missing_h.append(req_h)
+                        elif sem.verdict == "AMBIGUOUS":
+                            ambiguous_h.append(req_h)
                     if missing_h:
                         results[cid] = LLMBatchCriterionJudgment(
                             criterion_id=cid,
                             verdict="MISSING_STUDENT_INPUT",
                             reason=f"Thiếu các mục theo đề cương: {', '.join(missing_h[:2])}",
+                            location="Tại danh mục đề mục báo cáo",
+                        )
+                    elif ambiguous_h:
+                        results[cid] = LLMBatchCriterionJudgment(
+                            criterion_id=cid,
+                            verdict="AMBIGUOUS",
+                            reason=f"Mơ hồ về đề mục: Bài nộp có đề mục tương tự nhưng khác từ ngữ so với quy định '{ambiguous_h[0]}'.",
+                            detected_element=ambiguous_h[0],
+                            location="Tại đề mục tương ứng trong báo cáo",
                         )
                     else:
                         results[cid] = LLMBatchCriterionJudgment(
                             criterion_id=cid,
                             verdict="PASS",
                             reason="Đầy đủ các chương mục theo khung đề cương quy chuẩn.",
+                            location="Toàn bộ cấu trúc báo cáo",
                         )
                 else:
                     results[cid] = LLMBatchCriterionJudgment(
                         criterion_id=cid,
                         verdict="PASS",
                         reason="Đầy đủ cấu trúc đề cương theo quy định.",
+                        location="Toàn bộ cấu trúc báo cáo",
                     )
             elif kind == "template_chapter":
                 chap = exp.get("chapter_name", "")
@@ -623,6 +641,7 @@ class FakeProvider:
                         criterion_id=cid,
                         verdict="MISSING_STUDENT_INPUT",
                         reason=f"Thiếu chương '{chap}' trong báo cáo.",
+                        location="Tại danh mục các chương",
                     )
                 else:
                     results[cid] = LLMBatchCriterionJudgment(
@@ -630,6 +649,7 @@ class FakeProvider:
                         verdict=sem.verdict,
                         reason=sem.reason,
                         detected_element=chap,
+                        location="Tại danh mục các chương",
                     )
             elif kind == "template_section":
                 sec = exp.get("section_name", "")
@@ -640,6 +660,7 @@ class FakeProvider:
                         criterion_id=cid,
                         verdict="MISSING_STUDENT_INPUT",
                         reason=f"Thiếu mục con '{sec}' trong báo cáo.",
+                        location="Tại mục con",
                     )
                 else:
                     results[cid] = LLMBatchCriterionJudgment(
@@ -647,6 +668,7 @@ class FakeProvider:
                         verdict=sem.verdict,
                         reason=sem.reason,
                         detected_element=sec,
+                        location="Tại mục con",
                     )
             elif kind == "table_columns":
                 has_tbl = submission_facts.get("has_member_contribution_table", False)
@@ -655,12 +677,14 @@ class FakeProvider:
                         criterion_id=cid,
                         verdict="PASS",
                         reason="Có bảng phân công đóng góp thành viên.",
+                        location="Tại bảng phân công thành viên",
                     )
                 else:
                     results[cid] = LLMBatchCriterionJudgment(
                         criterion_id=cid,
                         verdict="MISSING_STUDENT_INPUT",
                         reason="Thiếu bảng phân công đóng góp thành viên.",
+                        location="Ngay sau trang bìa/lời cam đoan",
                     )
             else:
                 results[cid] = LLMBatchCriterionJudgment(

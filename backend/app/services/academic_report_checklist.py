@@ -734,7 +734,7 @@ async def evaluate_academic_checklist(
                         status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
                         message=bj.reason,
                         expected_value=expected,
-                        actual_value={"detected": bj.detected_element},
+                        actual_value={"detected": bj.detected_element, "location": getattr(bj, "location", None)},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -749,7 +749,7 @@ async def evaluate_academic_checklist(
                         status=status,
                         message=msg,
                         expected_value=expected,
-                        actual_value={"cover_fields": structure.get("cover_page_fields", [])},
+                        actual_value={"cover_fields": structure.get("cover_page_fields", []), "location": "Tại trang đầu tiên"},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -764,7 +764,7 @@ async def evaluate_academic_checklist(
                         status=status,
                         message=msg,
                         expected_value=expected,
-                        actual_value={"has_table": has_table},
+                        actual_value={"has_table": has_table, "location": "Tại Bảng phân công thành viên"},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -792,7 +792,7 @@ async def evaluate_academic_checklist(
                         status=status,
                         message=msg,
                         expected_value=expected,
-                        actual_value={"headings": actual_headings[:6]},
+                        actual_value={"headings": actual_headings[:6], "location": "Tại đề mục bài nộp"},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -814,7 +814,7 @@ async def evaluate_academic_checklist(
                         status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
                         message=bj.reason,
                         expected_value=expected,
-                        actual_value={"detected": bj.detected_element},
+                        actual_value={"detected": bj.detected_element, "location": getattr(bj, "location", None)},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -843,7 +843,7 @@ async def evaluate_academic_checklist(
                         status=status,
                         message=msg,
                         expected_value=expected,
-                        actual_value={"found_heading": found_heading},
+                        actual_value={"found_heading": found_heading, "location": "Tại danh mục các chương"},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -874,7 +874,7 @@ async def evaluate_academic_checklist(
                         status=status,
                         message=msg,
                         expected_value=expected,
-                        actual_value={"found_heading": found_heading},
+                        actual_value={"found_heading": found_heading, "location": "Tại mục con"},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -904,7 +904,7 @@ async def evaluate_academic_checklist(
                         status=status,
                         message=msg,
                         expected_value=expected,
-                        actual_value={"headings": actual_headings[:8]},
+                        actual_value={"headings": actual_headings[:8], "location": "Thứ tự các chương"},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -938,7 +938,7 @@ async def evaluate_academic_checklist(
                                 status=FormatCriterionResultStatus.PASS,
                                 message="Khung đề mục khớp mẫu đã duyệt.",
                                 expected_value=expected,
-                                actual_value={"headings": headings},
+                                actual_value={"headings": headings, "location": "Toàn bộ khung đề mục"},
                                 source_citation=criterion.source_citation,
                             )
                         )
@@ -950,7 +950,7 @@ async def evaluate_academic_checklist(
                                 status=FormatCriterionResultStatus.AMBIGUOUS if all_found else FormatCriterionResultStatus.FAIL,
                                 message="Đề mục gần giống mẫu nhưng chưa khớp chính xác tên." if all_found else "Thiếu đề mục bắt buộc theo khung mẫu.",
                                 expected_value=expected,
-                                actual_value={"headings": headings},
+                                actual_value={"headings": headings, "location": "Tại các đề mục liên quan"},
                                 source_citation=criterion.source_citation,
                             )
                         )
@@ -987,9 +987,11 @@ async def evaluate_academic_checklist(
             elif "page_count" in act:
                 evidence_str = f"Số trang thực tế: {act.get('page_count')} trang"
             elif "detected" in act and act["detected"]:
-                evidence_str = f"Nhận diện: {act['detected']}"
+                loc = act.get("location")
+                evidence_str = f"Nhận diện: {act['detected']}" + (f" ({loc})" if loc else "")
             elif "found_heading" in act and act["found_heading"]:
-                evidence_str = f"Đề mục tìm thấy: {act['found_heading']}"
+                loc = act.get("location")
+                evidence_str = f"Đề mục: {act['found_heading']}" + (f" ({loc})" if loc else "")
             elif "cover_fields" in act and act["cover_fields"]:
                 evidence_str = f"Trường bìa: {', '.join(str(f) for f in act['cover_fields'][:5])}"
             elif "has_table" in act:

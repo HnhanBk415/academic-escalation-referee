@@ -2401,46 +2401,69 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                         <div className="flex items-center justify-between">
                           <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                             <span>⚠️</span>
-                            <span>CÁC ĐIỂM MƠ HỒ CẦN GIẢNG VIÊN XÁC NHẬN ({ambiguousList.length} điểm):</span>
+                            <span>CÁC ĐIỂM MƠ HỒ CẦN GIẢNG VIÊN XÁC NHẬN ({ambiguousList.length} tiêu chí):</span>
                           </h4>
                           <span className="text-[11px] text-amber-800 font-semibold bg-amber-100/80 px-2 py-0.5 rounded-md">
-                            Khác biệt ngữ nghĩa / Cần duyệt ngoại lệ
+                            Duyệt theo từng tiêu chí
                           </span>
                         </div>
 
-                        <div className="space-y-2.5">
-                          {ambiguousList.map((amb, ambIdx) => (
-                            <div
-                              key={ambIdx}
-                              className="p-3 bg-amber-50/50 border border-amber-200/90 rounded-xl space-y-2 text-xs"
-                            >
-                              <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                                <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                                  {ambIdx + 1}
-                                </span>
-                                <span>{String(amb.name || "Tiêu chí chưa xác định")}</span>
-                              </p>
+                        <div className="space-y-3">
+                          {ambiguousList.map((amb, ambIdx) => {
+                            const actVal = amb.actual_value as Record<string, unknown> | undefined;
+                            const locStr = (actVal?.location as string) || (actVal?.detected as string) || "Trong bài nộp";
+                            const citation = (amb.source_citation as string) || (amb.description as string);
 
-                              <div className="grid sm:grid-cols-2 gap-2 text-[11px]">
-                                <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-0.5">
-                                  <span className="font-bold text-slate-700 block">🎯 Yêu cầu theo đề cương:</span>
-                                  <pre className="font-mono text-[11px] text-slate-600 whitespace-pre-wrap max-h-20 overflow-auto">
-                                    {JSON.stringify(amb.expected_value, null, 2)}
-                                  </pre>
+                            return (
+                              <div
+                                key={ambIdx}
+                                className="p-3.5 bg-amber-50/60 border border-amber-200/90 rounded-xl space-y-2.5 text-xs"
+                              >
+                                <div className="flex items-center justify-between gap-2 border-b border-amber-200/70 pb-1.5">
+                                  <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                                    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                      {ambIdx + 1}
+                                    </span>
+                                    <span>{String(amb.name || "Tiêu chí chưa xác định")}</span>
+                                  </p>
+                                  <span className="text-[10px] font-semibold text-amber-800 bg-white px-2 py-0.5 rounded border border-amber-200">
+                                    Vị trí: {locStr}
+                                  </span>
                                 </div>
-                                <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-0.5">
-                                  <span className="font-bold text-slate-700 block">📄 Thực tế bài nộp:</span>
-                                  <pre className="font-mono text-[11px] text-slate-600 whitespace-pre-wrap max-h-20 overflow-auto">
-                                    {amb.actual_value ? JSON.stringify(amb.actual_value, null, 2) : "(Chưa khớp chính xác)"}
-                                  </pre>
+
+                                <div className="grid sm:grid-cols-2 gap-2.5 text-[11px]">
+                                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 space-y-1">
+                                    <span className="font-bold text-slate-700 flex items-center gap-1">
+                                      <span>🎯</span>
+                                      <span>Trích dẫn nguyên văn quy chế:</span>
+                                    </span>
+                                    <p className="text-slate-700 italic bg-slate-50 p-1.5 rounded text-[11px] leading-relaxed border border-slate-100">
+                                      {citation ? `"${citation}"` : JSON.stringify(amb.expected_value)}
+                                    </p>
+                                  </div>
+                                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 space-y-1">
+                                    <span className="font-bold text-slate-700 flex items-center gap-1">
+                                      <span>📄</span>
+                                      <span>Thực tế trong bài nộp sinh viên:</span>
+                                    </span>
+                                    <div className="text-slate-800 bg-slate-50 p-1.5 rounded text-[11px] leading-relaxed border border-slate-100 font-mono">
+                                      {actVal?.detected ? `Đề mục: ${String(actVal.detected)}` : JSON.stringify(actVal || "(Chưa khớp rõ ràng)")}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="p-2.5 bg-amber-100/70 rounded-lg text-amber-950 text-[11px] space-y-0.5 border border-amber-200">
+                                  <div className="font-bold flex items-center gap-1 text-amber-900">
+                                    <span>💡</span>
+                                    <span>Phân tích điểm mơ hồ &amp; Vị trí trong báo cáo:</span>
+                                  </div>
+                                  <p className="leading-relaxed">
+                                    {String(amb.message || "Tên mục hoặc cấu trúc có sự tương đương nhưng khác biệt từ ngữ; cần giảng viên quyết định ngoại lệ.")}
+                                  </p>
                                 </div>
                               </div>
-
-                              <div className="p-2 bg-amber-100/60 rounded-lg text-amber-950 text-[11px]">
-                                <b>💡 Phân tích của AI:</b> {String(amb.message || "Tên mục hoặc cách trình bày có sự tương đương nhưng khác từ ngữ so với quy chuẩn mẫu.")}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}

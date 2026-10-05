@@ -200,8 +200,9 @@ class LLMCriteriaExtraction(BaseModel):
 class LLMBatchCriterionJudgment(BaseModel):
     criterion_id: str = Field(description="ID của tiêu chí cần đánh giá")
     verdict: str = Field(description="'PASS', 'AMBIGUOUS', 'FAIL', hoặc 'MISSING_STUDENT_INPUT'")
-    reason: str = Field(description="Giải thích ngắn gọn bằng tiếng Việt (≤ 200 ký tự)")
+    reason: str = Field(description="Giải thích rõ bằng tiếng Việt: Nếu AMBIGUOUS, phải nêu rõ mơ hồ về cái gì và đối chiếu ra sao")
     detected_element: str | None = Field(default=None, description="Thành phần/đề mục tương ứng tìm thấy trong bài nộp")
+    location: str | None = Field(default=None, description="Vị trí cụ thể trong bài nộp (ví dụ: 'Tại đề mục 1.1', 'Tại trang đầu bìa', 'Trong bảng ở phần mở đầu')")
 
 
 class LLMBatchReviewResponse(BaseModel):
