@@ -38,11 +38,13 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - ./backend/app:/app/app
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 10s
       timeout: 5s
-      retries: 6
+      retries: 12
+      start_period: 60s
 
   # ── React Frontend (Nginx) ────────────────────────────────
   web:

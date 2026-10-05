@@ -48,19 +48,463 @@ function CriteriaSelect({ catalog, courseId, onChange }: { catalog: DemoCatalog 
   );
 }
 
+export const CHECKLIST_30_CATEGORIES = [
+  { index: 1, code: "page_setup", name: "1. Khổ giấy và thiết lập trang" },
+  { index: 2, code: "typography", name: "2. Font chữ và cỡ chữ" },
+  { index: 3, code: "paragraph_format", name: "3. Định dạng đoạn văn" },
+  { index: 4, code: "heading_structure", name: "4. Heading / tiêu đề chương, mục" },
+  { index: 5, code: "numbering", name: "5. Đánh số chương và mục" },
+  { index: 6, code: "cover_page", name: "6. Trang bìa" },
+  { index: 7, code: "front_matter", name: "7. Trang phụ và lời cam đoan" },
+  { index: 8, code: "table_of_contents", name: "8. Mục lục" },
+  { index: 9, code: "list_of_figures", name: "9. Danh mục hình" },
+  { index: 10, code: "list_of_tables", name: "10. Danh mục bảng" },
+  { index: 11, code: "list_of_abbreviations", name: "11. Danh mục từ viết tắt" },
+  { index: 12, code: "figures", name: "12. Hình ảnh và đồ thị" },
+  { index: 13, code: "tables", name: "13. Bảng biểu" },
+  { index: 14, code: "equations", name: "14. Công thức toán học" },
+  { index: 15, code: "header_footer", name: "15. Header và Footer" },
+  { index: 16, code: "page_numbering", name: "16. Đánh số trang" },
+  { index: 17, code: "section_breaks", name: "17. Section / Page Break" },
+  { index: 18, code: "layout_spacing", name: "18. Khoảng cách và bố cục trang" },
+  { index: 19, code: "references", name: "19. Tài liệu tham khảo" },
+  { index: 20, code: "in_text_citations", name: "20. Trích dẫn trong nội dung" },
+  { index: 21, code: "terminology", name: "21. Thuật ngữ và viết tắt" },
+  { index: 22, code: "spelling_grammar", name: "22. Chính tả và lỗi đánh máy" },
+  { index: 23, code: "consistency", name: "23. Tính nhất quán toàn báo cáo" },
+  { index: 24, code: "overall_structure", name: "24. Kiểm tra cấu trúc tổng thể" },
+  { index: 25, code: "appendices", name: "25. Phụ lục" },
+  { index: 26, code: "cross_references", name: "26. Kiểm tra liên kết chéo" },
+  { index: 27, code: "word_quality", name: "27. Kỹ thuật Word / Styles" },
+  { index: 28, code: "pdf_export", name: "28. Kiểm tra khi xuất PDF" },
+  { index: 29, code: "file_naming", name: "29. Kiểm tra tên file" },
+  { index: 30, code: "final_summary", name: "30. Bảng tổng hợp kiểm tra" },
+];
+
+function getCriteriaForCategory(
+  catIndex: number,
+  catCode: string,
+  criteriaList: Array<{
+    name: string;
+    description?: string;
+    rule_type: FormatRuleType;
+    expected_value: Record<string, unknown>;
+    source_citation?: string;
+  }>
+) {
+  return criteriaList.filter((c) => {
+    const name = (c.name || "").toLowerCase();
+    const exp = c.expected_value || {};
+    const prop = exp.property as string | undefined;
+    const kind = exp.kind as string | undefined;
+    const cat = String(exp.category || "").toLowerCase();
+
+    if (name.startsWith(`${catIndex}.`) || cat.includes(catCode) || cat.startsWith(`${catIndex}.`)) {
+      return true;
+    }
+    if (catIndex === 1 && (prop === "margins_cm" || name.includes("khổ giấy") || name.includes("căn lề") || name.includes("lề trang"))) return true;
+    if (catIndex === 2 && (prop === "font_name" || name.includes("phông") || name.includes("font") || name.includes("cỡ chữ"))) return true;
+    if (catIndex === 3 && (prop === "line_spacing" || name.includes("đoạn văn") || name.includes("giãn dòng"))) return true;
+    if (catIndex === 4 && (kind === "template_chapter" || kind === "template_section" || name.includes("mục bắt buộc") || name.includes("mục con") || name.includes("chương"))) return true;
+    if (catIndex === 5 && (kind === "template_sequence" || name.includes("thứ tự") || name.includes("đánh số"))) return true;
+    if (catIndex === 6 && (kind === "cover_page" || name.includes("trang bìa") || name.includes("bìa"))) return true;
+    if (catIndex === 7 && (kind === "table_columns" || name.includes("phân công") || name.includes("cam đoan") || name.includes("đóng góp"))) return true;
+    if (catIndex === 8 && (kind === "heading" && (name.includes("mục lục") || exp.value === "Mục lục"))) return true;
+    if (catIndex === 9 && name.includes("danh mục hình")) return true;
+    if (catIndex === 10 && name.includes("danh mục bảng")) return true;
+    if (catIndex === 11 && (name.includes("viết tắt") || name.includes("thuật ngữ"))) return true;
+    if (catIndex === 12 && (name.includes("hình ảnh") || name.includes("đồ thị"))) return true;
+    if (catIndex === 13 && name.includes("bảng biểu")) return true;
+    if (catIndex === 18 && (prop === "page_count" || name.includes("dung lượng") || name.includes("số trang"))) return true;
+    if (catIndex === 19 && (name.includes("tài liệu tham khảo") || (kind === "heading" && String(exp.value || "").toLowerCase().includes("tham khảo")))) return true;
+    if (catIndex === 20 && name.includes("trích dẫn")) return true;
+    if (catIndex === 29 && (name.includes("tên file") || name.includes("tên tệp"))) return true;
+    return false;
+  });
+}
+
+// ── MODAL XEM LẠI BÀI VỪA NỘP CỦA SINH VIÊN ──────────────────────────────────
+function SubmittedReportFactsModal({
+  facts,
+  filename,
+  onClose,
+}: {
+  facts: Record<string, unknown>;
+  filename: string;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"overview" | "headings" | "tables" | "raw">("overview");
+
+  const margins = (facts.margins_cm as Array<Record<string, number>>) || [];
+  const paperSizes = (facts.paper_sizes as Array<Record<string, unknown>>) || [];
+  const fonts = (facts.font_names as string[]) || [];
+  const fontSizes = (facts.font_sizes_pt as number[]) || [];
+  const lineSpacings = (facts.line_spacings as number[]) || [];
+  const alignments = (facts.alignments as Record<string, number>) || {};
+  const headings = (facts.headings as string[]) || [];
+  const coverFields = (facts.cover_page_fields as string[]) || [];
+  const coverSample = (facts.cover_sample as string) || "";
+  const memberCols = (facts.member_table_columns as string[]) || [];
+  const tableCaps = (facts.table_captions as string[]) || [];
+  const figCaps = (facts.figure_captions as string[]) || [];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/80">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-red-100 text-red-800 flex items-center justify-center text-lg font-bold">
+              📄
+            </span>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">
+                Dữ liệu trích xuất từ bài nộp: <span className="text-red-700">{filename || (facts.filename as string)}</span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Phương pháp Lai (Hybrid): Thuộc tính số trích từ đối tượng file &amp; Ngữ nghĩa bóc tách qua AI
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 flex items-center justify-center font-bold text-sm cursor-pointer transition-all"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200 px-6 bg-white gap-6 text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setTab("overview")}
+            className={`py-3 border-b-2 transition-all cursor-pointer ${
+              tab === "overview"
+                ? "border-red-700 text-red-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            📊 Thông số kỹ thuật &amp; Trang bìa
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("headings")}
+            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+              tab === "headings"
+                ? "border-red-700 text-red-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span>📑 Cấu trúc đề mục ({headings.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("tables")}
+            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+              tab === "tables"
+                ? "border-red-700 text-red-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span>📚 Bảng, Hình &amp; Tài liệu tham khảo</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("raw")}
+            className={`py-3 border-b-2 transition-all cursor-pointer ${
+              tab === "raw"
+                ? "border-red-700 text-red-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            🔍 JSON Thô
+          </button>
+        </div>
+
+        {/* Content Body */}
+        <div className="p-6 overflow-y-auto space-y-6 text-xs flex-1">
+          {tab === "overview" && (
+            <div className="space-y-5">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-slate-500 font-medium">Loại tệp</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">
+                    {String(facts.file_type || "N/A")}
+                  </p>
+                </div>
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-slate-500 font-medium">Số trang thực tế</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">
+                    {facts.page_count !== undefined ? `${facts.page_count} trang` : "Chưa đo được"}
+                  </p>
+                </div>
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-slate-500 font-medium">Khổ giấy</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">
+                    {paperSizes.length > 0
+                      ? `${paperSizes[0].is_a4 ? "A4" : "Tùy chỉnh"} · ${paperSizes[0].orientation}`
+                      : "A4 (Mặc định)"}
+                  </p>
+                </div>
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-slate-500 font-medium">Tổng số bảng biểu</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">
+                    {facts.table_count !== undefined ? `${facts.table_count} bảng` : "0"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Margins */}
+              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>📏</span>
+                  <span>Căn lề các Section (Đo lường từ Word/PDF):</span>
+                </h4>
+                {margins.length > 0 ? (
+                  <div className="grid sm:grid-cols-2 gap-2 mt-2">
+                    {margins.map((m, idx) => (
+                      <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                        <p className="font-semibold text-slate-700">Section {idx + 1}:</p>
+                        <p className="text-slate-600 font-mono text-[11px] mt-1">
+                          Trên: <b>{m.top}cm</b> · Dưới: <b>{m.bottom}cm</b> · Trái: <b>{m.left}cm</b> · Phải: <b>{m.right}cm</b>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 italic">Định dạng PDF không trích xuất lề Word trực tiếp (đã kiểm tra chuẩn A4).</p>
+                )}
+              </div>
+
+              {/* Typography */}
+              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-3">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>🔤</span>
+                  <span>Phông chữ &amp; Định dạng đoạn văn:</span>
+                </h4>
+                <div className="grid sm:grid-cols-2 gap-3 text-slate-700">
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-slate-500 font-medium">Phông chữ nhận diện:</p>
+                    <p className="font-semibold mt-0.5 text-slate-900">
+                      {fonts.length > 0 ? fonts.join(", ") : "Không xác định"}
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-slate-500 font-medium">Cỡ chữ phát hiện (pt):</p>
+                    <p className="font-semibold mt-0.5 text-slate-900">
+                      {fontSizes.length > 0 ? fontSizes.join(", ") : "Không xác định"}
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-slate-500 font-medium">Độ giãn dòng (Line Spacing):</p>
+                    <p className="font-semibold mt-0.5 text-slate-900">
+                      {lineSpacings.length > 0 ? lineSpacings.join(", ") : "1.0 - 1.5"}
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-slate-500 font-medium">Căn lề đoạn văn:</p>
+                    <p className="font-semibold mt-0.5 text-slate-900">
+                      {Object.entries(alignments)
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join(" · ") || "JUSTIFY"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cover Page */}
+              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>🎨</span>
+                  <span>Trang bìa đã nhận diện:</span>
+                </h4>
+                {coverFields.length > 0 ? (
+                  <div>
+                    <p className="text-slate-600 mb-2">Các trường thông tin tìm thấy:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {coverFields.map((f, i) => (
+                        <span key={i} className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-md font-semibold">
+                          ✓ {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 italic">Chưa nhận diện được danh sách trường bìa chuẩn.</p>
+                )}
+                {coverSample && (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <p className="text-slate-500 font-medium mb-1">Mẫu văn bản trang đầu:</p>
+                    <pre className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg whitespace-pre-wrap font-mono text-[11px] text-slate-700 max-h-32 overflow-auto">
+                      {coverSample}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tab === "headings" && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-slate-900">Danh sách đề mục trích xuất theo thứ tự:</h4>
+                <span className="text-slate-500">{headings.length} đề mục</span>
+              </div>
+              {headings.length > 0 ? (
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white overflow-hidden">
+                  {headings.map((h, i) => (
+                    <div key={i} className="p-2.5 hover:bg-slate-50 flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+                        {i + 1}
+                      </span>
+                      <span className="font-semibold text-slate-800 text-xs mt-0.5">{h}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="p-4 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                  Không tìm thấy tiêu đề chương mục rõ ràng trong bài nộp.
+                </p>
+              )}
+            </div>
+          )}
+
+          {tab === "tables" && (
+            <div className="space-y-4">
+              {/* Contribution Table */}
+              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
+                <h4 className="font-bold text-slate-900">Bảng phân công đóng góp thành viên:</h4>
+                <p className="text-slate-700">
+                  Trạng thái: <b>{facts.has_member_contribution_table ? "✅ Có trong bài nộp" : "❌ Chưa tìm thấy"}</b>
+                </p>
+                {memberCols.length > 0 && (
+                  <div>
+                    <p className="text-slate-500 mb-1">Các cột trong bảng:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {memberCols.map((c, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded font-semibold text-[11px]">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sections Presence */}
+              <div className="p-4 border border-slate-200 rounded-xl bg-white grid sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-slate-500 font-medium">Mục lục</p>
+                  <p className="font-bold text-slate-900 mt-1">
+                    {facts.has_table_of_contents ? "✅ Đã tìm thấy" : "❌ Chưa có"}
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-slate-500 font-medium">Danh mục hình</p>
+                  <p className="font-bold text-slate-900 mt-1">
+                    {facts.has_list_of_figures ? "✅ Đã tìm thấy" : "❌ Chưa có"}
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-slate-500 font-medium">Danh mục bảng</p>
+                  <p className="font-bold text-slate-900 mt-1">
+                    {facts.has_list_of_tables ? "✅ Đã tìm thấy" : "❌ Chưa có"}
+                  </p>
+                </div>
+              </div>
+
+              {/* References */}
+              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
+                <h4 className="font-bold text-slate-900">Tài liệu tham khảo &amp; Chuẩn trích dẫn:</h4>
+                <p className="text-slate-700">
+                  Trạng thái: <b>{facts.has_references_section ? "✅ Có phần Tài liệu tham khảo" : "❌ Chưa có"}</b>
+                </p>
+                <p className="text-slate-700">
+                  Chuẩn nhận diện: <b>{String(facts.references_style || "Tự do / Khác")}</b>
+                </p>
+              </div>
+
+              {/* Captions */}
+              {(figCaps.length > 0 || tableCaps.length > 0) && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {figCaps.length > 0 && (
+                    <div className="p-3.5 border border-slate-200 rounded-xl bg-white space-y-2">
+                      <h4 className="font-bold text-slate-900">Chú thích hình ảnh ({figCaps.length}):</h4>
+                      <ul className="list-disc pl-4 space-y-1 text-slate-600 max-h-36 overflow-auto">
+                        {figCaps.map((c, i) => (
+                          <li key={i}>{c}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {tableCaps.length > 0 && (
+                    <div className="p-3.5 border border-slate-200 rounded-xl bg-white space-y-2">
+                      <h4 className="font-bold text-slate-900">Chú thích bảng biểu ({tableCaps.length}):</h4>
+                      <ul className="list-disc pl-4 space-y-1 text-slate-600 max-h-36 overflow-auto">
+                        {tableCaps.map((c, i) => (
+                          <li key={i}>{c}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "raw" && (
+            <pre className="p-4 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl overflow-auto max-h-[60vh]">
+              {JSON.stringify(facts, null, 2)}
+            </pre>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold cursor-pointer transition-all"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<Props, "role">) {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<FormatCheckResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reviews, setReviews] = useState<FormatReviewCase[]>([]);
+  const [activeFactsModal, setActiveFactsModal] = useState<{ facts: Record<string, unknown>; filename: string } | null>(null);
 
   async function loadReviews() {
     try {
       setReviews(await api<FormatReviewCase[]>(`/api/v1/format-checks/reviews/student?course_id=${encodeURIComponent(selectedCourseId)}&actor_id=demo-student`));
     } catch { setReviews([]); }
   }
-  useEffect(() => { void loadReviews(); }, [selectedCourseId]);
+
+  useEffect(() => {
+    // Khôi phục kết quả kiểm tra gần nhất khi chuyển tab
+    try {
+      const cached = sessionStorage.getItem(`aer_last_check_${selectedCourseId}`);
+      if (cached) {
+        setResult(JSON.parse(cached));
+      } else {
+        setResult(null);
+      }
+    } catch {
+      setResult(null);
+    }
+    void loadReviews();
+  }, [selectedCourseId]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -71,26 +515,167 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
       body.append("course_id", selectedCourseId);
       body.append("actor_id", "demo-student");
       body.append("file", file);
-      setResult(await api<FormatCheckResponse>("/api/v1/format-checks/checks", { method: "POST", body }));
+      const res = await api<FormatCheckResponse>("/api/v1/format-checks/checks", { method: "POST", body });
+      setResult(res);
+      try {
+        sessionStorage.setItem(`aer_last_check_${selectedCourseId}`, JSON.stringify(res));
+      } catch {
+        // ignore storage error
+      }
       await loadReviews();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể kiểm tra file.");
     } finally { setBusy(false); }
   }
 
-  return <div className="flex-1 overflow-y-auto bg-slate-50 p-8">
-    <div className="max-w-4xl mx-auto space-y-6">
-      <header><p className="text-xs font-bold tracking-wider text-red-700 uppercase">Trước khi nộp chính thức</p><h1 className="text-2xl font-bold text-slate-900 mt-1">Kiểm tra hình thức báo cáo</h1><p className="text-sm text-slate-500 mt-2">Hệ thống chỉ so khớp hình thức theo bộ tiêu chí do giảng viên duyệt; không chấm hoặc đọc hiểu nội dung bài viết.</p></header>
-      <form onSubmit={submit} className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm">
-        <div className="flex flex-wrap gap-4 items-end"><label className="block text-sm font-semibold text-slate-700">Học phần<CriteriaSelect catalog={catalog} courseId={selectedCourseId} onChange={onSelectCourse} /></label><label className="flex-1 min-w-64 block text-sm font-semibold text-slate-700">Báo cáo (.docx, .pdf)<input type="file" accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" onChange={(event) => setFile(event.target.files?.[0] || null)} className="block mt-1.5 w-full text-sm text-slate-600" /></label></div>
-        <div className="rounded-lg bg-sky-50 border border-sky-100 p-3 text-xs text-sky-800">File chỉ được dùng trong lượt kiểm tra này. Chỉ khi có tiêu chí mơ hồ, hệ thống mới lưu snapshot cấu trúc cần thiết để giảng viên xem xét.</div>
-        <button disabled={busy || !file} className="px-5 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-sm font-bold disabled:opacity-50">{busy ? "Đang kiểm tra…" : "Kiểm tra theo quy chế"}</button>
-      </form>
-      {error && <p className="p-4 rounded-xl bg-rose-50 text-rose-700 border border-rose-200">{error}</p>}
-      {result && <CheckResult result={result} />}
-      {reviews.length > 0 && <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3"><h2 className="font-bold text-slate-900">Phản hồi của giảng viên</h2>{reviews.map((review) => <article key={review.id} className="border border-slate-200 rounded-xl p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-sm text-slate-800">{review.filename}</p><p className="text-xs text-slate-500">{new Date(review.created_at).toLocaleString("vi-VN")}</p></div><ResultBadge status={review.status} /></div>{review.decision_reason && <p className="text-sm text-slate-600 mt-2">{review.decision_reason}</p>}{review.status === "UNDER_REVIEW" && <p className="text-xs text-amber-800 mt-2">Giảng viên đang xem cách trình bày này.</p>}</article>)}</section>}
+  return (
+    <div className="flex-1 overflow-y-auto bg-slate-50 p-8">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <header>
+          <p className="text-xs font-bold tracking-wider text-red-700 uppercase">Trước khi nộp chính thức</p>
+          <h1 className="text-2xl font-bold text-slate-900 mt-1">Kiểm tra hình thức báo cáo</h1>
+          <p className="text-sm text-slate-500 mt-2">
+            Hệ thống chỉ so khớp hình thức theo bộ tiêu chí do giảng viên duyệt; không chấm hoặc đọc hiểu nội dung bài viết.
+          </p>
+        </header>
+
+        <form onSubmit={submit} className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm">
+          <div className="flex flex-wrap gap-4 items-end">
+            <label className="block text-sm font-semibold text-slate-700">
+              Học phần
+              <CriteriaSelect catalog={catalog} courseId={selectedCourseId} onChange={onSelectCourse} />
+            </label>
+            <label className="flex-1 min-w-64 block text-sm font-semibold text-slate-700">
+              Báo cáo (.docx, .pdf)
+              <input
+                type="file"
+                accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                onChange={(event) => setFile(event.target.files?.[0] || null)}
+                className="block mt-1.5 w-full text-sm text-slate-600"
+              />
+            </label>
+          </div>
+          <div className="rounded-lg bg-sky-50 border border-sky-100 p-3 text-xs text-sky-800">
+            File chỉ được dùng trong lượt kiểm tra này. Chỉ khi có tiêu chí mơ hồ, hệ thống mới lưu snapshot cấu trúc cần thiết để giảng viên xem xét.
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              disabled={busy || !file}
+              className="px-5 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-sm font-bold disabled:opacity-50 cursor-pointer shadow-md shadow-red-900/20"
+            >
+              {busy ? "Đang kiểm tra…" : "Kiểm tra theo quy chế"}
+            </button>
+            {result?.report_facts && (
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveFactsModal({
+                    facts: result.report_facts!,
+                    filename: file?.name || (result.report_facts?.filename as string) || "Báo cáo vừa nộp",
+                  })
+                }
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer border border-slate-300"
+              >
+                <span>📄 Xem lại bài vừa nộp</span>
+              </button>
+            )}
+          </div>
+        </form>
+
+        {error && <p className="p-4 rounded-xl bg-rose-50 text-rose-700 border border-rose-200">{error}</p>}
+        {result && (
+          <CheckResult
+            result={result}
+            onOpenFactsModal={() =>
+              setActiveFactsModal({
+                facts: result.report_facts!,
+                filename: file?.name || (result.report_facts?.filename as string) || "Báo cáo vừa nộp",
+              })
+            }
+          />
+        )}
+        {reviews.length > 0 && (
+          <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-slate-900 text-base">Phản hồi của giảng viên &amp; Lịch sử gửi thẩm định</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Danh sách các bài nộp cần giảng viên xem xét. Bạn có thể bấm nút để xem lại chi tiết dữ liệu đã trích xuất bất cứ lúc nào.
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+                {reviews.length} bài
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {reviews.map((review) => (
+                <article key={review.id} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white hover:border-slate-300 transition-all shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <span>📄</span>
+                        <span>{review.filename}</span>
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Thời gian nộp: {new Date(review.created_at).toLocaleString("vi-VN")}
+                      </p>
+                    </div>
+                    <ResultBadge status={review.status} />
+                  </div>
+
+                  {review.decision_reason && (
+                    <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+                      <b>Nhận xét của giảng viên:</b> {review.decision_reason}
+                    </div>
+                  )}
+
+                  {review.status === "UNDER_REVIEW" && (
+                    <p className="text-xs text-amber-800 bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/80 flex items-center gap-1.5">
+                      <span>⏳</span>
+                      <span>Giảng viên đang xem xét cách trình bày của bài này.</span>
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                    {review.extracted_snapshot ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveFactsModal({
+                            facts: review.extracted_snapshot,
+                            filename: review.filename,
+                          })
+                        }
+                        className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-900 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <span>📄 Xem lại bài vừa nộp</span>
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Không có snapshot dữ liệu</span>
+                    )}
+
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      Mã hồ sơ: #{review.id.slice(-8)}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Modal xem lại bài vừa nộp (từ lượt kiểm tra hiện tại hoặc từ lịch sử review) */}
+        {activeFactsModal && (
+          <SubmittedReportFactsModal
+            facts={activeFactsModal.facts}
+            filename={activeFactsModal.filename}
+            onClose={() => setActiveFactsModal(null)}
+          />
+        )}
+      </div>
     </div>
-  </div>;
+  );
 }
 
 function CriterionResult({ item }: { item: FormatCriterionResult }) {
@@ -102,23 +687,41 @@ function CriterionResult({ item }: { item: FormatCriterionResult }) {
   </article>;
 }
 
-function CheckResult({ result }: { result: FormatCheckResponse }) {
+function CheckResult({
+  result,
+  onOpenFactsModal,
+}: {
+  result: FormatCheckResponse;
+  onOpenFactsModal?: () => void;
+}) {
   const [activeTab, setActiveTab] = useState<"summary" | "criteria">("summary");
 
   return (
     <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
-      <div className="flex gap-3 items-start">
-        <ResultBadge status={result.overall_status} />
-        <div>
-          <h2 className="font-bold text-slate-900 text-lg">Kết quả kiểm tra hình thức báo cáo</h2>
-          <p className="text-sm text-slate-600 mt-1">{result.message}</p>
-          {result.criteria_version && (
-            <p className="text-xs text-slate-500 mt-2">
-              Bộ tiêu chí phiên bản {result.criteria_version}
-              {result.criteria_approved_at ? ` · duyệt ${new Date(result.criteria_approved_at).toLocaleDateString("vi-VN")}` : ""}
-            </p>
-          )}
+      <div className="flex flex-wrap justify-between items-start gap-4">
+        <div className="flex gap-3 items-start">
+          <ResultBadge status={result.overall_status} />
+          <div>
+            <h2 className="font-bold text-slate-900 text-lg">Kết quả kiểm tra hình thức báo cáo</h2>
+            <p className="text-sm text-slate-600 mt-1">{result.message}</p>
+            {result.criteria_version && (
+              <p className="text-xs text-slate-500 mt-2">
+                Bộ tiêu chí phiên bản {result.criteria_version}
+                {result.criteria_approved_at ? ` · duyệt ${new Date(result.criteria_approved_at).toLocaleDateString("vi-VN")}` : ""}
+              </p>
+            )}
+          </div>
         </div>
+
+        {result.report_facts && onOpenFactsModal && (
+          <button
+            type="button"
+            onClick={onOpenFactsModal}
+            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-900 border border-red-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+          >
+            <span>📄 Xem lại bài vừa nộp</span>
+          </button>
+        )}
       </div>
 
       {result.review_case_id && (
@@ -133,7 +736,7 @@ function CheckResult({ result }: { result: FormatCheckResponse }) {
           <button
             type="button"
             onClick={() => setActiveTab("summary")}
-            className={`pb-2.5 transition-colors border-b-2 flex items-center gap-2 ${
+            className={`pb-2.5 transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
               activeTab === "summary"
                 ? "border-red-700 text-red-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-800"
@@ -147,7 +750,7 @@ function CheckResult({ result }: { result: FormatCheckResponse }) {
           <button
             type="button"
             onClick={() => setActiveTab("criteria")}
-            className={`pb-2.5 transition-colors border-b-2 flex items-center gap-2 ${
+            className={`pb-2.5 transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${
               activeTab === "criteria"
                 ? "border-red-700 text-red-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-800"
@@ -242,6 +845,160 @@ function CheckResult({ result }: { result: FormatCheckResponse }) {
   );
 }
 
+// ── MODAL CHI TIẾT TRÍCH XUẤT CHO TỪNG NHÓM TIÊU CHÍ (GIẢNG VIÊN) ──────────
+function LecturerCategoryDetailModal({
+  category,
+  criteria,
+  onClose,
+  onAddSubCriterion,
+  onUpdateCriterion,
+  onRemoveCriterion,
+}: {
+  category: { index: number; code: string; name: string };
+  criteria: Array<{
+    originalIndex: number;
+    criterion: {
+      id?: string;
+      name: string;
+      description: string;
+      rule_type: FormatRuleType;
+      expected_value: Record<string, unknown>;
+      source_citation?: string;
+    };
+  }>;
+  onClose: () => void;
+  onAddSubCriterion: () => void;
+  onUpdateCriterion: (index: number, patch: Partial<{ name: string; description: string; rule_type: FormatRuleType; expected_value: Record<string, unknown>; source_citation?: string }>) => void;
+  onRemoveCriterion: (index: number) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-red-100 text-red-800 flex items-center justify-center font-bold text-sm">
+              #{category.index}
+            </span>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">{category.name}</h3>
+              <p className="text-xs text-slate-500">
+                {criteria.length > 0
+                  ? `Đã trích xuất ${criteria.length} quy tắc/tiêu chí con cho nhóm này`
+                  : "Chưa có quy định trích xuất từ tài liệu cho nhóm này"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 flex items-center justify-center font-bold text-sm cursor-pointer transition-all"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 overflow-y-auto space-y-4 text-xs flex-1">
+          {criteria.length === 0 ? (
+            <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl space-y-3">
+              <span className="text-3xl block">⚪</span>
+              <p className="font-semibold text-slate-700">Quy chế môn học chưa đề cập quy định bắt buộc cho mục này.</p>
+              <p className="text-slate-500 text-[11px]">
+                Nếu muốn bổ sung quy chuẩn riêng cho nhóm này, bạn có thể bấm nút thêm bên dưới.
+              </p>
+              <button
+                type="button"
+                onClick={onAddSubCriterion}
+                className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg font-bold text-xs cursor-pointer shadow-xs"
+              >
+                ➕ Thêm quy định cho mục này
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {criteria.map(({ originalIndex, criterion }) => (
+                <div
+                  key={originalIndex}
+                  className="p-4 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3 shadow-2xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <input
+                      value={criterion.name}
+                      onChange={(e) => onUpdateCriterion(originalIndex, { name: e.target.value })}
+                      className="font-bold text-sm text-slate-900 bg-white border border-slate-300 rounded-lg px-2.5 py-1 flex-1 focus:ring-1 focus:ring-red-500"
+                    />
+                    <RuleTypeBadge
+                      ruleType={criterion.rule_type}
+                      name={criterion.name}
+                      expectedValue={criterion.expected_value}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onRemoveCriterion(originalIndex)}
+                      className="text-rose-600 hover:bg-rose-50 p-1.5 rounded text-xs font-bold cursor-pointer"
+                      title="Xóa tiêu chí con này"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {criterion.source_citation && (
+                    <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg text-amber-950 italic">
+                      <span className="font-semibold not-italic text-amber-800">Căn cứ nguồn: </span>
+                      {criterion.source_citation}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Mô tả quy chuẩn:</label>
+                    <input
+                      value={criterion.description}
+                      onChange={(e) => onUpdateCriterion(originalIndex, { description: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Cấu hình giá trị / Nội dung chi tiết:</label>
+                    <StructuredContentEditor
+                      ruleType={criterion.rule_type}
+                      expectedValue={criterion.expected_value}
+                      name={criterion.name}
+                      onChange={(val) => onUpdateCriterion(originalIndex, { expected_value: val })}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <div className="pt-2 flex justify-start">
+                <button
+                  type="button"
+                  onClick={onAddSubCriterion}
+                  className="px-3.5 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  ➕ Thêm tiêu chí con cho mục này
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold cursor-pointer transition-all"
+          >
+            Xong &amp; Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<Props, "role">) {
   const [sets, setSets] = useState<FormatCriteriaSet[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -254,6 +1011,13 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
   const [saving, setSaving] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
   const [allowSemanticEquivalent, setAllowSemanticEquivalent] = useState<boolean>(true);
+  const [viewMode, setViewMode] = useState<"30_categories" | "all_criteria">("30_categories");
+  const [selectedCategoryForDetail, setSelectedCategoryForDetail] = useState<{
+    index: number;
+    code: string;
+    name: string;
+  } | null>(null);
+  const [activeReportFactsModal, setActiveReportFactsModal] = useState<{ facts: Record<string, unknown>; filename: string } | null>(null);
 
   // Danh sách tiêu chí đang chỉnh sửa trực tiếp
   const [editableCriteria, setEditableCriteria] = useState<
@@ -342,7 +1106,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
             source_citation: c.source_citation || undefined,
           }))
         );
-        setMessage(`⚡ Đã trích xuất thành công ${draft.criteria.length} tiêu chí từ tài liệu. Bạn có thể sửa, bổ sung và bấm "Lưu & Áp dụng".`);
+        setMessage(`⚡ Đã trích xuất thành công ${draft.criteria.length} tiêu chí từ tài liệu. Bạn có thể bấm vào từng nhóm trong 30 tiêu chí để xem chi tiết trích xuất.`);
       } else {
         setMessage("Không tìm thấy quy định hình thức tự động nào trong tài liệu đã chọn.");
       }
@@ -381,7 +1145,20 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
     setEditableCriteria((prev) => prev.filter((_, i) => i !== index));
   }
 
-  // 5. Lưu và Duyệt Áp Dụng ngay cho học phần
+  // 5. Thêm tiêu chí cho 1 nhóm cụ thể trong 30 nhóm
+  function handleAddSubCriterionForCategory(cat: { index: number; code: string; name: string }) {
+    setEditableCriteria((prev) => [
+      ...prev,
+      {
+        name: `${cat.name}: Tiêu chí mới`,
+        description: `Quy định bổ sung cho nhóm ${cat.name}`,
+        rule_type: cat.index === 4 ? "TEMPLATE" : "MEASUREMENT",
+        expected_value: { category: cat.name },
+      },
+    ]);
+  }
+
+  // 6. Lưu và Duyệt Áp Dụng ngay cho học phần
   async function handleSaveAndApprove() {
     if (!editableCriteria.length) {
       setMessage("Danh sách tiêu chí đang trống. Hãy thêm hoặc trích xuất tiêu chí trước khi lưu.");
@@ -451,7 +1228,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
           <div>
             <p className="text-xs font-bold tracking-wider text-red-700 uppercase">Giảng viên phụ trách</p>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">Quản lý Tiêu chí Hình thức</h1>
-            <p className="text-sm text-slate-500 mt-1">Trích xuất từ đề cương, bổ sung/sửa đổi tiêu chí và phê duyệt cho học phần.</p>
+            <p className="text-sm text-slate-500 mt-1">Trích xuất từ đề cương, hiển thị 30 tiêu chuẩn chuẩn hóa và xem chi tiết trích xuất.</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm font-semibold text-slate-600">Học phần:</span>
@@ -474,7 +1251,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                 <span>⚡ Trích xuất tiêu chí từ tài liệu học phần</span>
               </h2>
               <p className="text-xs text-slate-600 mt-1">
-                Hệ thống tự động quét các văn bản hướng dẫn/rubric để bóc tách quy định căn lề, số trang và khung đề mục (Template).
+                Toàn bộ dữ liệu quy chế/đề cương được đưa cho AI để bóc tách tiêu chí định dạng và khung chương mục.
               </p>
             </div>
             <button
@@ -527,7 +1304,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                 })}
               </div>
 
-              {/* Tùy chọn linh hoạt tên đề mục (tương đương ngữ nghĩa nhưng bảo toàn cấu trúc & thứ tự) */}
+              {/* Tùy chọn linh hoạt tên đề mục */}
               <div className="mt-3 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 bg-white/80 p-3 rounded-xl border border-slate-200">
                 <div className="flex items-start gap-2.5 max-w-2xl">
                   <input
@@ -571,12 +1348,12 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
           )}
         </section>
 
-        {/* ── 2. DANH SÁCH TIÊU CHÍ (CHỈNH SỬA, BỔ SUNG & LƯU) ─────────────── */}
+        {/* ── 2. KHU VỰC 30 TIÊU CHÍ & DANH SÁCH CHI TIẾT ─────────────────────── */}
         <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4 border-slate-100">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-900">Danh sách tiêu chí đối soát</h2>
+                <h2 className="text-lg font-bold text-slate-900">Bảng Tiêu chuẩn Hình thức Báo cáo</h2>
                 {active ? (
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
                     Đang áp dụng v{active.version}
@@ -588,7 +1365,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Xem lại các tiêu chí sau trích xuất, chỉnh sửa giá trị kỳ vọng hoặc bổ sung tiêu chí mới trước khi lưu.
+                Bấm vào bất kỳ nhóm nào trong 30 tiêu chuẩn bên dưới để xem chi tiết trích xuất, hoặc chuyển sang chế độ sửa tất cả tiêu chí.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -610,6 +1387,38 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
             </div>
           </div>
 
+          {/* View Mode Switcher */}
+          <div className="flex border-b border-slate-200 gap-6 text-sm font-semibold pt-1">
+            <button
+              type="button"
+              onClick={() => setViewMode("30_categories")}
+              className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                viewMode === "30_categories"
+                  ? "border-red-700 text-red-700 font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <span>📋 30 Nhóm tiêu chuẩn (Bấm vào xem chi tiết)</span>
+              <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 font-bold">
+                30
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("all_criteria")}
+              className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                viewMode === "all_criteria"
+                  ? "border-red-700 text-red-700 font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <span>✏️ Tất cả tiêu chí chi tiết</span>
+              <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
+                {editableCriteria.length}
+              </span>
+            </button>
+          </div>
+
           <div className="space-y-2">
             <label className="block text-xs font-semibold text-slate-600">Tên bộ tiêu chí:</label>
             <input
@@ -620,254 +1429,295 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
             />
           </div>
 
-          {/* Danh sách các thẻ tiêu chí */}
-          {editableCriteria.length === 0 ? (
-            <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-xl space-y-3">
-              <p className="text-sm text-slate-500 font-medium">Chưa có tiêu chí nào trong danh sách.</p>
-              <div className="flex justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleExtractFromDocs}
-                  disabled={documents.length === 0}
-                  className="px-4 py-2 bg-red-700 text-white rounded-lg text-xs font-bold hover:bg-red-800 cursor-pointer"
-                >
-                  ⚡ Trích xuất ngay từ tài liệu
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAddCriterion}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer"
-                >
-                  ➕ Thêm tiêu chí thủ công
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3.5">
-              {editableCriteria.map((item, index) => {
-                const summary = getCriterionSummary(item);
-                const isExpanded = expandedIndex === index;
-                return (
-                  <div
-                    key={`${item.id || index}-${index}`}
-                    className={`border rounded-2xl transition-all p-4 shadow-xs space-y-3 ${
-                      isExpanded
-                        ? "bg-white border-slate-300 ring-2 ring-slate-200/60"
-                        : "bg-white border-slate-200/90 hover:border-slate-300"
-                    }`}
-                  >
-                    {/* HÀNG HEADER: #index + Tên tiêu chí + Badge loại + Tóm tắt + Chỉnh sửa/Thu gọn + Xóa */}
-                    <div className="flex flex-wrap items-center justify-between gap-2.5">
-                      <div className="flex items-center gap-2 flex-1 min-w-64">
-                        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center border border-slate-200 flex-shrink-0">
-                          {index + 1}
-                        </span>
-                        <input
-                          value={item.name}
-                          onChange={(e) => handleUpdateCriterion(index, { name: e.target.value })}
-                          className="font-bold text-sm text-slate-900 bg-transparent hover:bg-slate-50 focus:bg-white px-2.5 py-1 rounded-lg border border-transparent hover:border-slate-200 focus:border-slate-300 focus:ring-1 focus:ring-slate-400 flex-1 transition-all"
-                          placeholder="Tên tiêu chí (ví dụ: Căn lề trang, Khung đề mục, Chuẩn trích dẫn...)"
-                        />
-                        <RuleTypeBadge
-                          ruleType={item.rule_type}
-                          name={item.name}
-                          expectedValue={item.expected_value}
-                        />
-                        {summary && (
-                          <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200/70 hidden sm:inline-block">
-                            {summary}
-                          </span>
-                        )}
-                      </div>
+          {/* ── VIEW 1: BẢNG 30 TIÊU CHUẨN (CLICK XEM CHI TIẾT TRÍCH XUẤT) ───── */}
+          {viewMode === "30_categories" && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 font-semibold">
+                  <tr>
+                    <th className="p-3 w-12 text-center">STT</th>
+                    <th className="p-3 w-60">Nhóm tiêu chuẩn (30 Mục)</th>
+                    <th className="p-3 w-40 text-center">Trạng thái trích xuất</th>
+                    <th className="p-3">Chi tiết nội dung quy định</th>
+                    <th className="p-3 w-32 text-center">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {CHECKLIST_30_CATEGORIES.map((cat) => {
+                    const matchingCriteria = getCriteriaForCategory(cat.index, cat.code, editableCriteria);
+                    const isSpecified = matchingCriteria.length > 0;
+                    const summaries = matchingCriteria.map((c) => getCriterionSummary(c)).filter(Boolean);
 
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedIndex(isExpanded ? null : index)}
-                          className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                            isExpanded
-                              ? "bg-slate-800 text-white"
-                              : "text-slate-700 bg-slate-100 hover:bg-slate-200"
-                          }`}
-                        >
-                          {isExpanded ? "Thu gọn ▴" : "Chỉnh sửa ▾"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCriterion(index)}
-                          className="text-xs px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-800 rounded-lg font-bold transition-all cursor-pointer"
-                          title="Xóa tiêu chí này"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* HIỂN THỊ KHI THU GỌN: Trích đoạn ngắn + Mô tả ngắn */}
-                    {!isExpanded && (
-                      <div className="pl-8 space-y-2">
-                        {item.source_citation && (
-                          <div className="bg-amber-50/70 border-l-3 border-amber-400 px-3 py-1.5 rounded-r-lg text-xs text-amber-950 flex items-start gap-2">
-                            <span className="text-amber-500 font-serif text-sm leading-none mt-0.5 select-none">❝</span>
-                            <div className="flex-1 leading-normal line-clamp-2">
-                              <span className="font-semibold text-amber-800">Trích đoạn nguồn: </span>
-                              <span className="italic">{item.source_citation}</span>
+                    return (
+                      <tr
+                        key={cat.index}
+                        onClick={() => setSelectedCategoryForDetail(cat)}
+                        className={`hover:bg-red-50/40 transition-colors cursor-pointer ${
+                          isSpecified ? "bg-white" : "bg-slate-50/50 opacity-75"
+                        }`}
+                      >
+                        <td className="p-3 text-center font-bold text-slate-500">{cat.index}</td>
+                        <td className="p-3 font-bold text-slate-900">{cat.name}</td>
+                        <td className="p-3 text-center">
+                          {isSpecified ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                              <span>✅</span>
+                              <span>Đã có ({matchingCriteria.length})</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500">
+                              <span>⚪</span>
+                              <span>Không quy định</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-700">
+                          {isSpecified ? (
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {summaries.length > 0 ? summaries.join(" · ") : matchingCriteria[0]?.description || "Đã trích xuất quy tắc"}
+                              </p>
+                              {matchingCriteria[0]?.source_citation && (
+                                <p className="text-[11px] text-amber-900/80 italic mt-0.5 line-clamp-1">
+                                  ❝ {matchingCriteria[0].source_citation}
+                                </p>
+                              )}
                             </div>
-                          </div>
-                        )}
-                        {item.description && (
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            {item.description}
-                          </p>
-                        )}
-                        {item.rule_type === "TEMPLATE" && Array.isArray(item.expected_value?.headings) && (
-                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                            <span className="text-[11px] font-semibold text-slate-400">Các mục:</span>
-                            {(item.expected_value.headings as string[]).slice(0, 6).map((heading, hIdx) => (
-                              <span
-                                key={hIdx}
-                                className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px] font-medium"
-                              >
-                                <span className="text-slate-400 font-mono text-[10px]">{hIdx + 1}.</span>
-                                <span>{heading}</span>
-                              </span>
-                            ))}
-                            {(item.expected_value.headings as string[]).length > 6 && (
-                              <span className="text-[10px] text-slate-400 font-medium italic">
-                                +{(item.expected_value.headings as string[]).length - 6} mục khác...
+                          ) : (
+                            <p className="text-slate-400 italic">Quy chế môn học không đề cập quy định bắt buộc cho mục này.</p>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCategoryForDetail(cat);
+                            }}
+                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-lg text-xs font-bold cursor-pointer transition-all"
+                          >
+                            👁️ Chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── VIEW 2: TẤT CẢ TIÊU CHÍ CHI TIẾT (EDITOR ĐẦY ĐỦ) ─────────────── */}
+          {viewMode === "all_criteria" && (
+            <div>
+              {editableCriteria.length === 0 ? (
+                <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-xl space-y-3">
+                  <p className="text-sm text-slate-500 font-medium">Chưa có tiêu chí nào trong danh sách.</p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleExtractFromDocs}
+                      disabled={documents.length === 0}
+                      className="px-4 py-2 bg-red-700 text-white rounded-lg text-xs font-bold hover:bg-red-800 cursor-pointer"
+                    >
+                      ⚡ Trích xuất ngay từ tài liệu
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddCriterion}
+                      className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                    >
+                      ➕ Thêm tiêu chí thủ công
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {editableCriteria.map((item, index) => {
+                    const summary = getCriterionSummary(item);
+                    const isExpanded = expandedIndex === index;
+                    return (
+                      <div
+                        key={`${item.id || index}-${index}`}
+                        className={`border rounded-2xl transition-all p-4 shadow-xs space-y-3 ${
+                          isExpanded
+                            ? "bg-white border-slate-300 ring-2 ring-slate-200/60"
+                            : "bg-white border-slate-200/90 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2 flex-1 min-w-64">
+                            <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center border border-slate-200 flex-shrink-0">
+                              {index + 1}
+                            </span>
+                            <input
+                              value={item.name}
+                              onChange={(e) => handleUpdateCriterion(index, { name: e.target.value })}
+                              className="font-bold text-sm text-slate-900 bg-transparent hover:bg-slate-50 focus:bg-white px-2.5 py-1 rounded-lg border border-transparent hover:border-slate-200 focus:border-slate-300 focus:ring-1 focus:ring-slate-400 flex-1 transition-all"
+                              placeholder="Tên tiêu chí (ví dụ: Căn lề trang, Khung đề mục, Chuẩn trích dẫn...)"
+                            />
+                            <RuleTypeBadge
+                              ruleType={item.rule_type}
+                              name={item.name}
+                              expectedValue={item.expected_value}
+                            />
+                            {summary && (
+                              <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200/70 hidden sm:inline-block">
+                                {summary}
                               </span>
                             )}
                           </div>
+
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedIndex(isExpanded ? null : index)}
+                              className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                                isExpanded
+                                  ? "bg-slate-800 text-white"
+                                  : "text-slate-700 bg-slate-100 hover:bg-slate-200"
+                              }`}
+                            >
+                              {isExpanded ? "Thu gọn ▴" : "Chỉnh sửa ▾"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCriterion(index)}
+                              className="text-xs px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-800 rounded-lg font-bold transition-all cursor-pointer"
+                              title="Xóa tiêu chí này"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+
+                        {!isExpanded && (
+                          <div className="pl-8 space-y-2">
+                            {item.source_citation && (
+                              <div className="bg-amber-50/70 border-l-3 border-amber-400 px-3 py-1.5 rounded-r-lg text-xs text-amber-950 flex items-start gap-2">
+                                <span className="text-amber-500 font-serif text-sm leading-none mt-0.5 select-none">❝</span>
+                                <div className="flex-1 leading-normal line-clamp-2">
+                                  <span className="font-semibold text-amber-800">Trích đoạn nguồn: </span>
+                                  <span className="italic">{item.source_citation}</span>
+                                </div>
+                              </div>
+                            )}
+                            {item.description && (
+                              <p className="text-xs text-slate-600 leading-relaxed">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {isExpanded && (
+                          <div className="pl-8 pt-3 border-t border-slate-200/80 space-y-4">
+                            <div className="bg-amber-50/60 border border-amber-200/90 rounded-xl p-3.5 space-y-1.5">
+                              <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                                <span className="text-amber-600 font-serif text-sm">❝</span>
+                                <span>1. Trích dẫn quy chế nguồn:</span>
+                              </label>
+                              <textarea
+                                value={item.source_citation || ""}
+                                onChange={(e) => handleUpdateCriterion(index, { source_citation: e.target.value })}
+                                rows={3}
+                                className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg text-xs text-amber-950 italic focus:ring-2 focus:ring-amber-400 focus:outline-none transition-all leading-relaxed"
+                                placeholder="Dán hoặc chỉnh sửa đoạn văn bản quy định trích từ tài liệu học phần..."
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <span>📝</span>
+                                <span>2. Mô tả tiêu chí đối chiếu:</span>
+                              </label>
+                              <input
+                                value={item.description}
+                                onChange={(e) => handleUpdateCriterion(index, { description: e.target.value })}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-slate-400 focus:outline-none transition-all"
+                                placeholder="Mô tả điều cần đối chiếu..."
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <span>⚙️</span>
+                                <span>3. Loại quy tắc kiểm tra:</span>
+                              </label>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCriterion(index, { rule_type: "MEASUREMENT" })}
+                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
+                                    item.rule_type === "MEASUREMENT"
+                                      ? "bg-sky-50 border-sky-400 text-sky-950 font-bold ring-2 ring-sky-400/50 shadow-xs"
+                                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                                    <span>📏</span>
+                                    <span>Số đo (MEASUREMENT)</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                    Lề trang, khổ giấy, cỡ chữ, phông, số trang
+                                  </p>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCriterion(index, { rule_type: "TEMPLATE" })}
+                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
+                                    item.rule_type === "TEMPLATE"
+                                      ? "bg-purple-50 border-purple-400 text-purple-950 font-bold ring-2 ring-purple-400/50 shadow-xs"
+                                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                                    <span>📑</span>
+                                    <span>Khung đề mục (TEMPLATE)</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                    Dàn ý các chương mục theo thứ tự phân cấp
+                                  </p>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCriterion(index, { rule_type: "PRESENCE" })}
+                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
+                                    item.rule_type === "PRESENCE"
+                                      ? "bg-amber-50 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-400/50 shadow-xs"
+                                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                                    <span>📚</span>
+                                    <span>Bảng &amp; Trích dẫn (PRESENCE)</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-normal mt-0.5">
+                                    Tài liệu tham khảo, bảng phân công, trang bìa
+                                  </p>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5 pt-1">
+                              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <span>🎯</span>
+                                <span>4. Ô sửa nội dung quy chuẩn:</span>
+                              </label>
+                              <StructuredContentEditor
+                                ruleType={item.rule_type}
+                                expectedValue={item.expected_value}
+                                name={item.name}
+                                onChange={(val) => handleUpdateCriterion(index, { expected_value: val })}
+                              />
+                            </div>
+                          </div>
                         )}
                       </div>
-                    )}
-
-                    {/* HIỂN THỊ KHI MỞ RỘNG: TUÂN THỦ TUYỆT ĐỐI THỨ TỰ: TRÍCH -> MÔ TẢ -> LOẠI QUY TẮC -> Ô SỬA NỘI DUNG */}
-                    {isExpanded && (
-                      <div className="pl-8 pt-3 border-t border-slate-200/80 space-y-4">
-                        {/* 1. TRÍCH ĐOẠN NGUỒN */}
-                        <div className="bg-amber-50/60 border border-amber-200/90 rounded-xl p-3.5 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                              <span className="text-amber-600 font-serif text-sm">❝</span>
-                              <span>1. Trích dẫn quy chế nguồn:</span>
-                            </label>
-                            <span className="text-[11px] text-amber-800/80 font-medium">
-                              Điều khoản hoặc hướng dẫn gốc từ tài liệu
-                            </span>
-                          </div>
-                          <textarea
-                            value={item.source_citation || ""}
-                            onChange={(e) => handleUpdateCriterion(index, { source_citation: e.target.value })}
-                            rows={3}
-                            className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg text-xs text-amber-950 italic focus:ring-2 focus:ring-amber-400 focus:outline-none transition-all leading-relaxed"
-                            placeholder="Dán hoặc chỉnh sửa đoạn văn bản quy định trích từ tài liệu học phần..."
-                          />
-                        </div>
-
-                        {/* 2. MÔ TẢ TIÊU CHÍ */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                              <span>📝</span>
-                              <span>2. Mô tả tiêu chí đối chiếu:</span>
-                            </label>
-                            <span className="text-[11px] text-slate-400">Yêu cầu cụ thể để đối chiếu</span>
-                          </div>
-                          <input
-                            value={item.description}
-                            onChange={(e) => handleUpdateCriterion(index, { description: e.target.value })}
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-slate-400 focus:outline-none transition-all"
-                            placeholder="Mô tả điều cần đối chiếu (ví dụ: Khổ giấy A4 in 1 mặt, lề trái 3.0cm, lề phải 2.0cm...)"
-                          />
-                        </div>
-
-                        {/* 3. LOẠI QUY TẮC */}
-                        <div className="space-y-1.5">
-                          <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <span>⚙️</span>
-                            <span>3. Loại quy tắc kiểm tra:</span>
-                          </label>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateCriterion(index, { rule_type: "MEASUREMENT" })}
-                              className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
-                                item.rule_type === "MEASUREMENT"
-                                  ? "bg-sky-50 border-sky-400 text-sky-950 font-bold ring-2 ring-sky-400/50 shadow-xs"
-                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 text-xs font-bold">
-                                <span>📏</span>
-                                <span>Số đo (MEASUREMENT)</span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                Lề trang, khổ giấy, cỡ chữ, phông, số trang
-                              </p>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateCriterion(index, { rule_type: "TEMPLATE" })}
-                              className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
-                                item.rule_type === "TEMPLATE"
-                                  ? "bg-purple-50 border-purple-400 text-purple-950 font-bold ring-2 ring-purple-400/50 shadow-xs"
-                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 text-xs font-bold">
-                                <span>📑</span>
-                                <span>Khung đề mục (TEMPLATE)</span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                Dàn ý các chương mục theo thứ tự phân cấp
-                              </p>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateCriterion(index, { rule_type: "PRESENCE" })}
-                              className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
-                                item.rule_type === "PRESENCE"
-                                  ? "bg-amber-50 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-400/50 shadow-xs"
-                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 text-xs font-bold">
-                                <span>📚</span>
-                                <span>Bảng &amp; Trích dẫn (PRESENCE)</span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                Tài liệu tham khảo, bảng phân công, trang bìa
-                              </p>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* 4. Ô SỬA NỘI DUNG (CẤU TRÚC TRỰC QUAN, DỄ SỬ DỤNG) */}
-                        <div className="space-y-1.5 pt-1">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                              <span>🎯</span>
-                              <span>4. Ô sửa nội dung quy chuẩn:</span>
-                            </label>
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              Thiết kế có tính cấu trúc, trực quan, dễ sử dụng
-                            </span>
-                          </div>
-                          <StructuredContentEditor
-                            ruleType={item.rule_type}
-                            expectedValue={item.expected_value}
-                            name={item.name}
-                            onChange={(val) => handleUpdateCriterion(index, { expected_value: val })}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -927,14 +1777,30 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                     <ResultBadge status={item.status} />
                   </div>
 
-                  <details className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200">
-                    <summary className="cursor-pointer font-semibold text-slate-800">
-                      Xem cấu trúc trích xuất từ bài nộp &amp; điểm mơ hồ
-                    </summary>
-                    <pre className="whitespace-pre-wrap mt-2 p-2 bg-slate-50 rounded text-[11px] overflow-auto max-h-48">
-                      {JSON.stringify({ snapshot: item.extracted_snapshot, ambiguous: item.ambiguous_results }, null, 2)}
-                    </pre>
-                  </details>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {item.extracted_snapshot && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveReportFactsModal({
+                            facts: item.extracted_snapshot,
+                            filename: item.filename,
+                          })
+                        }
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        <span>📄 Xem chi tiết bài nộp</span>
+                      </button>
+                    )}
+                    <details className="text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-200 flex-1">
+                      <summary className="cursor-pointer font-semibold text-slate-800">
+                        Cấu trúc trích xuất &amp; điểm mơ hồ (JSON)
+                      </summary>
+                      <pre className="whitespace-pre-wrap mt-2 p-2 bg-slate-50 rounded text-[11px] overflow-auto max-h-48">
+                        {JSON.stringify({ snapshot: item.extracted_snapshot, ambiguous: item.ambiguous_results }, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
 
                   {item.status === "UNDER_REVIEW" ? (
                     <div className="flex gap-2 pt-1">
@@ -980,6 +1846,31 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
             </div>
           ))}
         </section>
+
+        {/* Modal chi tiết trích xuất cho nhóm tiêu chí được chọn (Giảng viên) */}
+        {selectedCategoryForDetail && (
+          <LecturerCategoryDetailModal
+            category={selectedCategoryForDetail}
+            criteria={editableCriteria
+              .map((c, originalIndex) => ({ originalIndex, criterion: c }))
+              .filter(({ criterion }) =>
+                getCriteriaForCategory(selectedCategoryForDetail.index, selectedCategoryForDetail.code, [criterion]).length > 0
+              )}
+            onClose={() => setSelectedCategoryForDetail(null)}
+            onAddSubCriterion={() => handleAddSubCriterionForCategory(selectedCategoryForDetail)}
+            onUpdateCriterion={handleUpdateCriterion}
+            onRemoveCriterion={handleRemoveCriterion}
+          />
+        )}
+
+        {/* Modal xem lại bài nộp của sinh viên (Giảng viên) */}
+        {activeReportFactsModal && (
+          <SubmittedReportFactsModal
+            facts={activeReportFactsModal.facts}
+            filename={activeReportFactsModal.filename}
+            onClose={() => setActiveReportFactsModal(null)}
+          />
+        )}
       </div>
     </div>
   );

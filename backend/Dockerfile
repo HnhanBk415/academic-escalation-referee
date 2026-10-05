@@ -7,11 +7,9 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency spec and install into a local prefix
-COPY backend/pyproject.toml ./backend/
-RUN pip install --no-cache-dir --prefix=/install ./backend
-
+# Copy backend source and install into a local prefix
 COPY backend/ ./backend/
+RUN pip install --no-cache-dir --prefix=/install ./backend
 
 # ── Stage 2: runtime ──────────────────────────────────────────
 FROM python:3.13-slim AS runtime

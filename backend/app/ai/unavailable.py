@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.schemas.format_checks import FormatSemanticJudgment
 from app.schemas.referee import AIHealth, RefereeDecision
 
