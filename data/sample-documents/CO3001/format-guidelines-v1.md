@@ -116,4 +116,4 @@ Báo cáo đồ án phải tuân thủ nghiêm ngặt khung đề cương (Templ
 ---
 
 ### Tài liệu tham khảo
-- Danh sách sách, bài báo khoa học, trang web tài liệu kỹ thuật được trích dẫn theo chuẩn IEEE hoặc APA.
+- Danh sách sách, bài báo khoa học, trang web tài liệu kỹ thuật được trích dẫn theo chuẩn IEEE.
