@@ -54,26 +54,6 @@ def _clean_font_name(font_raw: str) -> str:
     return cleaned.strip() or font_raw.strip()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 10 MASTER CORE CHECKLIST CATEGORIES METADATA
-# ─────────────────────────────────────────────────────────────────────────────
-
-CHECKLIST_10_CATEGORIES: list[dict[str, Any]] = [
-    {"index": 1, "code": "page_setup", "name": "1. Khổ giấy và Căn lề trang"},
-    {"index": 2, "code": "typography", "name": "2. Phông chữ và Cỡ chữ"},
-    {"index": 3, "code": "paragraph_format", "name": "3. Giãn dòng và Định dạng đoạn văn"},
-    {"index": 4, "code": "page_count", "name": "4. Dung lượng số trang quy định"},
-    {"index": 5, "code": "cover_page", "name": "5. Trang bìa và Thông tin hành chính"},
-    {"index": 6, "code": "member_contribution", "name": "6. Bảng phân công & Đóng góp thành viên"},
-    {"index": 7, "code": "table_of_contents", "name": "7. Mục lục báo cáo"},
-    {"index": 8, "code": "template_structure", "name": "8. Khung cấu trúc đề cương & các chương mục"},
-    {"index": 9, "code": "template_sequence", "name": "9. Thứ tự và Phân cấp cấu trúc đề mục"},
-    {"index": 10, "code": "references", "name": "10. Tài liệu tham khảo và Trích dẫn"},
-]
-
-# Backward-compatibility alias
-CHECKLIST_30_CATEGORIES = CHECKLIST_10_CATEGORIES
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ALGORITHMIC HEADING MATCHING (Zero hardcoded synonym lists)
@@ -111,72 +91,7 @@ def _is_heading_matching_algorithmically(expected_name: str, actual_name: str) -
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. LIST 1: REGULATION 10 CHECKLIST BUILDER
-# ─────────────────────────────────────────────────────────────────────────────
-
-def build_regulation_30_criteria(criteria: list[Any]) -> list[dict[str, Any]]:
-    """Construct List 1: Maps approved teacher criteria to the 10 standardized core categories.
-
-    If a category has no matching criterion in the active criteria set, specified is False.
-    """
-    category_map: dict[int, list[Any]] = {cat["index"]: [] for cat in CHECKLIST_10_CATEGORIES}
-
-    for c in criteria:
-        exp = getattr(c, "expected_value", {}) or {}
-        prop = exp.get("property")
-        kind = exp.get("kind")
-        c_name = getattr(c, "name", "").lower()
-        c_cat = str(exp.get("category", "")).lower()
-
-        if prop == "margins_cm" or "khổ giấy" in c_name or "căn lề" in c_name or "lề trang" in c_name or "page_setup" in c_cat or "1." in c_cat:
-            category_map[1].append(c)
-        elif prop in ("font_name", "font_size_pt") or "phông" in c_name or "font" in c_name or "cỡ chữ" in c_name or "typography" in c_cat or "2." in c_cat:
-            category_map[2].append(c)
-        elif prop == "line_spacing" or "đoạn văn" in c_name or "giãn dòng" in c_name or "paragraph_format" in c_cat or "3." in c_cat:
-            category_map[3].append(c)
-        elif prop == "page_count" or "dung lượng" in c_name or "số trang" in c_name or "page_count" in c_cat or "4." in c_cat:
-            category_map[4].append(c)
-        elif kind in ("cover_page", "cover_page_fields") or "trang bìa" in c_name or "bìa" in c_name or "cover_page" in c_cat or "5." in c_cat or "6." in c_cat:
-            category_map[5].append(c)
-        elif kind == "table_columns" or "phân công" in c_name or "cam đoan" in c_name or "đóng góp" in c_name or "member_contribution" in c_cat or "front_matter" in c_cat or "7." in c_cat or "6." in c_cat:
-            category_map[6].append(c)
-        elif (kind == "heading" and ("mục lục" in c_name or exp.get("value") == "Mục lục")) or "mục lục" in c_name or "table_of_contents" in c_cat or "danh mục hình" in c_name or "danh mục bảng" in c_name or "7." in c_cat or "8." in c_cat:
-            category_map[7].append(c)
-        elif kind in ("template_chapter", "template_section") or "mục bắt buộc" in c_name or "mục con" in c_name or "chương" in c_name or "template_structure" in c_cat or "heading_structure" in c_cat or "đề cương" in c_name or "8." in c_cat:
-            category_map[8].append(c)
-        elif kind == "template_sequence" or "thứ tự" in c_name or "phân cấp" in c_name or "template_sequence" in c_cat or "numbering" in c_cat or "9." in c_cat:
-            category_map[9].append(c)
-        elif "tài liệu tham khảo" in c_name or "trích dẫn" in c_name or "references" in c_cat or "in_text_citations" in c_cat or (kind == "heading" and "tham khảo" in str(exp.get("value", "")).lower()) or "10." in c_cat or "19." in c_cat:
-            category_map[10].append(c)
-        else:
-            for cat in CHECKLIST_10_CATEGORIES:
-                if cat["code"] in c_cat or f"{cat['index']}." in c_name:
-                    category_map[cat["index"]].append(c)
-                    break
-
-    regulation_10: list[dict[str, Any]] = []
-    for cat in CHECKLIST_10_CATEGORIES:
-        idx = cat["index"]
-        items = category_map.get(idx, [])
-        is_specified = len(items) > 0
-        desc = "; ".join(getattr(i, "description", "") for i in items) if is_specified else "Quy chế môn học không đề cập quy định bắt buộc cho mục này."
-        citations = [getattr(i, "source_citation", "") for i in items if getattr(i, "source_citation", None)]
-
-        regulation_10.append({
-            "index": idx,
-            "code": cat["code"],
-            "name": cat["name"],
-            "specified": is_specified,
-            "description": desc,
-            "expected_criteria": items,
-            "source_citation": "; ".join(citations) if citations else None,
-        })
-
-    return regulation_10
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. HYBRID STUDENT REPORT FACTS EXTRACTION
+# HYBRID STUDENT REPORT FACTS EXTRACTION
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _convert_docx_to_pdf_bytes_safe(docx_bytes: bytes) -> bytes | None:
@@ -455,99 +370,7 @@ async def extract_report_facts(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. LIST 2: SUBMISSION 30 FACTS BUILDER
-# ─────────────────────────────────────────────────────────────────────────────
-
-def build_submission_30_facts(facts: dict[str, Any]) -> list[dict[str, Any]]:
-    """Construct List 2: Maps extracted facts from student submission to 10 core categories."""
-    submission_10: list[dict[str, Any]] = []
-
-    for cat in CHECKLIST_10_CATEGORIES:
-        idx = cat["index"]
-        code = cat["code"]
-        name = cat["name"]
-
-        present = False
-        actual_val: Any = None
-        details = ""
-
-        if idx == 1:
-            margins = facts.get("margins_cm")
-            sizes = facts.get("paper_sizes", [])
-            present = bool(margins or sizes)
-            actual_val = {"margins": margins[:1] if margins else None, "paper_sizes": sizes[:1] if sizes else None}
-            details = f"Khổ giấy {sizes[0]['orientation'] if sizes else 'A4'}, lề section đầu: {margins[0] if margins else 'N/A'}"
-        elif idx == 2:
-            fonts = facts.get("font_names") or []
-            sizes_pt = facts.get("font_sizes_pt") or []
-            present = bool(fonts)
-            actual_val = {"fonts": fonts, "sizes_pt": sizes_pt}
-            details = f"Font: {', '.join(fonts[:3]) if fonts else 'N/A'}; Cỡ chữ: {sizes_pt[:5] if sizes_pt else 'N/A'}"
-        elif idx == 3:
-            spacings = facts.get("line_spacings") or []
-            alignments = facts.get("alignments") or {}
-            present = bool(spacings or alignments)
-            actual_val = {"line_spacings": spacings, "alignments": alignments}
-            details = f"Giãn dòng: {spacings[:3] if spacings else 'N/A'}; Căn lề: {alignments if alignments else 'N/A'}"
-        elif idx == 4:
-            pages = facts.get("page_count")
-            present = pages is not None
-            actual_val = {"page_count": pages}
-            details = f"Dung lượng thực tế: {pages} trang."
-        elif idx == 5:
-            cover_fields = facts.get("cover_page_fields") or []
-            has_cover_text = len(facts.get("cover_sample", "")) > 20
-            present = bool(cover_fields or has_cover_text)
-            actual_val = {"fields": cover_fields, "sample": facts.get("cover_sample", "")[:200]}
-            details = f"Trường thông tin trang bìa: {', '.join(cover_fields) if cover_fields else 'Đã nhận diện văn bản trang đầu'}"
-        elif idx == 6:
-            has_tbl = facts.get("has_member_contribution_table", False)
-            cols = facts.get("member_table_columns", [])
-            present = has_tbl or len(cols) > 0
-            actual_val = {"has_table": has_tbl, "columns": cols}
-            details = f"Bảng phân công thành viên: {'Có (' + ', '.join(cols[:4]) + ')' if has_tbl else ('Có' if cols else 'Chưa có')}"
-        elif idx == 7:
-            has_toc = facts.get("has_table_of_contents", False)
-            has_lof = facts.get("has_list_of_figures", False)
-            has_lot = facts.get("has_list_of_tables", False)
-            present = has_toc or has_lof or has_lot
-            actual_val = {"has_toc": has_toc, "has_lof": has_lof, "has_lot": has_lot}
-            details = f"Mục lục: {'Có' if has_toc else 'Chưa có'}" + (f", Danh mục hình/bảng: {'Có' if (has_lof or has_lot) else 'Không'}" if (has_lof or has_lot) else "")
-        elif idx == 8:
-            headings = facts.get("headings") or []
-            present = bool(headings)
-            actual_val = {"headings": headings}
-            details = f"Đã tìm thấy {len(headings)} đề mục trong bài nộp."
-        elif idx == 9:
-            headings = facts.get("headings") or []
-            present = bool(headings)
-            actual_val = {"headings": headings}
-            details = f"Thứ tự các đề mục: {headings[:4]}"
-        elif idx == 10:
-            has_refs = facts.get("has_references_section", False)
-            style = facts.get("references_style")
-            present = has_refs
-            actual_val = {"has_references": has_refs, "style": style}
-            details = f"Tài liệu tham khảo: {'Có' if has_refs else 'Chưa có'} (Chuẩn {style or 'Tự do'})"
-        else:
-            present = False
-            actual_val = None
-            details = "Chưa có dữ liệu trích xuất tự động"
-
-        submission_10.append({
-            "index": idx,
-            "code": code,
-            "name": name,
-            "present": present,
-            "actual_value": actual_val,
-            "details": details,
-        })
-
-    return submission_10
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. AI REVIEW & COMPARISON ENGINE
+# DYNAMIC ACADEMIC CHECKLIST EVALUATION ENGINE
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def evaluate_academic_checklist(
@@ -555,17 +378,13 @@ async def evaluate_academic_checklist(
     structure: dict[str, Any],
     ai_provider: Any = None,
 ) -> tuple[list[FormatCriterionResult], list[dict[str, Any]], FormatCheckOverallStatus]:
-    """Pure 2-List AI review & comparison engine (1-Batch LLM Call):
+    """Dynamic Academic Checklist Evaluation Engine:
 
-    1. List 1: Teacher regulation criteria (mapped to 30 categories).
-    2. List 2: Student submission facts (measurements + AI semantic content).
-    3. AI Batch Review: Evaluates ALL semantic criteria at once in 1 SINGLE LLM call (zero loop calls).
-    4. Evaluates status for each item:
-       - Specified=False in regulation -> NOT_SPECIFIED.
-       - Specified=True but submission Missing -> MISSING_STUDENT_INPUT (prompt student).
-       - Ambiguous / Wording variance -> ESCALATE to Lecturer (AMBIGUOUS).
-       - Fully compliant -> PASS.
-       - Clear violation -> FAIL.
+    1. Mathematical / Measurement Rules (margins, font, spacing, page count):
+       Direct code evaluation using python-docx/pypdf (0 AI calls).
+    2. All Other Rules (Cover, Outline, TOC, Member table, References, etc.):
+       Evaluated directly by LLM using the exact requirement text extracted from the regulation
+       plus the full student report text.
     """
     results: list[FormatCriterionResult] = []
 

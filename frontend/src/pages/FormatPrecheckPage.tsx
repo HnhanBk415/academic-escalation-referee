@@ -16,6 +16,8 @@ import {
   RuleTypeBadge,
   getCriterionSummary,
   StructuredContentEditor,
+  FormattedExpectedValue,
+  FormattedActualValue,
 } from "../components/StructuredContentEditor";
 
 type Role = "student" | "lecturer";
@@ -92,7 +94,6 @@ export function SubmittedReportFactsModal({
   ambiguousResults?: Array<Record<string, unknown>>;
   onClose: () => void;
 }) {
-  // Trích xuất dữ liệu audit nếu có lưu trong facts
   const effectiveResults: FormatCriterionResult[] =
     results || ((facts.results as FormatCriterionResult[]) || []);
   const effectiveSummary: ChecklistSummaryItem[] =
@@ -100,68 +101,26 @@ export function SubmittedReportFactsModal({
   const effectiveAmbiguous: Array<Record<string, unknown>> =
     ambiguousResults || ((facts.ambiguous_results as Array<Record<string, unknown>>) || []);
 
-  const hasAuditData =
-    effectiveResults.length > 0 || effectiveSummary.length > 0 || effectiveAmbiguous.length > 0;
-
-  const [tab, setTab] = useState<"audit" | "overview" | "headings" | "tables" | "raw">(
-    hasAuditData ? "audit" : "overview"
-  );
-  const [auditFilter, setAuditFilter] = useState<"ALL" | "PASS" | "FAIL" | "AMBIGUOUS" | "NOT_SPECIFIED">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "PASS" | "FAIL" | "AMBIGUOUS">("ALL");
 
   const margins = (facts.margins_cm as Array<Record<string, number>>) || [];
-  const paperSizes = (facts.paper_sizes as Array<Record<string, unknown>>) || [];
   const fonts = (facts.font_names as string[]) || [];
   const fontSizes = (facts.font_sizes_pt as number[]) || [];
   const lineSpacings = (facts.line_spacings as number[]) || [];
-  const alignments = (facts.alignments as Record<string, number>) || {};
-  const headings = (facts.headings as string[]) || [];
-  const coverFields = (facts.cover_page_fields as string[]) || [];
-  const coverSample = (facts.cover_sample as string) || "";
-  const memberCols = (facts.member_table_columns as string[]) || [];
-  const tableCaps = (facts.table_captions as string[]) || [];
-  const figCaps = (facts.figure_captions as string[]) || [];
 
-  // Tính thống kê Đúng / Sai / Mơ hồ cho modal
-  const stats = useMemo(() => {
-    let pass = 0;
-    let fail = 0;
-    let ambiguous = effectiveAmbiguous.length;
-    let notSpecified = 0;
+  const filteredResults = useMemo(() => {
+    if (filter === "ALL") return effectiveResults;
+    if (filter === "PASS") return effectiveResults.filter((r) => r.status === "PASS");
+    if (filter === "FAIL") return effectiveResults.filter((r) => r.status === "FAIL");
+    return effectiveResults.filter((r) => r.status === "AMBIGUOUS");
+  }, [effectiveResults, filter]);
 
-    if (effectiveSummary.length > 0) {
-      ambiguous = 0;
-      effectiveSummary.forEach((row) => {
-        if (row.status === "PASS") pass++;
-        else if (row.status === "FAIL" || row.status === "MISSING_STUDENT_INPUT") fail++;
-        else if (row.status === "AMBIGUOUS") ambiguous++;
-        else notSpecified++;
-      });
-      return { total: effectiveSummary.length, pass, fail, ambiguous, notSpecified };
-    }
-
-    if (effectiveResults.length > 0) {
-      ambiguous = 0;
-      effectiveResults.forEach((r) => {
-        if (r.status === "PASS") pass++;
-        else if (r.status === "FAIL") fail++;
-        else if (r.status === "AMBIGUOUS") ambiguous++;
-        else notSpecified++;
-      });
-      return { total: effectiveResults.length, pass, fail, ambiguous, notSpecified };
-    }
-
-    return { total: effectiveAmbiguous.length, pass: 0, fail: 0, ambiguous, notSpecified: 0 };
-  }, [effectiveSummary, effectiveResults, effectiveAmbiguous]);
-
-  // Lọc danh sách summary hiển thị
   const filteredSummary = useMemo(() => {
-    if (auditFilter === "ALL") return effectiveSummary;
-    if (auditFilter === "PASS") return effectiveSummary.filter((r) => r.status === "PASS");
-    if (auditFilter === "FAIL")
-      return effectiveSummary.filter((r) => r.status === "FAIL" || r.status === "MISSING_STUDENT_INPUT");
-    if (auditFilter === "AMBIGUOUS") return effectiveSummary.filter((r) => r.status === "AMBIGUOUS");
-    return effectiveSummary.filter((r) => r.status === "NOT_SPECIFIED");
-  }, [effectiveSummary, auditFilter]);
+    if (filter === "ALL") return effectiveSummary;
+    if (filter === "PASS") return effectiveSummary.filter((r) => r.status === "PASS");
+    if (filter === "FAIL") return effectiveSummary.filter((r) => r.status === "FAIL" || r.status === "MISSING_STUDENT_INPUT");
+    return effectiveSummary.filter((r) => r.status === "AMBIGUOUS");
+  }, [effectiveSummary, filter]);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in">
@@ -178,7 +137,7 @@ export function SubmittedReportFactsModal({
                 <span className="text-red-700 font-mono">{filename || (facts.filename as string) || "Báo cáo"}</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Chỉ rõ từng tiêu chuẩn: 🟢 <b>Đúng (Pass)</b> · 🔴 <b>Sai (Fail)</b> · 🟡 <b>Mơ hồ (Cần GV duyệt)</b>
+                Đối chiếu chi tiết từng tiêu chí: 🟢 <b>Đúng</b> · 🔴 <b>Sai</b> · 🟡 <b>Mơ hồ (Chờ GV duyệt)</b>
               </p>
             </div>
           </div>
@@ -191,541 +150,175 @@ export function SubmittedReportFactsModal({
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200 px-6 bg-white gap-6 text-xs font-semibold overflow-x-auto">
-          {hasAuditData && (
-            <button
-              type="button"
-              onClick={() => setTab("audit")}
-              className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "audit"
-                ? "border-red-700 text-red-700 font-bold"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-            >
-              <span>🎯 Đối chiếu ĐÚNG / SAI / MƠ HỒ</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
-                {stats.ambiguous > 0 ? `⚠️ ${stats.ambiguous} Mơ hồ` : `✅ ${stats.pass} Đúng`}
-              </span>
-            </button>
+        {/* Quick Physical Measurements Bar */}
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3 text-xs">
+          <span className="text-slate-500 font-semibold">Thông số tệp:</span>
+          {facts.page_count !== undefined && (
+            <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 font-mono">
+              📄 {String(facts.page_count)} trang
+            </span>
           )}
+          {margins.length > 0 && (
+            <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 font-mono">
+              📏 Lề: T{margins[0].top} · D{margins[0].bottom} · Tr{margins[0].left} · P{margins[0].right} cm
+            </span>
+          )}
+          {fonts.length > 0 && (
+            <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+              🔤 {fonts.slice(0, 2).join(", ")} {fontSizes.length > 0 ? `(${fontSizes.slice(0, 2).join(", ")}pt)` : ""}
+            </span>
+          )}
+          {lineSpacings.length > 0 && (
+            <span className="bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+              ↕ Giãn dòng {lineSpacings[0]}
+            </span>
+          )}
+        </div>
+
+        {/* Filter Bar */}
+        <div className="px-6 pt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+          <span className="text-slate-500 mr-1">Bộ lọc:</span>
           <button
             type="button"
-            onClick={() => setTab("overview")}
-            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "overview"
-              ? "border-red-700 text-red-700 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+            onClick={() => setFilter("ALL")}
+            className={`px-3 py-1 rounded-lg border cursor-pointer transition-all ${filter === "ALL" ? "bg-slate-800 text-white border-slate-800" : "bg-white border-slate-200 text-slate-700"}`}
           >
-            <span>📊 Thông số kỹ thuật &amp; Trang bìa</span>
+            Tất cả ({effectiveSummary.length || effectiveResults.length})
           </button>
           <button
             type="button"
-            onClick={() => setTab("headings")}
-            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "headings"
-              ? "border-red-700 text-red-700 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+            onClick={() => setFilter("PASS")}
+            className={`px-3 py-1 rounded-lg border cursor-pointer transition-all ${filter === "PASS" ? "bg-emerald-600 text-white border-emerald-600" : "bg-emerald-50 text-emerald-800 border-emerald-200"}`}
           >
-            <span>📑 Cấu trúc đề mục ({headings.length})</span>
+            ✅ Đúng
           </button>
           <button
             type="button"
-            onClick={() => setTab("tables")}
-            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "tables"
-              ? "border-red-700 text-red-700 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+            onClick={() => setFilter("FAIL")}
+            className={`px-3 py-1 rounded-lg border cursor-pointer transition-all ${filter === "FAIL" ? "bg-rose-600 text-white border-rose-600" : "bg-rose-50 text-rose-800 border-rose-200"}`}
           >
-            <span>📚 Bảng, Hình &amp; Tài liệu tham khảo</span>
+            ❌ Sai / Thiếu
           </button>
           <button
             type="button"
-            onClick={() => setTab("raw")}
-            className={`py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${tab === "raw"
-              ? "border-red-700 text-red-700 font-bold"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+            onClick={() => setFilter("AMBIGUOUS")}
+            className={`px-3 py-1 rounded-lg border cursor-pointer transition-all ${filter === "AMBIGUOUS" ? "bg-amber-500 text-white border-amber-500" : "bg-amber-50 text-amber-900 border-amber-200"}`}
           >
-            <span>🔍 JSON Thô</span>
+            ⚠️ Mơ hồ
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6 text-xs flex-1">
-          {/* TAB 1: AUDIT VERDICTS BREAKDOWN (ĐÚNG / SAI / MƠ HỒ) */}
-          {tab === "audit" && (
-            <div className="space-y-5">
-              {/* Stat Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setAuditFilter("ALL")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "ALL"
-                    ? "bg-slate-900 text-white border-slate-900 ring-2 ring-slate-900/30 shadow-xs"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                    }`}
-                >
-                  <p className="text-[11px] font-semibold opacity-80">Tất cả mục</p>
-                  <p className="text-xl font-extrabold mt-0.5">{stats.total}</p>
-                  <span className="text-[10px] opacity-75">{stats.total} Tiêu chí</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuditFilter("PASS")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "PASS"
-                    ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs"
-                    : "bg-emerald-50/60 border-emerald-200 text-emerald-900 hover:bg-emerald-100/60"
-                    }`}
-                >
-                  <p className="text-[11px] font-bold flex items-center gap-1">
-                    <span>✅</span>
-                    <span>ĐÚNG</span>
-                  </p>
-                  <p className="text-xl font-extrabold mt-0.5">{stats.pass}</p>
-                  <span className="text-[10px] font-semibold">Đạt chuẩn 100%</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuditFilter("FAIL")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "FAIL"
-                    ? "bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/30 shadow-xs"
-                    : "bg-rose-50/60 border-rose-200 text-rose-900 hover:bg-rose-100/60"
-                    }`}
-                >
-                  <p className="text-[11px] font-bold flex items-center gap-1">
-                    <span>❌</span>
-                    <span>SAI / THIẾU</span>
-                  </p>
-                  <p className="text-xl font-extrabold mt-0.5">{stats.fail}</p>
-                  <span className="text-[10px] font-semibold">Bắt buộc sửa</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuditFilter("AMBIGUOUS")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "AMBIGUOUS"
-                    ? "bg-amber-500 text-white border-amber-500 ring-2 ring-amber-400/30 shadow-xs"
-                    : "bg-amber-50/60 border-amber-200 text-amber-900 hover:bg-amber-100/60"
-                    }`}
-                >
-                  <p className="text-[11px] font-bold flex items-center gap-1">
-                    <span>⚠️</span>
-                    <span>MƠ HỒ</span>
-                  </p>
-                  <p className="text-xl font-extrabold mt-0.5">{stats.ambiguous}</p>
-                  <span className="text-[10px] font-semibold">Chờ GV duyệt</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuditFilter("NOT_SPECIFIED")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "NOT_SPECIFIED"
-                    ? "bg-slate-600 text-white border-slate-600 ring-2 ring-slate-500/30 shadow-xs"
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                    }`}
-                >
-                  <p className="text-[11px] font-semibold flex items-center gap-1">
-                    <span>⚪</span>
-                    <span>KHÔNG ĐO ĐƯỢC</span>
-                  </p>
-                  <p className="text-xl font-extrabold mt-0.5">{stats.notSpecified}</p>
-                  <span className="text-[10px] opacity-75">Bỏ qua</span>
-                </button>
-              </div>
-
-              {/* KHỐI 1: CÁC ĐIỂM MƠ HỒ (NẾU CÓ) */}
-              {effectiveAmbiguous.length > 0 && (auditFilter === "ALL" || auditFilter === "AMBIGUOUS") && (
-                <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-300 space-y-3 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
-                      <span>⚠️</span>
-                      <span>CÁC ĐIỂM MƠ HỒ CẦN GIẢNG VIÊN THẨM ĐỊNH ({effectiveAmbiguous.length} mục):</span>
-                    </h4>
-                    <span className="text-[11px] bg-amber-200/80 text-amber-900 font-bold px-2 py-0.5 rounded">
-                      Chờ duyệt ngoại lệ
-                    </span>
-                  </div>
-                  <div className="space-y-2.5">
-                    {effectiveAmbiguous.map((amb, idx) => (
-                      <div key={idx} className="p-3 bg-white border border-amber-200 rounded-xl space-y-2 text-xs">
-                        <p className="font-bold text-slate-900 flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center justify-center">
-                            {idx + 1}
-                          </span>
-                          <span>{String(amb.name || "Tiêu chuẩn cần xem xét")}</span>
-                        </p>
-                        <div className="grid sm:grid-cols-2 gap-2 text-[11px]">
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="font-bold text-slate-700 block">🎯 Yêu cầu theo đề cương:</span>
-                            <pre className="font-mono text-[11px] text-slate-600 whitespace-pre-wrap max-h-20 overflow-auto mt-0.5">
-                              {JSON.stringify(amb.expected_value, null, 2)}
-                            </pre>
-                          </div>
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="font-bold text-slate-700 block">📄 Thực tế bài nộp:</span>
-                            <pre className="font-mono text-[11px] text-slate-600 whitespace-pre-wrap max-h-20 overflow-auto mt-0.5">
-                              {amb.actual_value ? JSON.stringify(amb.actual_value, null, 2) : "(Chưa khớp chính xác)"}
-                            </pre>
-                          </div>
-                        </div>
-                        <div className="p-2 bg-amber-100/60 rounded-lg text-amber-950 text-[11px]">
-                          <b>💡 Nhận xét của AI:</b> {String(amb.message || "Tên mục hoặc cách trình bày có sự tương đương nhưng khác từ ngữ so với quy chuẩn mẫu.")}
-                        </div>
+        <div className="p-6 overflow-y-auto space-y-4 text-xs flex-1">
+          {/* Ambiguous highlight if any */}
+          {effectiveAmbiguous.length > 0 && (filter === "ALL" || filter === "AMBIGUOUS") && (
+            <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-300 space-y-3">
+              <h4 className="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
+                <span>⚠️</span>
+                <span>Các điểm khác biệt ngữ nghĩa đang chờ Giảng viên thẩm định ({effectiveAmbiguous.length}):</span>
+              </h4>
+              <div className="space-y-2">
+                {effectiveAmbiguous.map((amb, idx) => (
+                  <div key={idx} className="p-3 bg-white border border-amber-200 rounded-xl space-y-1.5">
+                    <p className="font-bold text-slate-900">{idx + 1}. {String(amb.name || "Tiêu chuẩn")}</p>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="font-semibold text-slate-700 block text-[11px]">🎯 Yêu cầu quy định:</span>
+                        <FormattedExpectedValue expectedValue={amb.expected_value as Record<string, unknown>} />
                       </div>
-                    ))}
+                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="font-semibold text-slate-700 block text-[11px]">📄 Bóc tách bài nộp:</span>
+                        <FormattedActualValue actualValue={amb.actual_value as Record<string, unknown>} />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-amber-900 bg-amber-100/50 p-2 rounded-lg">
+                      <b>💡 Nhận xét:</b> {String(amb.message || "Cách trình bày tương đương nhưng khác từ ngữ so với quy chuẩn mẫu.")}
+                    </p>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
+            </div>
+          )}
 
-              {/* KHỐI 2: BẢNG CHI TIẾT TỔNG HỢP TIÊU CHUẨN */}
-              {effectiveSummary.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
-                      <tr>
-                        <th className="p-3 w-12 text-center">STT</th>
-                        <th className="p-3 w-56">Tiêu chuẩn theo quy chế</th>
-                        <th className="p-3 w-40 text-center">Phân loại</th>
-                        <th className="p-3">Thực tế đối chiếu bài nộp</th>
-                        <th className="p-3 w-56">Hướng dẫn / Đánh giá</th>
+          {/* Full Table Comparison */}
+          {effectiveSummary.length > 0 ? (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
+                  <tr>
+                    <th className="p-3 w-12 text-center">STT</th>
+                    <th className="p-3 w-56">Tiêu chuẩn kiểm tra</th>
+                    <th className="p-3 w-36 text-center">Kết quả</th>
+                    <th className="p-3">Chi tiết bóc tách &amp; đối chiếu</th>
+                    <th className="p-3 w-56">Hướng dẫn</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredSummary.map((row) => {
+                    const isPass = row.status === "PASS";
+                    const isFail = row.status === "FAIL" || row.status === "MISSING_STUDENT_INPUT";
+                    const isAmbiguous = row.status === "AMBIGUOUS";
+
+                    return (
+                      <tr
+                        key={row.index}
+                        className={`transition-colors ${isPass
+                          ? "bg-emerald-50/20 hover:bg-emerald-50/40"
+                          : isFail
+                            ? "bg-rose-50/30 hover:bg-rose-50/50"
+                            : isAmbiguous
+                              ? "bg-amber-50/30 hover:bg-amber-50/50"
+                              : "bg-slate-50/40 hover:bg-slate-50 opacity-70"
+                          }`}
+                      >
+                        <td className="p-3 text-center font-bold text-slate-600">{row.index}</td>
+                        <td className="p-3">
+                          <p className="font-bold text-slate-900">{row.category}</p>
+                        </td>
+                        <td className="p-3 text-center">
+                          <ResultBadge status={row.status} />
+                        </td>
+                        <td className="p-3 text-slate-800">
+                          <div className="space-y-1">
+                            <p className="font-semibold text-slate-900">{row.error_summary}</p>
+                            {row.evidence && row.status !== "NOT_SPECIFIED" && (
+                              <p className="text-[11px] text-slate-600 font-mono bg-white p-1.5 rounded-lg border border-slate-200 inline-block">
+                                <b>Bóc tách được:</b> {row.evidence}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          {isPass ? (
+                            <span className="text-emerald-800 font-semibold flex items-center gap-1">
+                              <span>✓</span> Đạt chuẩn
+                            </span>
+                          ) : isFail ? (
+                            <div className="bg-rose-50 p-2 rounded-lg border border-rose-200 text-rose-900 text-[11px]">
+                              <b>⚠️ Cần sửa lại:</b> {row.suggestion}
+                            </div>
+                          ) : isAmbiguous ? (
+                            <div className="bg-amber-50 p-2 rounded-lg border border-amber-200 text-amber-900 text-[11px]">
+                              <b>⏳ Chờ giảng viên:</b> {row.suggestion}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Không bắt buộc</span>
+                          )}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredSummary.map((row) => {
-                        const isPass = row.status === "PASS";
-                        const isFail = row.status === "FAIL" || row.status === "MISSING_STUDENT_INPUT";
-                        const isAmbiguous = row.status === "AMBIGUOUS";
-
-                        return (
-                          <tr
-                            key={row.index}
-                            className={`transition-colors ${isPass
-                              ? "bg-emerald-50/20 hover:bg-emerald-50/40"
-                              : isFail
-                                ? "bg-rose-50/30 hover:bg-rose-50/50"
-                                : isAmbiguous
-                                  ? "bg-amber-50/30 hover:bg-amber-50/50"
-                                  : "bg-slate-50/40 hover:bg-slate-50 opacity-70"
-                              }`}
-                          >
-                            <td className="p-3 text-center font-bold text-slate-600">{row.index}</td>
-                            <td className="p-3">
-                              <p className="font-bold text-slate-900">{row.category}</p>
-                            </td>
-                            <td className="p-3 text-center">
-                              <ResultBadge status={row.status} />
-                            </td>
-                            <td className="p-3 text-slate-800">
-                              <div className="space-y-1">
-                                <p className="font-semibold text-slate-900">{row.error_summary}</p>
-                                {row.evidence && row.status !== "NOT_SPECIFIED" && (
-                                  <p className="text-[11px] text-slate-600 font-mono bg-white/90 p-1.5 rounded-lg border border-slate-200/90 inline-block">
-                                    <b>Bóc tách được:</b> {row.evidence.length > 140 ? `${row.evidence.slice(0, 140)}…` : row.evidence}
-                                  </p>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              {isPass ? (
-                                <span className="text-emerald-800 font-semibold flex items-center gap-1">
-                                  <span>✓</span> Đạt chuẩn 100%
-                                </span>
-                              ) : isFail ? (
-                                <div className="bg-rose-50 p-2 rounded-lg border border-rose-200 text-rose-900">
-                                  <p className="font-bold text-[11px]">⚠️ Cần sửa lại:</p>
-                                  <p className="text-[11px] mt-0.5">{row.suggestion}</p>
-                                </div>
-                              ) : isAmbiguous ? (
-                                <div className="bg-amber-50 p-2 rounded-lg border border-amber-200 text-amber-900">
-                                  <p className="font-bold text-[11px]">⏳ Chờ giảng viên:</p>
-                                  <p className="text-[11px] mt-0.5">{row.suggestion}</p>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 italic">Không yêu cầu bắt buộc</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                effectiveResults.length > 0 && (
-                  <div className="space-y-3">
-                    {effectiveResults.map((r, i) => (
-                      <CriterionResult key={i} item={r} />
-                    ))}
-                  </div>
-                )
-              )}
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          )}
-
-          {/* TAB 2: TECHNICAL SPECS & COVER PAGE */}
-          {tab === "overview" && (
-            <div className="space-y-5">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                  <p className="text-slate-500 font-medium">Loại tệp</p>
-                  <p className="text-sm font-bold text-slate-900 mt-0.5">
-                    {String(facts.file_type || "N/A")}
-                  </p>
-                </div>
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                  <p className="text-slate-500 font-medium">Số trang thực tế</p>
-                  <p className="text-sm font-bold text-slate-900 mt-0.5">
-                    {facts.page_count !== undefined ? `${facts.page_count} trang` : "Chưa đo được"}
-                  </p>
-                </div>
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                  <p className="text-slate-500 font-medium">Khổ giấy</p>
-                  <p className="text-sm font-bold text-slate-900 mt-0.5">
-                    {paperSizes.length > 0
-                      ? `${paperSizes[0].is_a4 ? "A4" : "Tùy chỉnh"} · ${paperSizes[0].orientation}`
-                      : "A4 (Mặc định)"}
-                  </p>
-                </div>
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                  <p className="text-slate-500 font-medium">Tổng số bảng biểu</p>
-                  <p className="text-sm font-bold text-slate-900 mt-0.5">
-                    {facts.table_count !== undefined ? `${facts.table_count} bảng` : "0"}
-                  </p>
-                </div>
+          ) : (
+            filteredResults.length > 0 && (
+              <div className="space-y-3">
+                {filteredResults.map((r, i) => (
+                  <CriterionResult key={i} item={r} />
+                ))}
               </div>
-
-              {/* Margins */}
-              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>📏</span>
-                    <span>Căn lề các Section (Đo lường từ đối tượng tệp):</span>
-                  </h4>
-                  {margins.length > 0 && (
-                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                      ✓ Đã bóc tách số đo
-                    </span>
-                  )}
-                </div>
-                {margins.length > 0 ? (
-                  <div className="grid sm:grid-cols-2 gap-2 mt-2">
-                    {margins.map((m, idx) => (
-                      <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                        <p className="font-semibold text-slate-700">Section {idx + 1}:</p>
-                        <p className="text-slate-600 font-mono text-[11px] mt-1">
-                          Trên: <b>{m.top}cm</b> · Dưới: <b>{m.bottom}cm</b> · Trái: <b>{m.left}cm</b> · Phải: <b>{m.right}cm</b>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-500 italic">Định dạng PDF không trích xuất lề Word trực tiếp (đã kiểm tra chuẩn A4).</p>
-                )}
-              </div>
-
-              {/* Typography */}
-              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>🔤</span>
-                    <span>Phông chữ &amp; Định dạng đoạn văn:</span>
-                  </h4>
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                    ✓ Đã nhận diện
-                  </span>
-                </div>
-                <div className="grid sm:grid-cols-2 gap-3 text-slate-700">
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-500 font-medium">Phông chữ nhận diện:</p>
-                    <p className="font-semibold mt-0.5 text-slate-900">
-                      {fonts.length > 0 ? fonts.join(", ") : "Không xác định"}
-                    </p>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-500 font-medium">Cỡ chữ phát hiện (pt):</p>
-                    <p className="font-semibold mt-0.5 text-slate-900">
-                      {fontSizes.length > 0 ? fontSizes.join(", ") : "Không xác định"}
-                    </p>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-500 font-medium">Độ giãn dòng (Line Spacing):</p>
-                    <p className="font-semibold mt-0.5 text-slate-900">
-                      {lineSpacings.length > 0 ? lineSpacings.join(", ") : "1.0 - 1.5"}
-                    </p>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-500 font-medium">Căn lề đoạn văn:</p>
-                    <p className="font-semibold mt-0.5 text-slate-900">
-                      {Object.entries(alignments)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(" · ") || "JUSTIFY"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Cover Page */}
-              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>🎨</span>
-                    <span>Trang bìa đã nhận diện:</span>
-                  </h4>
-                  <span className="text-[11px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
-                    {coverFields.length} trường thông tin
-                  </span>
-                </div>
-                {coverFields.length > 0 ? (
-                  <div>
-                    <p className="text-slate-600 mb-2">Các trường thông tin tìm thấy:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {coverFields.map((f, i) => (
-                        <span key={i} className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-md font-semibold">
-                          ✓ {f}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-slate-500 italic">Chưa nhận diện được danh sách trường bìa chuẩn.</p>
-                )}
-                {coverSample && (
-                  <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-slate-500 font-medium mb-1">Mẫu văn bản trang đầu:</p>
-                    <pre className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg whitespace-pre-wrap font-mono text-[11px] text-slate-700 max-h-32 overflow-auto">
-                      {coverSample}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: HEADINGS STRUCTURE */}
-          {tab === "headings" && (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <h4 className="font-bold text-slate-900">Danh sách đề mục trích xuất theo thứ tự:</h4>
-                <span className="text-slate-500 font-semibold">{headings.length} đề mục</span>
-              </div>
-              {headings.length > 0 ? (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white overflow-hidden shadow-2xs">
-                  {headings.map((h, i) => (
-                    <div key={i} className="p-2.5 hover:bg-slate-50 flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-[10px] flex-shrink-0">
-                        {i + 1}
-                      </span>
-                      <span className="font-semibold text-slate-800 text-xs mt-0.5">{h}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="p-4 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
-                  Không tìm thấy tiêu đề chương mục rõ ràng trong bài nộp.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* TAB 4: TABLES, FIGURES & REFERENCES */}
-          {tab === "tables" && (
-            <div className="space-y-4">
-              {/* Contribution Table */}
-              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900">Bảng phân công đóng góp thành viên:</h4>
-                  <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded border ${facts.has_member_contribution_table
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      : "bg-rose-50 text-rose-800 border-rose-200"
-                      }`}
-                  >
-                    {facts.has_member_contribution_table ? "✅ Đã tìm thấy" : "❌ Chưa có"}
-                  </span>
-                </div>
-                {memberCols.length > 0 && (
-                  <div>
-                    <p className="text-slate-500 mb-1">Các cột trong bảng:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {memberCols.map((c, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded font-semibold text-[11px]">
-                          {c}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Sections Presence */}
-              <div className="p-4 border border-slate-200 rounded-xl bg-white grid sm:grid-cols-3 gap-3">
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <p className="text-slate-500 font-medium">Mục lục</p>
-                  <p className="font-bold text-slate-900 mt-1">
-                    {facts.has_table_of_contents ? "✅ Đã tìm thấy" : "❌ Chưa có"}
-                  </p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <p className="text-slate-500 font-medium">Danh mục hình</p>
-                  <p className="font-bold text-slate-900 mt-1">
-                    {facts.has_list_of_figures ? "✅ Đã tìm thấy" : "❌ Chưa có"}
-                  </p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <p className="text-slate-500 font-medium">Danh mục bảng</p>
-                  <p className="font-bold text-slate-900 mt-1">
-                    {facts.has_list_of_tables ? "✅ Đã tìm thấy" : "❌ Chưa có"}
-                  </p>
-                </div>
-              </div>
-
-              {/* References */}
-              <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-2">
-                <h4 className="font-bold text-slate-900">Tài liệu tham khảo &amp; Chuẩn trích dẫn:</h4>
-                <p className="text-slate-700">
-                  Trạng thái: <b>{facts.has_references_section ? "✅ Có phần Tài liệu tham khảo" : "❌ Chưa có"}</b>
-                </p>
-                <p className="text-slate-700">
-                  Chuẩn nhận diện: <b>{String(facts.references_style || "Tự do / Khác")}</b>
-                </p>
-              </div>
-
-              {/* Captions */}
-              {(figCaps.length > 0 || tableCaps.length > 0) && (
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {figCaps.length > 0 && (
-                    <div className="p-3.5 border border-slate-200 rounded-xl bg-white space-y-2">
-                      <h4 className="font-bold text-slate-900">Chú thích hình ảnh ({figCaps.length}):</h4>
-                      <ul className="list-disc pl-4 space-y-1 text-slate-600 max-h-36 overflow-auto">
-                        {figCaps.map((c, i) => (
-                          <li key={i}>{c}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {tableCaps.length > 0 && (
-                    <div className="p-3.5 border border-slate-200 rounded-xl bg-white space-y-2">
-                      <h4 className="font-bold text-slate-900">Chú thích bảng biểu ({tableCaps.length}):</h4>
-                      <ul className="list-disc pl-4 space-y-1 text-slate-600 max-h-36 overflow-auto">
-                        {tableCaps.map((c, i) => (
-                          <li key={i}>{c}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 5: RAW JSON */}
-          {tab === "raw" && (
-            <pre className="p-4 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-xl overflow-auto max-h-[60vh]">
-              {JSON.stringify(facts, null, 2)}
-            </pre>
+            )
           )}
         </div>
 
@@ -780,7 +373,7 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
         <ResultBadge status={item.status} />
       </div>
 
-      {/* 3-Section Comparison Breakdown */}
+      {/* 2-Column Comparison Breakdown */}
       <div className="grid sm:grid-cols-2 gap-3 text-xs">
         {/* Yêu cầu quy chuẩn */}
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
@@ -788,9 +381,12 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
             <span>🎯</span>
             <span>1. Yêu cầu theo quy chế / đề cương:</span>
           </p>
-          <pre className="font-mono text-[11px] text-slate-700 whitespace-pre-wrap bg-white p-2 rounded-lg border border-slate-200/80 max-h-28 overflow-auto">
-            {JSON.stringify(item.expected_value, null, 2)}
-          </pre>
+          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+            <FormattedExpectedValue
+              expectedValue={item.expected_value}
+              description={item.name}
+            />
+          </div>
         </div>
 
         {/* Thực tế bài nộp */}
@@ -806,11 +402,14 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
         >
           <p className="font-bold flex items-center gap-1.5">
             <span>📄</span>
-            <span>2. Thực tế đo lường / bóc tách từ bài nộp:</span>
+            <span>2. Thực tế bóc tách / đối chiếu bài nộp:</span>
           </p>
-          <pre className="font-mono text-[11px] whitespace-pre-wrap bg-white p-2 rounded-lg border border-slate-200/80 max-h-28 overflow-auto">
-            {item.actual_value ? JSON.stringify(item.actual_value, null, 2) : "(Không trích xuất được dữ liệu tương ứng)"}
-          </pre>
+          <div className="bg-white p-2.5 rounded-lg border border-slate-200/80">
+            <FormattedActualValue
+              actualValue={item.actual_value}
+              ruleType={item.expected_value?.property ? "MEASUREMENT" : undefined}
+            />
+          </div>
         </div>
       </div>
 
@@ -1856,21 +1455,14 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                 onClick={() => handleAddCriterion("MEASUREMENT")}
                 className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-xl flex items-center gap-1 transition-all cursor-pointer"
               >
-                <span>📏 Thêm đo lường</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddCriterion("TEMPLATE")}
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-xl flex items-center gap-1 transition-all cursor-pointer"
-              >
-                <span>📑 Thêm khung đề mục</span>
+                <span>📏 Thêm tiêu chí số đo</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleAddCriterion("PRESENCE")}
                 className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-xl flex items-center gap-1 transition-all cursor-pointer"
               >
-                <span>📚 Thêm thành phần</span>
+                <span>📝 Thêm tiêu chí nội dung / text</span>
               </button>
               <button
                 type="button"
@@ -2202,9 +1794,9 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                             <div className="space-y-1.5">
                               <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
                                 <span>⚙️</span>
-                                <span>3. Loại quy tắc kiểm tra:</span>
+                                <span>3. Phương thức kiểm tra tiêu chí:</span>
                               </label>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateCriterion(originalIndex, { rule_type: "MEASUREMENT" })}
@@ -2215,42 +1807,26 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                                 >
                                   <div className="flex items-center gap-1.5 text-xs font-bold">
                                     <span>📏</span>
-                                    <span>Số đo (MEASUREMENT)</span>
+                                    <span>Tiêu chí Số đo (Code đo tự động)</span>
                                   </div>
                                   <p className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                    Lề trang, khổ giấy, cỡ chữ, phông, số trang
-                                  </p>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateCriterion(originalIndex, { rule_type: "TEMPLATE" })}
-                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${criterion.rule_type === "TEMPLATE"
-                                    ? "bg-purple-50 border-purple-400 text-purple-950 font-bold ring-2 ring-purple-400/50 shadow-xs"
-                                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                                    }`}
-                                >
-                                  <div className="flex items-center gap-1.5 text-xs font-bold">
-                                    <span>📑</span>
-                                    <span>Khung đề mục (TEMPLATE)</span>
-                                  </div>
-                                  <p className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                    Dàn ý các chương mục theo thứ tự phân cấp
+                                    Căn lề trang (cm), Khổ giấy A4, Phông chữ, Cỡ chữ (pt), Giãn dòng, Số trang
                                   </p>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateCriterion(originalIndex, { rule_type: "PRESENCE" })}
-                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${criterion.rule_type === "PRESENCE"
-                                    ? "bg-amber-50 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-400/50 shadow-xs"
+                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${criterion.rule_type !== "MEASUREMENT"
+                                    ? "bg-purple-50 border-purple-400 text-purple-950 font-bold ring-2 ring-purple-400/50 shadow-xs"
                                     : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                                     }`}
                                 >
                                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                                    <span>📚</span>
-                                    <span>Bảng &amp; Trích dẫn (PRESENCE)</span>
+                                    <span>📝</span>
+                                    <span>Tiêu chí Nội dung / Text (AI kiểm tra)</span>
                                   </div>
                                   <p className="text-[10px] text-slate-500 font-normal mt-0.5">
-                                    Tài liệu tham khảo, bảng phân công, trang bìa
+                                    Trang bìa, Bảng phân công, Khung đề mục chương/mục, Mục lục, Tài liệu tham khảo, v.v.
                                   </p>
                                 </button>
                               </div>
