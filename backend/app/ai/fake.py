@@ -549,150 +549,165 @@ class FakeProvider:
             figure_captions=fig_captions,
         )
 
+    async def judge_single_criterion(
+        self,
+        criterion_item: dict[str, Any],
+        submission_facts: dict[str, Any],
+    ) -> "LLMBatchCriterionJudgment":
+        """Deterministic evaluation for a single criterion."""
+        from app.schemas.format_checks import LLMBatchCriterionJudgment
+
+        cid = str(criterion_item.get("criterion_id", ""))
+        exp = criterion_item.get("expected_value", {}) or {}
+        kind = exp.get("kind", "")
+        c_name = criterion_item.get("name", "")
+
+        if kind == "cover_page":
+            req_fields = exp.get("required_fields", [])
+            cover_sample = submission_facts.get("cover_sample", "")
+            cov_res = await self.judge_cover_page(cover_sample, req_fields)
+            if cov_res.is_cover_page and not cov_res.missing_elements:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="PASS",
+                    reason="Trang bìa đầy đủ các trường yêu cầu.",
+                    detected_element=", ".join(cov_res.detected_elements),
+                    location="Tại trang đầu tiên (Trang bìa)",
+                )
+            elif cov_res.is_cover_page:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="MISSING_STUDENT_INPUT",
+                    reason=f"Trang bìa thiếu trường: {', '.join(cov_res.missing_elements)}",
+                    detected_element=", ".join(cov_res.detected_elements),
+                    location="Tại trang đầu tiên (Trang bìa)",
+                )
+            else:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="FAIL",
+                    reason=cov_res.reason,
+                    location="Tại trang đầu tiên",
+                )
+        elif kind in ("template_outline", "template_sequence"):
+            outline_headings = exp.get("outline_headings") or exp.get("chapters", [])
+            headings = submission_facts.get("headings", [])
+            if outline_headings:
+                missing_h = []
+                ambiguous_h = []
+                for req_h in outline_headings:
+                    sem = await self.judge_format_ambiguity("TEMPLATE", [req_h], headings, c_name, "")
+                    if sem.verdict == "FAIL":
+                        missing_h.append(req_h)
+                    elif sem.verdict == "AMBIGUOUS":
+                        ambiguous_h.append(req_h)
+                if missing_h:
+                    return LLMBatchCriterionJudgment(
+                        criterion_id=cid,
+                        verdict="MISSING_STUDENT_INPUT",
+                        reason=f"Thiếu các mục theo đề cương: {', '.join(missing_h[:2])}",
+                        location="Tại danh mục đề mục báo cáo",
+                    )
+                elif ambiguous_h:
+                    return LLMBatchCriterionJudgment(
+                        criterion_id=cid,
+                        verdict="AMBIGUOUS",
+                        reason=f"Mơ hồ về đề mục: Bài nộp có đề mục tương tự nhưng khác từ ngữ so với quy định '{ambiguous_h[0]}'.",
+                        detected_element=ambiguous_h[0],
+                        location="Tại đề mục tương ứng trong báo cáo",
+                    )
+                else:
+                    return LLMBatchCriterionJudgment(
+                        criterion_id=cid,
+                        verdict="PASS",
+                        reason="Đầy đủ các chương mục theo khung đề cương quy chuẩn.",
+                        location="Toàn bộ cấu trúc báo cáo",
+                    )
+            else:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="PASS",
+                    reason="Đầy đủ cấu trúc đề cương theo quy định.",
+                    location="Toàn bộ cấu trúc báo cáo",
+                )
+        elif kind == "template_chapter":
+            chap = exp.get("chapter_name", "")
+            headings = submission_facts.get("headings", [])
+            sem = await self.judge_format_ambiguity("TEMPLATE", [chap], headings, c_name, "")
+            if sem.verdict == "FAIL":
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="MISSING_STUDENT_INPUT",
+                    reason=f"Thiếu chương '{chap}' trong báo cáo.",
+                    location="Tại danh mục các chương",
+                )
+            else:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict=sem.verdict,
+                    reason=sem.reason,
+                    detected_element=chap,
+                    location="Tại danh mục các chương",
+                )
+        elif kind == "template_section":
+            sec = exp.get("section_name", "")
+            headings = submission_facts.get("headings", [])
+            sem = await self.judge_format_ambiguity("TEMPLATE", [sec], headings, c_name, "")
+            if sem.verdict == "FAIL":
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="MISSING_STUDENT_INPUT",
+                    reason=f"Thiếu mục con '{sec}' trong báo cáo.",
+                    location="Tại mục con",
+                )
+            else:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict=sem.verdict,
+                    reason=sem.reason,
+                    detected_element=sec,
+                    location="Tại mục con",
+                )
+        elif kind == "table_columns":
+            has_tbl = submission_facts.get("has_member_contribution_table", False)
+            if has_tbl:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="PASS",
+                    reason="Có bảng phân công đóng góp thành viên.",
+                    location="Tại bảng phân công thành viên",
+                )
+            else:
+                return LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="MISSING_STUDENT_INPUT",
+                    reason="Thiếu bảng phân công đóng góp thành viên.",
+                    location="Ngay sau trang bìa/lời cam đoan",
+                )
+        else:
+            return LLMBatchCriterionJudgment(
+                criterion_id=cid,
+                verdict="PASS",
+                reason="Khớp yêu cầu quy định.",
+            )
+
+    async def judge_multiple_criteria_individually(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+        results: dict[str, LLMBatchCriterionJudgment] = {}
+        for c in criteria_items:
+            cid = str(c.get("criterion_id", ""))
+            results[cid] = await self.judge_single_criterion(c, submission_facts)
+        return results
+
     async def batch_judge_submission_criteria(
         self,
         criteria_items: list[dict[str, Any]],
         submission_facts: dict[str, Any],
     ) -> dict[str, "LLMBatchCriterionJudgment"]:
-        """Deterministic batch review stub for tests."""
-        from app.schemas.format_checks import LLMBatchCriterionJudgment
-
-        results: dict[str, LLMBatchCriterionJudgment] = {}
-        for c in criteria_items:
-            cid = c.get("criterion_id", "")
-            exp = c.get("expected_value", {}) or {}
-            kind = exp.get("kind", "")
-            c_name = c.get("name", "")
-
-            if kind == "cover_page":
-                req_fields = exp.get("required_fields", [])
-                cover_sample = submission_facts.get("cover_sample", "")
-                cov_res = await self.judge_cover_page(cover_sample, req_fields)
-                if cov_res.is_cover_page and not cov_res.missing_elements:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="PASS",
-                        reason="Trang bìa đầy đủ các trường yêu cầu.",
-                        detected_element=", ".join(cov_res.detected_elements),
-                        location="Tại trang đầu tiên (Trang bìa)",
-                    )
-                elif cov_res.is_cover_page:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="MISSING_STUDENT_INPUT",
-                        reason=f"Trang bìa thiếu trường: {', '.join(cov_res.missing_elements)}",
-                        detected_element=", ".join(cov_res.detected_elements),
-                        location="Tại trang đầu tiên (Trang bìa)",
-                    )
-                else:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="FAIL",
-                        reason=cov_res.reason,
-                        location="Tại trang đầu tiên",
-                    )
-            elif kind in ("template_outline", "template_sequence"):
-                outline_headings = exp.get("outline_headings") or exp.get("chapters", [])
-                headings = submission_facts.get("headings", [])
-                if outline_headings:
-                    missing_h = []
-                    ambiguous_h = []
-                    for req_h in outline_headings:
-                        sem = await self.judge_format_ambiguity("TEMPLATE", [req_h], headings, c_name, "")
-                        if sem.verdict == "FAIL":
-                            missing_h.append(req_h)
-                        elif sem.verdict == "AMBIGUOUS":
-                            ambiguous_h.append(req_h)
-                    if missing_h:
-                        results[cid] = LLMBatchCriterionJudgment(
-                            criterion_id=cid,
-                            verdict="MISSING_STUDENT_INPUT",
-                            reason=f"Thiếu các mục theo đề cương: {', '.join(missing_h[:2])}",
-                            location="Tại danh mục đề mục báo cáo",
-                        )
-                    elif ambiguous_h:
-                        results[cid] = LLMBatchCriterionJudgment(
-                            criterion_id=cid,
-                            verdict="AMBIGUOUS",
-                            reason=f"Mơ hồ về đề mục: Bài nộp có đề mục tương tự nhưng khác từ ngữ so với quy định '{ambiguous_h[0]}'.",
-                            detected_element=ambiguous_h[0],
-                            location="Tại đề mục tương ứng trong báo cáo",
-                        )
-                    else:
-                        results[cid] = LLMBatchCriterionJudgment(
-                            criterion_id=cid,
-                            verdict="PASS",
-                            reason="Đầy đủ các chương mục theo khung đề cương quy chuẩn.",
-                            location="Toàn bộ cấu trúc báo cáo",
-                        )
-                else:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="PASS",
-                        reason="Đầy đủ cấu trúc đề cương theo quy định.",
-                        location="Toàn bộ cấu trúc báo cáo",
-                    )
-            elif kind == "template_chapter":
-                chap = exp.get("chapter_name", "")
-                headings = submission_facts.get("headings", [])
-                sem = await self.judge_format_ambiguity("TEMPLATE", [chap], headings, c_name, "")
-                if sem.verdict == "FAIL":
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="MISSING_STUDENT_INPUT",
-                        reason=f"Thiếu chương '{chap}' trong báo cáo.",
-                        location="Tại danh mục các chương",
-                    )
-                else:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict=sem.verdict,
-                        reason=sem.reason,
-                        detected_element=chap,
-                        location="Tại danh mục các chương",
-                    )
-            elif kind == "template_section":
-                sec = exp.get("section_name", "")
-                headings = submission_facts.get("headings", [])
-                sem = await self.judge_format_ambiguity("TEMPLATE", [sec], headings, c_name, "")
-                if sem.verdict == "FAIL":
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="MISSING_STUDENT_INPUT",
-                        reason=f"Thiếu mục con '{sec}' trong báo cáo.",
-                        location="Tại mục con",
-                    )
-                else:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict=sem.verdict,
-                        reason=sem.reason,
-                        detected_element=sec,
-                        location="Tại mục con",
-                    )
-            elif kind == "table_columns":
-                has_tbl = submission_facts.get("has_member_contribution_table", False)
-                if has_tbl:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="PASS",
-                        reason="Có bảng phân công đóng góp thành viên.",
-                        location="Tại bảng phân công thành viên",
-                    )
-                else:
-                    results[cid] = LLMBatchCriterionJudgment(
-                        criterion_id=cid,
-                        verdict="MISSING_STUDENT_INPUT",
-                        reason="Thiếu bảng phân công đóng góp thành viên.",
-                        location="Ngay sau trang bìa/lời cam đoan",
-                    )
-            else:
-                results[cid] = LLMBatchCriterionJudgment(
-                    criterion_id=cid,
-                    verdict="PASS",
-                    reason="Khớp yêu cầu quy định.",
-                )
-        return results
+        return await self.judge_multiple_criteria_individually(criteria_items, submission_facts)
 
     async def health(self) -> AIHealth:
         return AIHealth(mode="fake", available=True, model="deterministic-fake-v1")

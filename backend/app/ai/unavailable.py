@@ -69,7 +69,19 @@ class UnavailableProvider:
         from app.schemas.format_checks import LLMSubmissionContentFacts
         return LLMSubmissionContentFacts()
 
-    async def batch_judge_submission_criteria(
+    async def judge_single_criterion(
+        self,
+        criterion_item: dict[str, Any],
+        submission_facts: dict[str, Any],
+    ) -> "LLMBatchCriterionJudgment":
+        from app.schemas.format_checks import LLMBatchCriterionJudgment
+        return LLMBatchCriterionJudgment(
+            criterion_id=str(criterion_item.get("criterion_id", "")),
+            verdict="AMBIGUOUS",
+            reason=f"AI không khả dụng ({self.detail}); chuyển giảng viên xem xét.",
+        )
+
+    async def judge_multiple_criteria_individually(
         self,
         criteria_items: list[dict[str, Any]],
         submission_facts: dict[str, Any],
@@ -77,13 +89,20 @@ class UnavailableProvider:
         from app.schemas.format_checks import LLMBatchCriterionJudgment
         return {
             c.get("criterion_id", ""): LLMBatchCriterionJudgment(
-                criterion_id=c.get("criterion_id", ""),
+                criterion_id=str(c.get("criterion_id", "")),
                 verdict="AMBIGUOUS",
                 reason=f"AI không khả dụng ({self.detail}); chuyển giảng viên xem xét.",
             )
             for c in criteria_items
             if c.get("criterion_id")
         }
+
+    async def batch_judge_submission_criteria(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+        return await self.judge_multiple_criteria_individually(criteria_items, submission_facts)
 
     async def health(self) -> AIHealth:
         return AIHealth(

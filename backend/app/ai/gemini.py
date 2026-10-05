@@ -651,40 +651,35 @@ class GeminiProvider:
 
         return LLMSubmissionContentFacts()
 
-    async def batch_judge_submission_criteria(
+    async def judge_single_criterion(
         self,
-        criteria_items: list[dict[str, Any]],
+        criterion_item: dict[str, Any],
         submission_facts: dict[str, Any],
-    ) -> dict[str, "LLMBatchCriterionJudgment"]:
-        """Review ALL semantic checklist criteria against student submission facts in a SINGLE batch LLM call."""
-        from app.schemas.format_checks import (
-            LLMBatchCriterionJudgment,
-            LLMBatchReviewResponse,
-        )
+    ) -> "LLMBatchCriterionJudgment":
+        """Review ONE specific semantic checklist criterion against student submission facts with dedicated deep reasoning."""
+        from app.schemas.format_checks import LLMBatchCriterionJudgment
 
-        if not criteria_items:
-            return {}
+        cid = str(criterion_item.get("criterion_id", ""))
+        c_name = str(criterion_item.get("name", ""))
 
-        _BATCH_REVIEW_INSTRUCTION = (
+        _SINGLE_REVIEW_INSTRUCTION = (
             "Bạn là chuyên gia rà soát và kiểm định định dạng bài báo cáo / đồ án học thuật.\n"
-            "Nhiệm vụ: Đối chiếu bộ tiêu chuẩn quy định (Checklist quy chế) với toàn bộ dữ liệu thực tế trích xuất từ bài nộp của sinh viên (submission_facts), "
-            "sau đó đưa ra phán quyết chính xác cho TỪNG tiêu chí:\n\n"
-            "QUY TẮC ĐÁNH GIÁ CHO TỪNG TIÊU CHÍ:\n"
-            "1. 'PASS' (Đạt): Bài nộp có đầy đủ hoặc đề mục/nội dung khớp chính xác/tương đương ngữ nghĩa học thuật đạt chuẩn.\n"
-            "2. 'MISSING_STUDENT_INPUT' (Thiếu): Quy định yêu cầu nhưng bài nộp hoàn toàn KHÔNG CÓ "
-            "(thiếu hẳn trang bìa, thiếu bảng phân công, thiếu mục lục, hoặc thiếu một chương/mục con). Sinh viên cần tự bổ sung.\n"
-            "3. 'AMBIGUOUS' (Mơ hồ): Đề mục hoặc nội dung trong bài nộp CÓ xuất hiện nhưng tên gọi khác biệt đáng kể hoặc có sự mơ hồ cần giảng viên xem xét và duyệt ngoại lệ theo từng tiêu chí.\n"
+            "Nhiệm vụ: Tập trung phân tích sâu và đối chiếu DUY NHẤT một tiêu chí thể thức cụ thể (criterion_to_evaluate) với toàn bộ dữ liệu thực tế trích xuất từ bài nộp của sinh viên (submission_facts), sau đó đưa ra phán quyết chính xác tuyệt đối:\n\n"
+            "QUY TẮC ĐÁNH GIÁ:\n"
+            "1. 'PASS' (Đạt): Bài nộp có đầy đủ hoặc đề mục/nội dung khớp chính xác/tương đương ngữ nghĩa học thuật đạt chuẩn so với quy định.\n"
+            "2. 'MISSING_STUDENT_INPUT' (Thiếu): Quy định yêu cầu nhưng bài nộp hoàn toàn KHÔNG CÓ (thiếu hẳn trang bìa, thiếu bảng phân công, thiếu mục lục, hoặc thiếu hẳn một chương/mục con). Sinh viên cần tự bổ sung.\n"
+            "3. 'AMBIGUOUS' (Mơ hồ): Đề mục hoặc nội dung trong bài nộp CÓ xuất hiện nhưng tên gọi khác biệt đáng kể hoặc có sự mơ hồ cần giảng viên xem xét và duyệt ngoại lệ cho tiêu chí này.\n"
             "4. 'FAIL' (Không đạt): Vi phạm quy định rõ ràng hoặc xung đột cấu trúc.\n\n"
-            "QUY ĐỊNH BẮT BUỘC KHI XẢY RA 'AMBIGUOUS' (MƠ HỒ):\n"
-            "- BẮT BUỘC phải trích dẫn rõ: (1) MƠ HỒ VỀ CÁI GÌ (ví dụ: khác biệt từ ngữ tên đề mục, thiếu 1 trường thông tin cụ thể), và (2) Ở CHỖ NÀO TRONG BÁO CÁO (ví dụ: 'Tại đề mục 1.1', 'Tại trang đầu bìa', 'Trong bảng ở trang 2') so với yêu cầu trong quy chế.\n"
-            "- 'detected_element': Tên đề mục hoặc nội dung cụ thể tìm thấy trong bài nộp sinh viên.\n"
-            "- 'location': Vị trí cụ thể trong bài nộp (ví dụ: 'Tại đề mục 1.1 thuộc Chương 1', 'Tại trang bìa').\n"
-            "- 'reason': Giải thích súc tích bằng tiếng Việt (≤ 250 ký tự), nêu rõ sự khác biệt và vị trí trong báo cáo."
+            "QUY ĐỊNH BẮT BUỘC:\n"
+            "- 'criterion_id': Bắt buộc trả về đúng criterion_id được cung cấp.\n"
+            "- 'detected_element': Trích dẫn chính xác tên đề mục, bảng biểu hoặc nội dung tương ứng tìm thấy trong bài nộp của sinh viên.\n"
+            "- 'location': Vị trí cụ thể trong bài nộp (ví dụ: 'Tại Đề mục 1.1', 'Tại trang đầu bìa', 'Tại Bảng ở trang 2', 'Tại danh mục đề mục').\n"
+            "- 'reason': Giải thích súc tích và chi tiết bằng tiếng Việt (≤ 250 ký tự), nêu rõ đối chiếu giữa yêu cầu quy chế với thực tế bài nộp."
         )
 
         prompt = json.dumps(
             {
-                "criteria_to_review": criteria_items,
+                "criterion_to_evaluate": criterion_item,
                 "submission_facts": {
                     "cover_page_detected_fields": submission_facts.get("cover_page_fields", []),
                     "cover_sample": submission_facts.get("cover_sample", "")[:1500],
@@ -705,11 +700,6 @@ class GeminiProvider:
             ensure_ascii=False,
         )
 
-        print(
-            f"[Gemini BatchReview] Reviewing {len(criteria_items)} criteria in 1 batch call...",
-            flush=True,
-        )
-
         last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             await self._chat_rate_limiter.acquire()
@@ -720,38 +710,87 @@ class GeminiProvider:
                             model=self.settings.gemini_chat_model,
                             contents=prompt,
                             config=types.GenerateContentConfig(
-                                system_instruction=_BATCH_REVIEW_INSTRUCTION,
+                                system_instruction=_SINGLE_REVIEW_INSTRUCTION,
                                 temperature=0,
-                                max_output_tokens=4000,
+                                max_output_tokens=1000,
                                 response_mime_type="application/json",
-                                response_schema=LLMBatchReviewResponse,
+                                response_schema=LLMBatchCriterionJudgment,
                             ),
                         ),
                         timeout=self.settings.ai_request_timeout_seconds,
                     )
                 if response.parsed:
-                    batch_res = (
+                    judgment = (
                         response.parsed
-                        if isinstance(response.parsed, LLMBatchReviewResponse)
-                        else LLMBatchReviewResponse.model_validate(response.parsed)
+                        if isinstance(response.parsed, LLMBatchCriterionJudgment)
+                        else LLMBatchCriterionJudgment.model_validate(response.parsed)
                     )
                 elif response.text:
-                    batch_res = LLMBatchReviewResponse.model_validate_json(response.text)
+                    judgment = LLMBatchCriterionJudgment.model_validate_json(response.text)
                 else:
-                    raise RuntimeError("Gemini returned empty batch review")
+                    raise RuntimeError(f"Gemini returned empty response for criterion {cid}")
 
-                judgments_map = {j.criterion_id: j for j in batch_res.judgments}
-                print(f"[Gemini BatchReview] => successfully judged {len(judgments_map)} criteria in 1 single call", flush=True)
-                return judgments_map
+                judgment.criterion_id = cid
+                return judgment
             except Exception as error:
                 last_error = error
-                print(f"[Gemini BatchReview Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
+                print(f"[Gemini SingleCriterion Error] Criterion '{c_name}' Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
                 if not self._is_retryable(error) or attempt == _MAX_RETRIES:
                     break
                 delay = (_BASE_RETRY_DELAY_SECONDS ** attempt) + random.uniform(0.1, 0.4)
                 await asyncio.sleep(delay)
 
-        return {}
+        return LLMBatchCriterionJudgment(
+            criterion_id=cid,
+            verdict="AMBIGUOUS",
+            reason=f"Không thể đánh giá tự động ({type(last_error).__name__ if last_error else 'Lỗi AI'}); cần giảng viên thẩm định.",
+        )
+
+    async def judge_multiple_criteria_individually(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+        """Review each semantic checklist criterion via separate dedicated LLM calls concurrently."""
+        from app.schemas.format_checks import LLMBatchCriterionJudgment
+
+        if not criteria_items:
+            return {}
+
+        print(
+            f"[Gemini IndividualReview] Reviewing {len(criteria_items)} criteria individually in parallel...",
+            flush=True,
+        )
+
+        tasks = [
+            self.judge_single_criterion(item, submission_facts)
+            for item in criteria_items
+        ]
+        judgments = await asyncio.gather(*tasks, return_exceptions=True)
+
+        results: dict[str, LLMBatchCriterionJudgment] = {}
+        for item, j in zip(criteria_items, judgments):
+            cid = str(item.get("criterion_id", ""))
+            if isinstance(j, Exception):
+                print(f"[Gemini IndividualReview Error] Criterion {cid}: {j}", flush=True)
+                results[cid] = LLMBatchCriterionJudgment(
+                    criterion_id=cid,
+                    verdict="AMBIGUOUS",
+                    reason=f"Lỗi khi đánh giá riêng tiêu chí ({type(j).__name__}); chuyển giảng viên xem xét.",
+                )
+            elif j and hasattr(j, "criterion_id"):
+                results[cid] = j
+
+        print(f"[Gemini IndividualReview] => successfully judged {len(results)}/{len(criteria_items)} criteria individually", flush=True)
+        return results
+
+    async def batch_judge_submission_criteria(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+        """Delegates to per-criterion dedicated individual evaluations."""
+        return await self.judge_multiple_criteria_individually(criteria_items, submission_facts)
 
     async def health(self) -> AIHealth:
         try:

@@ -53,6 +53,18 @@ class AIProvider(Protocol):
         cover_text: str,
     ) -> LLMSubmissionContentFacts: ...
 
+    async def judge_single_criterion(
+        self,
+        criterion_item: dict[str, Any],
+        submission_facts: dict[str, Any],
+    ) -> LLMBatchCriterionJudgment: ...
+
+    async def judge_multiple_criteria_individually(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, LLMBatchCriterionJudgment]: ...
+
     async def batch_judge_submission_criteria(
         self,
         criteria_items: list[dict[str, Any]],

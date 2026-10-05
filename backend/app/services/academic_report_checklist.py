@@ -544,7 +544,7 @@ async def evaluate_academic_checklist(
     regulation_30 = build_regulation_30_criteria(criteria)
     submission_30 = build_submission_30_facts(structure)
 
-    # 1. Prepare semantic criteria for 1 single batch review call
+    # 1. Prepare semantic criteria for separate, dedicated per-criterion LLM evaluation
     semantic_criteria_items: list[dict[str, Any]] = []
     for c in criteria:
         if getattr(c, "review_only", False) or not getattr(c, "automatable", True):
@@ -563,12 +563,18 @@ async def evaluate_academic_checklist(
     batch_judgments: dict[str, Any] = {}
     if semantic_criteria_items and ai_provider is not None:
         try:
-            batch_judgments = await ai_provider.batch_judge_submission_criteria(
-                criteria_items=semantic_criteria_items,
-                submission_facts=structure,
-            )
+            if hasattr(ai_provider, "judge_multiple_criteria_individually"):
+                batch_judgments = await ai_provider.judge_multiple_criteria_individually(
+                    criteria_items=semantic_criteria_items,
+                    submission_facts=structure,
+                )
+            else:
+                batch_judgments = await ai_provider.batch_judge_submission_criteria(
+                    criteria_items=semantic_criteria_items,
+                    submission_facts=structure,
+                )
         except Exception as e:
-            print(f"[AcademicChecklist] Batch LLM review fallback: {e}", flush=True)
+            print(f"[AcademicChecklist] Dedicated LLM review fallback: {e}", flush=True)
 
     # 2. Evaluate Individual Criteria
     for criterion in criteria:
