@@ -34,7 +34,7 @@ Tài liệu này quy định chi tiết về quy cách trình bày (hình thức
 
 ## 3. Quy định về Dung lượng và Định dạng Tệp nộp
 
-- **Dung lượng trang**: Báo cáo có độ dài tối thiểu từ 20 trang và tối đa không quá 50 trang (không tính phần phụ lục nếu có).
+- **Dung lượng trang**: Báo cáo có độ dài tối thiểu từ 10 trang và tối đa không quá 50 trang (không tính phần phụ lục nếu có).
 - **Định dạng tệp (File Format)**: Bắt buộc nộp tệp định dạng **.docx** (Microsoft Word) hoặc **.pdf** được xuất trực tiếp từ phần mềm soạn thảo (không chấp nhận file scan dạng ảnh).
 
 ---
