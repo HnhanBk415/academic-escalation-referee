@@ -754,6 +754,13 @@ async def check_format(
             overall_status=FormatCheckOverallStatus.UNABLE_TO_CHECK,
             message="Chưa có bộ tiêu chí hình thức được giảng viên duyệt cho học phần này.",
         )
+    criteria = (
+        await session.scalars(
+            select(FormatCriterion)
+            .where(FormatCriterion.criteria_set_id == active.id)
+            .order_by(FormatCriterion.position)
+        )
+    ).all()
     usable = [
         item for item in criteria
         if not item.review_only and (item.automatable or _criterion_is_automatable(item) or str(item.rule_type) in ("PRESENCE", "TEMPLATE"))

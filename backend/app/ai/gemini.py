@@ -504,7 +504,7 @@ class GeminiProvider:
 
         prompt = json.dumps(
             {
-                "regulation_document_text": regulation_text[:12000],
+                "regulation_document_text": regulation_text[:40000],
                 "allow_semantic_equivalent": allow_semantic_equivalent,
             },
             ensure_ascii=False,
@@ -684,22 +684,24 @@ class GeminiProvider:
 
         prompt = json.dumps(
             {
-                "criterion_to_evaluate": criterion_item,
-                "submission_facts": {
-                    "cover_page_detected_fields": submission_facts.get("cover_page_fields", []),
-                    "cover_sample": submission_facts.get("cover_sample", "")[:1500],
-                    "full_text_excerpt": submission_facts.get("full_text_sample", "")[:6000],
+                "criterion_to_evaluate": {
+                    "criterion_id": cid,
+                    "name": c_name,
+                    "requirement_text": criterion_item.get("requirement_text") or (criterion_item.get("expected_value", {}) or {}).get("requirement_text") or c_name,
+                    "rule_type": criterion_item.get("rule_type", "TEMPLATE"),
+                    "source_citation": criterion_item.get("source_citation", ""),
+                },
+                "student_submission": {
+                    "filename": submission_facts.get("filename", ""),
+                    "full_report_text": submission_facts.get("full_text_sample", "")[:35000],
+                    "cover_page_text": submission_facts.get("cover_sample", "")[:2000],
                     "headings": submission_facts.get("headings", []),
                     "has_member_contribution_table": submission_facts.get("has_member_contribution_table", False),
                     "member_table_columns": submission_facts.get("member_table_columns", []),
                     "has_table_of_contents": submission_facts.get("has_table_of_contents", False),
-                    "has_list_of_figures": submission_facts.get("has_list_of_figures", False),
-                    "has_list_of_tables": submission_facts.get("has_list_of_tables", False),
                     "has_references_section": submission_facts.get("has_references_section", False),
-                    "references_style": submission_facts.get("references_style"),
-                    "table_captions": submission_facts.get("table_captions", [])[:10],
-                    "figure_captions": submission_facts.get("figure_captions", [])[:10],
-                    "filename": submission_facts.get("filename", ""),
+                    "table_captions": submission_facts.get("table_captions", [])[:15],
+                    "figure_captions": submission_facts.get("figure_captions", [])[:15],
                 },
             },
             ensure_ascii=False,

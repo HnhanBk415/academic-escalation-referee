@@ -363,8 +363,8 @@ async def extract_report_facts(
             "has_references_section": ai_facts.has_references_section,
             "references_style": ai_facts.references_style,
             "cover_page_fields": ai_facts.cover_page_detected_fields,
-            "cover_sample": cover_text[:1200],
-            "full_text_sample": all_text[:15000],
+            "cover_sample": cover_text[:2000],
+            "full_text_sample": all_text[:40000],
             "max_consecutive_empty_paras": max_empty_streak,
             "consecutive_spaces_count": consecutive_spaces_count,
             "filename": filename,
@@ -444,8 +444,8 @@ async def extract_report_facts(
             "has_references_section": ai_facts.has_references_section,
             "references_style": ai_facts.references_style,
             "cover_page_fields": ai_facts.cover_page_detected_fields,
-            "cover_sample": cover_text[:1200],
-            "full_text_sample": all_text[:15000],
+            "cover_sample": cover_text[:2000],
+            "full_text_sample": all_text[:40000],
             "max_consecutive_empty_paras": 0,
             "consecutive_spaces_count": 0,
             "filename": filename,
@@ -568,21 +568,24 @@ async def evaluate_academic_checklist(
        - Clear violation -> FAIL.
     """
     results: list[FormatCriterionResult] = []
-    regulation_30 = build_regulation_30_criteria(criteria)
-    submission_30 = build_submission_30_facts(structure)
 
-    # 1. Prepare semantic criteria for separate, dedicated per-criterion LLM evaluation
+    # 1. Prepare criteria for dedicated per-criterion LLM evaluation
+    # Only MEASUREMENT is computed by code. ALL other criteria are sent directly to LLM.
     semantic_criteria_items: list[dict[str, Any]] = []
     for c in criteria:
         c_rule_type = c.rule_type.value if hasattr(c.rule_type, "value") else str(c.rule_type)
         if getattr(c, "review_only", False):
             continue
-        if c.rule_type in (FormatCriterionRuleType.PRESENCE, FormatCriterionRuleType.TEMPLATE) or c_rule_type in ("PRESENCE", "TEMPLATE"):
+        # All non-MEASUREMENT criteria (Presence, Template, Structure, Content, etc.) go to LLM
+        if c.rule_type != FormatCriterionRuleType.MEASUREMENT and c_rule_type != "MEASUREMENT":
+            exp = getattr(c, "expected_value", {}) or {}
+            req_text = exp.get("requirement_text") or getattr(c, "description", "") or getattr(c, "name", "")
             semantic_criteria_items.append({
                 "criterion_id": str(getattr(c, "id", "")),
                 "name": str(getattr(c, "name", "")),
                 "rule_type": c_rule_type,
-                "expected_value": getattr(c, "expected_value", {}) or {},
+                "requirement_text": req_text,
+                "expected_value": exp,
                 "source_citation": getattr(c, "source_citation", "") or "",
             })
 
@@ -753,8 +756,8 @@ async def evaluate_academic_checklist(
                         )
                     )
 
-        # B. PRESENCE RULES (Checked from single batch judgment or fallback)
-        elif criterion.rule_type == FormatCriterionRuleType.PRESENCE or c_rule_type_val == "PRESENCE":
+        # B. ALL OTHER CRITERIA (Evaluated by LLM from checklist requirement text + report text)
+        else:
             if cid_str in batch_judgments:
                 bj = batch_judgments[cid_str]
                 v_map = {
@@ -763,6 +766,7 @@ async def evaluate_academic_checklist(
                     "AMBIGUOUS": FormatCriterionResultStatus.AMBIGUOUS,
                     "MISSING_STUDENT_INPUT": FormatCriterionResultStatus.FAIL,
                 }
+                detected_val = bj.detected_element if getattr(bj, "detected_element", None) else structure.get("headings", [])[:6]
                 results.append(
                     FormatCriterionResult(
                         criterion_id=criterion.id,
@@ -770,7 +774,7 @@ async def evaluate_academic_checklist(
                         status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
                         message=bj.reason,
                         expected_value=expected,
-                        actual_value={"detected": bj.detected_element, "location": getattr(bj, "location", "Tại bài nộp")},
+                        actual_value={"detected": detected_val, "location": getattr(bj, "location", "Tại bài nộp")},
                         source_citation=criterion.source_citation,
                     )
                 )
@@ -829,29 +833,6 @@ async def evaluate_academic_checklist(
                         message=msg,
                         expected_value=expected,
                         actual_value={"headings": actual_headings[:6], "location": "Tại đề mục bài nộp"},
-                        source_citation=criterion.source_citation,
-                    )
-                )
-
-        # C. TEMPLATE RULES (Granular Chapters & Sections from single batch judgment)
-        elif criterion.rule_type == FormatCriterionRuleType.TEMPLATE or c_rule_type_val == "TEMPLATE":
-            if cid_str in batch_judgments:
-                bj = batch_judgments[cid_str]
-                v_map = {
-                    "PASS": FormatCriterionResultStatus.PASS,
-                    "FAIL": FormatCriterionResultStatus.FAIL,
-                    "AMBIGUOUS": FormatCriterionResultStatus.AMBIGUOUS,
-                    "MISSING_STUDENT_INPUT": FormatCriterionResultStatus.FAIL,
-                }
-                detected_val = bj.detected_element if getattr(bj, "detected_element", None) else structure.get("headings", [])[:6]
-                results.append(
-                    FormatCriterionResult(
-                        criterion_id=criterion.id,
-                        name=criterion.name,
-                        status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
-                        message=bj.reason,
-                        expected_value=expected,
-                        actual_value={"detected": detected_val, "location": getattr(bj, "location", "Tại đề mục bài nộp")},
                         source_citation=criterion.source_citation,
                     )
                 )
