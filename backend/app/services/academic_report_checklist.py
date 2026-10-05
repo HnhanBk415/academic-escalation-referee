@@ -313,8 +313,8 @@ async def extract_report_facts(
         if ai_provider is not None:
             try:
                 ai_facts = await ai_provider.extract_submission_content_facts(
-                    full_text=all_text[:12000],
-                    cover_text=cover_text[:2500],
+                    full_text=all_text[:60000],
+                    cover_text=cover_text[:3500],
                 )
             except Exception as e:
                 print(f"[AcademicChecklist] AI submission extraction fallback: {e}", flush=True)
@@ -388,8 +388,8 @@ async def extract_report_facts(
         if ai_provider is not None:
             try:
                 ai_facts = await ai_provider.extract_submission_content_facts(
-                    full_text=all_text[:12000],
-                    cover_text=cover_text[:2500],
+                    full_text=all_text[:60000],
+                    cover_text=cover_text[:3500],
                 )
             except Exception as e:
                 print(f"[AcademicChecklist] AI PDF submission extraction fallback: {e}", flush=True)

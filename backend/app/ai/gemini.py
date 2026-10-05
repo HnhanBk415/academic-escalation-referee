@@ -583,10 +583,15 @@ class GeminiProvider:
 
         _SUBMISSION_INSTRUCTION = (
             "Bạn là chuyên gia phân tích và trích xuất cấu trúc văn bản báo cáo học thuật / đồ án sinh viên. "
-            "Nhiệm vụ: Đọc toàn bộ nội dung bài nộp (bao gồm trang đầu/trang bìa, mục lục, các chương mục và tài liệu tham khảo) "
+            "Nhiệm vụ: Đọc toàn bộ nội dung bài nộp (bao gồm trang đầu/trang bìa, mục lục, khung cấu trúc template, các chương mục và tài liệu tham khảo) "
             "và trích xuất dữ liệu thực tế thành đối tượng có cấu trúc:\n"
             "1. cover_page_detected_fields: Danh sách các trường thông tin có mặt trên trang bìa (ví dụ: 'tên trường', 'tên khoa', 'tên đề tài', 'giảng viên hướng dẫn', 'sinh viên thực hiện', 'mssv', 'năm thực hiện'...). Chỉ điền những trường thực sự xuất hiện.\n"
-            "2. headings: Danh sách tất cả các tiêu đề chương (cấp 1) và tiêu đề mục con (cấp 2, cấp 3...) xuất hiện trong bài nộp theo đúng thứ tự.\n"
+            "2. headings: Danh sách toàn bộ các đề mục và khung cấu trúc đề cương/template của bài nộp theo đúng thứ tự xuất hiện, bao gồm:\n"
+            "   - Các phần mở đầu: Lời cảm ơn, Lời cam đoan, Tóm tắt/Abstract, Danh mục từ viết tắt, Danh mục hình/bảng...\n"
+            "   - Toàn bộ các tiêu đề chương cấp 1 (ví dụ: 'Mở đầu', 'Chương 1: Tổng quan...', 'Chương 2: Thiết kế...', 'Chương 3: Thực nghiệm...', 'Chương 4: Kết luận'...). Giữ nguyên tiền tố 'Chương X' và tên chương.\n"
+            "   - Các tiêu đề mục con cấp 2 (ví dụ: '1.1 Tổng quan...', '1.2 Mục tiêu...'), cấp 3 (ví dụ: '1.1.1 ...').\n"
+            "   - Các phần kết thúc: Kết luận, Đánh giá kết quả, Hướng phát triển, Tài liệu tham khảo, Phụ lục.\n"
+            "   - LƯU Ý ĐẶC BIỆT: Trích xuất cả từ bảng Mục lục (Table of Contents) và các tiêu đề phân đoạn trong toàn bộ thân bài để không bỏ sót bất kỳ chương mục nào của template.\n"
             "3. has_member_contribution_table: True nếu bài có Bảng phân công đóng góp thành viên hoặc Lời cam đoan; member_table_columns: danh sách tên các cột trong bảng đó (ví dụ 'STT', 'Họ và tên', 'MSSV', 'Nhiệm vụ', 'Tỷ lệ đóng góp'...). Nếu không có thì False và danh sách rỗng.\n"
             "4. has_table_of_contents: True nếu có phần Mục lục.\n"
             "5. has_list_of_figures: True nếu có phần Danh mục hình ảnh/đồ thị.\n"
@@ -594,13 +599,13 @@ class GeminiProvider:
             "7. has_references_section: True nếu có phần Tài liệu tham khảo; references_style: 'IEEE', 'APA' hoặc 'OTHER' nếu nhận diện được dạng trích dẫn.\n"
             "8. table_captions: Danh sách các tên / tiêu đề / chú thích của các bảng biểu xuất hiện trong văn bản.\n"
             "9. figure_captions: Danh sách các tên / tiêu đề / chú thích của các hình ảnh / biểu đồ xuất hiện trong văn bản.\n"
-            "QUY TẮC: Chỉ trích xuất những gì thực sự có trong văn bản nộp, không tự suy diễn hoặc bịa đặt."
+            "QUY TẮC: Trích xuất đầy đủ, trung thực, chính xác theo đúng nội dung và thứ tự thực tế trong bài nộp, không bỏ sót các chương mục của template và không tự suy diễn hoặc bịa đặt."
         )
 
         prompt = json.dumps(
             {
-                "cover_page_text": cover_text[:2500],
-                "submission_text_excerpt": full_text[:12000],
+                "cover_page_text": cover_text[:3000],
+                "submission_text_excerpt": full_text[:45000],
             },
             ensure_ascii=False,
         )

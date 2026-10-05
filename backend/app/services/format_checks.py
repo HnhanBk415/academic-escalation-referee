@@ -875,3 +875,5 @@ async def format_metrics(session: AsyncSession, course_id: str, lecturer_id: str
     await _validate_course_lecturer(session, course_id, lecturer_id)
     items = (await session.scalars(select(FormatCheckMetric).where(FormatCheckMetric.course_id == course_id).order_by(FormatCheckMetric.metric_date.desc()).limit(31))).all()
     return [FormatMetricResponse.model_validate(item, from_attributes=True) for item in items]
+    items = (await session.scalars(select(FormatCheckMetric).where(FormatCheckMetric.course_id == course_id).order_by(FormatCheckMetric.metric_date.desc()).limit(31))).all()
+    return [FormatMetricResponse.model_validate(item, from_attributes=True) for item in items]

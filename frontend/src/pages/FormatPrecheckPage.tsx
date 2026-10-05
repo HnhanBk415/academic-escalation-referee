@@ -32,10 +32,10 @@ export function ResultBadge({ status }: { status: string }) {
     status === "PASS" || status === "ACCEPTED"
       ? "bg-emerald-50 text-emerald-800 border-emerald-300 ring-1 ring-emerald-400/30"
       : status === "FAIL" || status === "NEEDS_FIX" || status === "REQUIRES_FIX" || status === "MISSING_STUDENT_INPUT"
-      ? "bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-400/30"
-      : status === "NOT_SPECIFIED" || status === "UNMEASURABLE"
-      ? "bg-slate-100 text-slate-600 border-slate-300"
-      : "bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-400/30";
+        ? "bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-400/30"
+        : status === "NOT_SPECIFIED" || status === "UNMEASURABLE"
+          ? "bg-slate-100 text-slate-600 border-slate-300"
+          : "bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-400/30";
 
   const config: Record<string, { label: string; icon: string }> = {
     PASS: { label: "ĐÚNG (Đạt chuẩn)", icon: "✅" },
@@ -197,11 +197,10 @@ export function SubmittedReportFactsModal({
             <button
               type="button"
               onClick={() => setTab("audit")}
-              className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                tab === "audit"
+              className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "audit"
                   ? "border-red-700 text-red-700 font-bold"
                   : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               <span>🎯 Đối chiếu ĐÚNG / SAI / MƠ HỒ</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
@@ -212,44 +211,40 @@ export function SubmittedReportFactsModal({
           <button
             type="button"
             onClick={() => setTab("overview")}
-            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              tab === "overview"
+            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "overview"
                 ? "border-red-700 text-red-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <span>📊 Thông số kỹ thuật &amp; Trang bìa</span>
           </button>
           <button
             type="button"
             onClick={() => setTab("headings")}
-            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              tab === "headings"
+            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "headings"
                 ? "border-red-700 text-red-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <span>📑 Cấu trúc đề mục ({headings.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setTab("tables")}
-            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              tab === "tables"
+            className={`py-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${tab === "tables"
                 ? "border-red-700 text-red-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <span>📚 Bảng, Hình &amp; Tài liệu tham khảo</span>
           </button>
           <button
             type="button"
             onClick={() => setTab("raw")}
-            className={`py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              tab === "raw"
+            className={`py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${tab === "raw"
                 ? "border-red-700 text-red-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <span>🔍 JSON Thô</span>
           </button>
@@ -265,11 +260,10 @@ export function SubmittedReportFactsModal({
                 <button
                   type="button"
                   onClick={() => setAuditFilter("ALL")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    auditFilter === "ALL"
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "ALL"
                       ? "bg-slate-900 text-white border-slate-900 ring-2 ring-slate-900/30 shadow-xs"
                       : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                  }`}
+                    }`}
                 >
                   <p className="text-[11px] font-semibold opacity-80">Tất cả mục</p>
                   <p className="text-xl font-extrabold mt-0.5">{stats.total}</p>
@@ -279,11 +273,10 @@ export function SubmittedReportFactsModal({
                 <button
                   type="button"
                   onClick={() => setAuditFilter("PASS")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    auditFilter === "PASS"
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "PASS"
                       ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs"
                       : "bg-emerald-50/60 border-emerald-200 text-emerald-900 hover:bg-emerald-100/60"
-                  }`}
+                    }`}
                 >
                   <p className="text-[11px] font-bold flex items-center gap-1">
                     <span>✅</span>
@@ -296,11 +289,10 @@ export function SubmittedReportFactsModal({
                 <button
                   type="button"
                   onClick={() => setAuditFilter("FAIL")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    auditFilter === "FAIL"
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "FAIL"
                       ? "bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/30 shadow-xs"
                       : "bg-rose-50/60 border-rose-200 text-rose-900 hover:bg-rose-100/60"
-                  }`}
+                    }`}
                 >
                   <p className="text-[11px] font-bold flex items-center gap-1">
                     <span>❌</span>
@@ -313,11 +305,10 @@ export function SubmittedReportFactsModal({
                 <button
                   type="button"
                   onClick={() => setAuditFilter("AMBIGUOUS")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    auditFilter === "AMBIGUOUS"
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "AMBIGUOUS"
                       ? "bg-amber-500 text-white border-amber-500 ring-2 ring-amber-400/30 shadow-xs"
                       : "bg-amber-50/60 border-amber-200 text-amber-900 hover:bg-amber-100/60"
-                  }`}
+                    }`}
                 >
                   <p className="text-[11px] font-bold flex items-center gap-1">
                     <span>⚠️</span>
@@ -330,11 +321,10 @@ export function SubmittedReportFactsModal({
                 <button
                   type="button"
                   onClick={() => setAuditFilter("NOT_SPECIFIED")}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    auditFilter === "NOT_SPECIFIED"
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${auditFilter === "NOT_SPECIFIED"
                       ? "bg-slate-600 text-white border-slate-600 ring-2 ring-slate-500/30 shadow-xs"
                       : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                  }`}
+                    }`}
                 >
                   <p className="text-[11px] font-semibold flex items-center gap-1">
                     <span>⚪</span>
@@ -411,15 +401,14 @@ export function SubmittedReportFactsModal({
                         return (
                           <tr
                             key={row.index}
-                            className={`transition-colors ${
-                              isPass
+                            className={`transition-colors ${isPass
                                 ? "bg-emerald-50/20 hover:bg-emerald-50/40"
                                 : isFail
-                                ? "bg-rose-50/30 hover:bg-rose-50/50"
-                                : isAmbiguous
-                                ? "bg-amber-50/30 hover:bg-amber-50/50"
-                                : "bg-slate-50/40 hover:bg-slate-50 opacity-70"
-                            }`}
+                                  ? "bg-rose-50/30 hover:bg-rose-50/50"
+                                  : isAmbiguous
+                                    ? "bg-amber-50/30 hover:bg-amber-50/50"
+                                    : "bg-slate-50/40 hover:bg-slate-50 opacity-70"
+                              }`}
                           >
                             <td className="p-3 text-center font-bold text-slate-600">{row.index}</td>
                             <td className="p-3">
@@ -649,11 +638,10 @@ export function SubmittedReportFactsModal({
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-slate-900">Bảng phân công đóng góp thành viên:</h4>
                   <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
-                      facts.has_member_contribution_table
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded border ${facts.has_member_contribution_table
                         ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                         : "bg-rose-50 text-rose-800 border-rose-200"
-                    }`}
+                      }`}
                   >
                     {facts.has_member_contribution_table ? "✅ Đã tìm thấy" : "❌ Chưa có"}
                   </span>
@@ -764,28 +752,26 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
 
   return (
     <article
-      className={`border rounded-2xl p-5 space-y-3.5 transition-all shadow-xs ${
-        isPass
+      className={`border rounded-2xl p-5 space-y-3.5 transition-all shadow-xs ${isPass
           ? "bg-white border-emerald-200/80 hover:border-emerald-300"
           : isFail
-          ? "bg-rose-50/20 border-rose-200 hover:border-rose-300"
-          : isAmbiguous
-          ? "bg-amber-50/20 border-amber-200 hover:border-amber-300"
-          : "bg-white border-slate-200"
-      }`}
+            ? "bg-rose-50/20 border-rose-200 hover:border-rose-300"
+            : isAmbiguous
+              ? "bg-amber-50/20 border-amber-200 hover:border-amber-300"
+              : "bg-white border-slate-200"
+        }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-100">
         <div className="flex items-center gap-2">
           <span
-            className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
-              isPass
+            className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${isPass
                 ? "bg-emerald-100 text-emerald-800"
                 : isFail
-                ? "bg-rose-100 text-rose-800"
-                : isAmbiguous
-                ? "bg-amber-100 text-amber-800"
-                : "bg-slate-100 text-slate-700"
-            }`}
+                  ? "bg-rose-100 text-rose-800"
+                  : isAmbiguous
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-slate-100 text-slate-700"
+              }`}
           >
             {isPass ? "✓" : isFail ? "✕" : isAmbiguous ? "!" : "•"}
           </span>
@@ -809,15 +795,14 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
 
         {/* Thực tế bài nộp */}
         <div
-          className={`p-3 border rounded-xl space-y-1.5 ${
-            isPass
+          className={`p-3 border rounded-xl space-y-1.5 ${isPass
               ? "bg-emerald-50/50 border-emerald-200 text-emerald-950"
               : isFail
-              ? "bg-rose-50/50 border-rose-200 text-rose-950"
-              : isAmbiguous
-              ? "bg-amber-50/50 border-amber-200 text-amber-950"
-              : "bg-slate-50 border-slate-200 text-slate-950"
-          }`}
+                ? "bg-rose-50/50 border-rose-200 text-rose-950"
+                : isAmbiguous
+                  ? "bg-amber-50/50 border-amber-200 text-amber-950"
+                  : "bg-slate-50 border-slate-200 text-slate-950"
+            }`}
         >
           <p className="font-bold flex items-center gap-1.5">
             <span>📄</span>
@@ -831,15 +816,14 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
 
       {/* Kết luận & Gợi ý xử lý */}
       <div
-        className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${
-          isPass
+        className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${isPass
             ? "bg-emerald-50 border-emerald-200 text-emerald-900"
             : isFail
-            ? "bg-rose-50 border-rose-200 text-rose-900"
-            : isAmbiguous
-            ? "bg-amber-50 border-amber-200 text-amber-900"
-            : "bg-slate-50 border-slate-200 text-slate-800"
-        }`}
+              ? "bg-rose-50 border-rose-200 text-rose-900"
+              : isAmbiguous
+                ? "bg-amber-50 border-amber-200 text-amber-900"
+                : "bg-slate-50 border-slate-200 text-slate-800"
+          }`}
       >
         <span className="text-base flex-shrink-0 mt-0.5">
           {isPass ? "🟢" : isFail ? "🔴" : isAmbiguous ? "🟡" : "⚪"}
@@ -849,10 +833,10 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
             {isPass
               ? "ĐÚNG (Đạt chuẩn): "
               : isFail
-              ? "SAI (Chưa đạt): "
-              : isAmbiguous
-              ? "MƠ HỒ (Cần xác nhận): "
-              : "KẾT QUẢ: "}
+                ? "SAI (Chưa đạt): "
+                : isAmbiguous
+                  ? "MƠ HỒ (Cần xác nhận): "
+                  : "KẾT QUẢ: "}
             <span className="font-normal">{item.message}</span>
           </p>
           {isFail && (
@@ -972,11 +956,10 @@ export function CheckResult({
         <button
           type="button"
           onClick={() => setFilterStatus("ALL")}
-          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-            filterStatus === "ALL"
+          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${filterStatus === "ALL"
               ? "bg-slate-900 text-white border-slate-900 ring-2 ring-slate-900/30 shadow-xs"
               : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-          }`}
+            }`}
         >
           <p className="text-[11px] font-semibold opacity-80">Tất cả mục</p>
           <p className="text-xl font-extrabold mt-0.5">{counts.total}</p>
@@ -986,11 +969,10 @@ export function CheckResult({
         <button
           type="button"
           onClick={() => setFilterStatus("PASS")}
-          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-            filterStatus === "PASS"
+          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${filterStatus === "PASS"
               ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs"
               : "bg-emerald-50/60 border-emerald-200 text-emerald-900 hover:bg-emerald-100/60"
-          }`}
+            }`}
         >
           <p className="text-[11px] font-bold flex items-center gap-1">
             <span>✅</span>
@@ -1003,11 +985,10 @@ export function CheckResult({
         <button
           type="button"
           onClick={() => setFilterStatus("FAIL")}
-          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-            filterStatus === "FAIL"
+          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${filterStatus === "FAIL"
               ? "bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/30 shadow-xs"
               : "bg-rose-50/60 border-rose-200 text-rose-900 hover:bg-rose-100/60"
-          }`}
+            }`}
         >
           <p className="text-[11px] font-bold flex items-center gap-1">
             <span>❌</span>
@@ -1020,11 +1001,10 @@ export function CheckResult({
         <button
           type="button"
           onClick={() => setFilterStatus("AMBIGUOUS")}
-          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-            filterStatus === "AMBIGUOUS"
+          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${filterStatus === "AMBIGUOUS"
               ? "bg-amber-500 text-white border-amber-500 ring-2 ring-amber-400/30 shadow-xs"
               : "bg-amber-50/60 border-amber-200 text-amber-900 hover:bg-amber-100/60"
-          }`}
+            }`}
         >
           <p className="text-[11px] font-bold flex items-center gap-1">
             <span>⚠️</span>
@@ -1037,11 +1017,10 @@ export function CheckResult({
         <button
           type="button"
           onClick={() => setFilterStatus("NOT_SPECIFIED")}
-          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-            filterStatus === "NOT_SPECIFIED"
+          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${filterStatus === "NOT_SPECIFIED"
               ? "bg-slate-600 text-white border-slate-600 ring-2 ring-slate-500/30 shadow-xs"
               : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-          }`}
+            }`}
         >
           <p className="text-[11px] font-semibold flex items-center gap-1">
             <span>⚪</span>
@@ -1057,11 +1036,10 @@ export function CheckResult({
         <button
           type="button"
           onClick={() => setActiveTab("summary")}
-          className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "summary"
+          className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${activeTab === "summary"
               ? "border-red-700 text-red-700 font-bold"
               : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
+            }`}
         >
           <span>📋 Bảng tổng hợp tiêu chuẩn</span>
           <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">
@@ -1071,11 +1049,10 @@ export function CheckResult({
         <button
           type="button"
           onClick={() => setActiveTab("criteria")}
-          className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "criteria"
+          className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${activeTab === "criteria"
               ? "border-red-700 text-red-700 font-bold"
               : "border-transparent text-slate-500 hover:text-slate-800"
-          }`}
+            }`}
         >
           <span>🔍 Chi tiết tiêu chí áp dụng ({filteredCriteria.length})</span>
         </button>
@@ -1109,15 +1086,14 @@ export function CheckResult({
                     return (
                       <tr
                         key={row.index}
-                        className={`transition-colors ${
-                          isPass
+                        className={`transition-colors ${isPass
                             ? "bg-emerald-50/20 hover:bg-emerald-50/40"
                             : isFail
-                            ? "bg-rose-50/30 hover:bg-rose-50/50"
-                            : isAmbiguous
-                            ? "bg-amber-50/30 hover:bg-amber-50/50"
-                            : "bg-slate-50/40 hover:bg-slate-50 opacity-70"
-                        }`}
+                              ? "bg-rose-50/30 hover:bg-rose-50/50"
+                              : isAmbiguous
+                                ? "bg-amber-50/30 hover:bg-amber-50/50"
+                                : "bg-slate-50/40 hover:bg-slate-50 opacity-70"
+                          }`}
                       >
                         <td className="p-3 text-center font-bold text-slate-600">{row.index}</td>
                         <td className="p-3">
@@ -1341,13 +1317,12 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
                 return (
                   <article
                     key={review.id}
-                    className={`border rounded-xl p-4 space-y-3.5 transition-all shadow-2xs ${
-                      isAccepted
+                    className={`border rounded-xl p-4 space-y-3.5 transition-all shadow-2xs ${isAccepted
                         ? "bg-emerald-50/20 border-emerald-200"
                         : isFix
-                        ? "bg-rose-50/20 border-rose-200"
-                        : "bg-amber-50/20 border-amber-200"
-                    }`}
+                          ? "bg-rose-50/20 border-rose-200"
+                          : "bg-amber-50/20 border-amber-200"
+                      }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="space-y-1">
@@ -1372,11 +1347,10 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
                     {/* Phản hồi nhận xét của Giảng viên */}
                     {review.decision_reason && (
                       <div
-                        className={`p-3 rounded-xl border text-xs ${
-                          isAccepted
+                        className={`p-3 rounded-xl border text-xs ${isAccepted
                             ? "bg-emerald-50 border-emerald-200 text-emerald-950"
                             : "bg-rose-50 border-rose-200 text-rose-950"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-1.5 font-bold mb-0.5">
                           <span>{isAccepted ? "✅" : "❌"}</span>
@@ -1792,11 +1766,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                   return (
                     <label
                       key={doc.id}
-                      className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition-all flex items-center gap-2 ${
-                        isChecked
+                      className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition-all flex items-center gap-2 ${isChecked
                           ? "bg-red-50 border-red-300 text-red-900 font-semibold"
                           : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                      }`}
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -1840,11 +1813,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                      allowSemanticEquivalent
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${allowSemanticEquivalent
                         ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                         : "bg-slate-100 text-slate-700 border-slate-300"
-                    }`}
+                      }`}
                   >
                     {allowSemanticEquivalent ? "Linh hoạt ngữ nghĩa: BẬT" : "Khớp 100% từng chữ: BẬT"}
                   </span>
@@ -1928,22 +1900,20 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
-                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-                  viewMode === "table"
+                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${viewMode === "table"
                     ? "border-red-700 text-red-700 font-bold"
                     : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 <span>📋 Bảng tổng quan ({editableCriteria.length})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("cards")}
-                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-                  viewMode === "cards"
+                className={`pb-2 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${viewMode === "cards"
                     ? "border-red-700 text-red-700 font-bold"
                     : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 <span>✏️ Soạn thảo chi tiết ({editableCriteria.length})</span>
               </button>
@@ -1967,44 +1937,40 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
             <button
               type="button"
               onClick={() => setRuleFilter("ALL")}
-              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${
-                ruleFilter === "ALL"
+              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${ruleFilter === "ALL"
                   ? "bg-slate-800 text-white border-slate-800 shadow-2xs"
                   : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-              }`}
+                }`}
             >
               Tất cả ({counts.total})
             </button>
             <button
               type="button"
               onClick={() => setRuleFilter("MEASUREMENT")}
-              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${
-                ruleFilter === "MEASUREMENT"
+              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${ruleFilter === "MEASUREMENT"
                   ? "bg-sky-700 text-white border-sky-700 shadow-2xs"
                   : "bg-sky-50 text-sky-900 border-sky-200 hover:bg-sky-100"
-              }`}
+                }`}
             >
               📏 Đo lường ({counts.meas})
             </button>
             <button
               type="button"
               onClick={() => setRuleFilter("TEMPLATE")}
-              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${
-                ruleFilter === "TEMPLATE"
+              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${ruleFilter === "TEMPLATE"
                   ? "bg-purple-700 text-white border-purple-700 shadow-2xs"
                   : "bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100"
-              }`}
+                }`}
             >
               📑 Khung đề mục ({counts.tmpl})
             </button>
             <button
               type="button"
               onClick={() => setRuleFilter("PRESENCE")}
-              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${
-                ruleFilter === "PRESENCE"
+              className={`px-3 py-1 rounded-lg border transition-all cursor-pointer ${ruleFilter === "PRESENCE"
                   ? "bg-amber-700 text-white border-amber-700 shadow-2xs"
                   : "bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100"
-              }`}
+                }`}
             >
               📚 Thành phần ({counts.pres})
             </button>
@@ -2039,9 +2005,8 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                         return (
                           <tr
                             key={originalIndex}
-                            className={`hover:bg-slate-50/80 transition-colors ${
-                              isExpanded ? "bg-red-50/20" : "bg-white"
-                            }`}
+                            className={`hover:bg-slate-50/80 transition-colors ${isExpanded ? "bg-red-50/20" : "bg-white"
+                              }`}
                           >
                             <td className="p-3 text-center font-bold text-slate-500">{displayIdx + 1}</td>
                             <td className="p-3">
@@ -2136,11 +2101,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                     return (
                       <div
                         key={originalIndex}
-                        className={`border rounded-2xl transition-all p-4 shadow-xs space-y-3 ${
-                          isExpanded
+                        className={`border rounded-2xl transition-all p-4 shadow-xs space-y-3 ${isExpanded
                             ? "bg-white border-slate-300 ring-2 ring-slate-200/60"
                             : "bg-white border-slate-200/90 hover:border-slate-300"
-                        }`}
+                          }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2 flex-1 min-w-64">
@@ -2169,11 +2133,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                             <button
                               type="button"
                               onClick={() => setExpandedIndex(isExpanded ? null : originalIndex)}
-                              className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                                isExpanded
+                              className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${isExpanded
                                   ? "bg-slate-800 text-white"
                                   : "text-slate-700 bg-slate-100 hover:bg-slate-200"
-                              }`}
+                                }`}
                             >
                               {isExpanded ? "Thu gọn ▴" : "Chỉnh sửa ▾"}
                             </button>
@@ -2245,11 +2208,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateCriterion(originalIndex, { rule_type: "MEASUREMENT" })}
-                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
-                                    criterion.rule_type === "MEASUREMENT"
+                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${criterion.rule_type === "MEASUREMENT"
                                       ? "bg-sky-50 border-sky-400 text-sky-950 font-bold ring-2 ring-sky-400/50 shadow-xs"
                                       : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                                  }`}
+                                    }`}
                                 >
                                   <div className="flex items-center gap-1.5 text-xs font-bold">
                                     <span>📏</span>
@@ -2262,11 +2224,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateCriterion(originalIndex, { rule_type: "TEMPLATE" })}
-                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
-                                    criterion.rule_type === "TEMPLATE"
+                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${criterion.rule_type === "TEMPLATE"
                                       ? "bg-purple-50 border-purple-400 text-purple-950 font-bold ring-2 ring-purple-400/50 shadow-xs"
                                       : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                                  }`}
+                                    }`}
                                 >
                                   <div className="flex items-center gap-1.5 text-xs font-bold">
                                     <span>📑</span>
@@ -2279,11 +2240,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateCriterion(originalIndex, { rule_type: "PRESENCE" })}
-                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${
-                                    criterion.rule_type === "PRESENCE"
+                                  className={`p-2.5 rounded-xl text-left border text-xs transition-all cursor-pointer ${criterion.rule_type === "PRESENCE"
                                       ? "bg-amber-50 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-400/50 shadow-xs"
                                       : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                                  }`}
+                                    }`}
                                 >
                                   <div className="flex items-center gap-1.5 text-xs font-bold">
                                     <span>📚</span>
@@ -2364,13 +2324,12 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
                 return (
                   <article
                     key={item.id}
-                    className={`p-5 border rounded-2xl space-y-4 transition-all shadow-xs ${
-                      item.status === "UNDER_REVIEW"
+                    className={`p-5 border rounded-2xl space-y-4 transition-all shadow-xs ${item.status === "UNDER_REVIEW"
                         ? "border-amber-300 bg-amber-50/40 ring-1 ring-amber-400/30"
                         : item.status === "ACCEPTED"
-                        ? "border-emerald-200 bg-emerald-50/30"
-                        : "border-slate-200 bg-slate-50/50"
-                    }`}
+                          ? "border-emerald-200 bg-emerald-50/30"
+                          : "border-slate-200 bg-slate-50/50"
+                      }`}
                   >
                     {/* Header */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-200/80">
