@@ -50,7 +50,6 @@ from app.schemas.format_checks import (
 from app.ingestion.service import resolve_source_path
 from app.services.academic_report_checklist import (
     evaluate_academic_checklist,
-    extract_checklist_from_regulations,
     extract_report_facts,
 )
 from app.services.audit import add_audit_event
@@ -196,7 +195,10 @@ async def create_draft(
 
 
 async def draft_from_documents(
-    session: AsyncSession, payload: FormatDraftFromDocumentsCreate, request_id: str | None
+    session: AsyncSession,
+    payload: FormatDraftFromDocumentsCreate,
+    request_id: str | None,
+    ai: "AIProvider | None" = None,
 ) -> FormatCriteriaSetResponse:
     await _validate_course_lecturer(session, payload.course_id, payload.lecturer_id)
     documents = (
@@ -234,33 +236,19 @@ async def draft_from_documents(
             doc_id = documents[idx].id if idx < len(documents) else None
             chunk_dicts.insert(0, {"content": raw_t, "document_id": doc_id, "heading": None})
 
-    template_headings: list[str] | None = None
-    if payload.include_template_structure:
-        if raw_source_texts:
-            headings_from_source = []
-            for raw_t in raw_source_texts:
-                for line in raw_t.splitlines():
-                    m = re.match(r"^#{1,6}\s+([^\n\r]+)", line.strip())
-                    if m:
-                        h = m.group(1).strip()
-                        if h and not re.search(r"^(Quy định|1\.|2\.|3\.|4\.|5\.)", h):
-                            headings_from_source.append(h)
-            template_headings = list(dict.fromkeys(headings_from_source))
+    full_text = "\n\n".join(raw_source_texts or [c["content"] for c in chunk_dicts])
+    if ai is not None:
+        criteria = await ai.extract_regulation_criteria(
+            regulation_text=full_text,
+            allow_semantic_equivalent=payload.allow_semantic_equivalent,
+        )
+    else:
+        from app.ai.fake import FakeProvider
+        criteria = await FakeProvider().extract_regulation_criteria(
+            regulation_text=full_text,
+            allow_semantic_equivalent=payload.allow_semantic_equivalent,
+        )
 
-        if not template_headings:
-            raw_headings = [chunk.heading for chunk in chunks if chunk.heading]
-            template_headings = [
-                str(h).strip() for h in dict.fromkeys(raw_headings)
-                if h and not re.search(r"^(Quy định|1\.|2\.|3\.|4\.|5\.)", str(h))
-            ]
-            if not template_headings:
-                template_headings = [str(h).strip() for h in dict.fromkeys(raw_headings) if h]
-
-    criteria = extract_checklist_from_regulations(
-        chunk_dicts,
-        template_headings=template_headings,
-        allow_semantic_equivalent=payload.allow_semantic_equivalent,
-    )
     return await create_draft(
         session,
         FormatCriteriaDraftCreate(
@@ -780,7 +768,7 @@ async def check_format(
             criteria_set_id=active.id, criteria_version=active.version, criteria_approved_at=active.approved_at,
         )
     try:
-        structure = extract_report_facts(filename, payload)
+        structure = await extract_report_facts(filename, payload, ai_provider=ai)
     except AppError:
         raise
     except Exception as error:

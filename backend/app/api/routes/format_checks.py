@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.base import AIProvider
 from app.api.deps import get_ai_provider
 from app.db.session import get_session
 from app.schemas.format_checks import (
@@ -41,8 +42,13 @@ async def create_criteria_draft(payload: FormatCriteriaDraftCreate, request: Req
 
 
 @router.post("/criteria/drafts/from-documents", response_model=FormatCriteriaSetResponse, status_code=201)
-async def create_document_draft(payload: FormatDraftFromDocumentsCreate, request: Request, session: SessionDependency) -> FormatCriteriaSetResponse:
-    return await draft_from_documents(session, payload, request.state.request_id)
+async def create_document_draft(
+    payload: FormatDraftFromDocumentsCreate,
+    request: Request,
+    session: SessionDependency,
+    provider: AIProvider = Depends(get_ai_provider),
+) -> FormatCriteriaSetResponse:
+    return await draft_from_documents(session, payload, request.state.request_id, ai=provider)
 
 
 @router.post("/criteria/{criteria_set_id}/approve", response_model=FormatCriteriaSetResponse)

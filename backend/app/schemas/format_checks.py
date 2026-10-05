@@ -135,3 +135,66 @@ class CoverPageJudgment(BaseModel):
     missing_elements: list[str] = Field(default_factory=list, description="Các thành phần bắt buộc chưa tìm thấy")
     reason: str = Field(default="", description="Nhận xét tóm tắt bằng tiếng Việt (≤ 200 ký tự)")
 
+
+class LLMSubmissionContentFacts(BaseModel):
+    """Structured content elements extracted by LLM from student report text."""
+
+    cover_page_detected_fields: list[str] = Field(
+        default_factory=list,
+        description="Các trường thông tin tìm thấy ở trang bìa: tên trường, tên khoa, tên đề tài, GVHD, sinh viên, MSSV, năm thực hiện...",
+    )
+    headings: list[str] = Field(
+        default_factory=list,
+        description="Danh sách các tiêu đề chương và mục con xuất hiện trong bài nộp",
+    )
+    has_member_contribution_table: bool = Field(
+        default=False,
+        description="True nếu có bảng phân công đóng góp thành viên / lời cam đoan",
+    )
+    member_table_columns: list[str] = Field(
+        default_factory=list,
+        description="Các tên cột tìm thấy trong bảng phân công thành viên (ví dụ: STT, Họ và tên, MSSV, Nhiệm vụ, Tỷ lệ đóng góp, Chữ ký...)",
+    )
+    has_table_of_contents: bool = Field(
+        default=False,
+        description="True nếu có phần Mục lục",
+    )
+    has_list_of_figures: bool = Field(
+        default=False,
+        description="True nếu có Danh mục hình ảnh",
+    )
+    has_list_of_tables: bool = Field(
+        default=False,
+        description="True nếu có Danh mục bảng biểu",
+    )
+    has_references_section: bool = Field(
+        default=False,
+        description="True nếu có phần Tài liệu tham khảo",
+    )
+    references_style: str | None = Field(
+        default=None,
+        description="Chuẩn trích dẫn nếu nhận diện được (ví dụ IEEE, APA)",
+    )
+    table_captions: list[str] = Field(
+        default_factory=list,
+        description="Danh sách các tiêu đề/chú thích bảng biểu trong văn bản",
+    )
+    figure_captions: list[str] = Field(
+        default_factory=list,
+        description="Danh sách các tiêu đề/chú thích hình ảnh trong văn bản",
+    )
+
+
+class LLMCriterionItem(BaseModel):
+    name: str = Field(description="Tên tiêu chí kèm số thứ tự (ví dụ: '1. Khổ giấy và thiết lập căn lề', '4.1 Mục bắt buộc: Chương 1: Khái niệm')")
+    description: str = Field(description="Mô tả chi tiết yêu cầu được nêu trong quy chế")
+    rule_type: str = Field(description="'MEASUREMENT' hoặc 'PRESENCE' hoặc 'TEMPLATE'")
+    expected_value_json: str = Field(description="JSON string của thông số kiểm tra")
+    source_citation: str = Field(default="", description="Đoạn trích nguyên văn làm căn cứ trong tài liệu")
+
+
+class LLMCriteriaExtraction(BaseModel):
+    criteria: list[LLMCriterionItem] = Field(default_factory=list, description="Danh sách các tiêu chí thể thức và đề cương trích xuất từ quy chế")
+
+
+

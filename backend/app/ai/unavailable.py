@@ -52,6 +52,21 @@ class UnavailableProvider:
             reason=f"AI không khả dụng ({self.detail}); cần giảng viên phán đoán trang bìa.",
         )
 
+    async def extract_regulation_criteria(
+        self,
+        regulation_text: str,
+        allow_semantic_equivalent: bool = True,
+    ) -> list["FormatCriterionInput"]:
+        return []
+
+    async def extract_submission_content_facts(
+        self,
+        full_text: str,
+        cover_text: str,
+    ) -> "LLMSubmissionContentFacts":
+        from app.schemas.format_checks import LLMSubmissionContentFacts
+        return LLMSubmissionContentFacts()
+
     async def health(self) -> AIHealth:
         return AIHealth(
             mode=self.mode,

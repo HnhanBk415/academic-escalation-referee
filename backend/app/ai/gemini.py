@@ -463,6 +463,228 @@ class GeminiProvider:
             reason=f"Lỗi AI khi phân tích trang bìa: {last_error}",
         )
 
+    async def extract_regulation_criteria(
+        self,
+        regulation_text: str,
+        allow_semantic_equivalent: bool = True,
+    ) -> list["FormatCriterionInput"]:
+        """Ask Gemini to parse full regulation document and extract structured criteria."""
+        from app.core.enums import FormatCriterionRuleType
+        from app.schemas.format_checks import FormatCriterionInput, LLMCriteriaExtraction
+
+        _INSTRUCTION = (
+            "Bạn là chuyên gia trích xuất quy chế thể thức và khung đề cương báo cáo học thuật. "
+            "Nhiệm vụ: Đọc toàn bộ văn bản quy chế và trích xuất ĐẦY ĐỦ cả QUY ĐỊNH HÌNH THỨC (FORMAT) và KHUNG CẤU TRÚC ĐỀ CƯƠNG (TEMPLATE) thành danh sách criteria. "
+            "\n"
+            "PHẦN 1 - QUY ĐỊNH HÌNH THỨC (FORMAT):\n"
+            "- Khổ giấy & Căn lề: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"margins_cm\", \"value\": {\"top\": 2.5, \"bottom\": 2.5, \"left\": 3.0, \"right\": 2.0}, \"paper_size\": \"A4\", \"orientation\": \"PORTRAIT\", \"tolerance\": 0.15, \"category\": \"1. Khổ giấy và thiết lập trang\"}'\n"
+            "- Phông chữ & Cỡ chữ: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"font_name\", \"value\": \"Times New Roman\", \"font_size_pt\": 13.0, \"tolerance\": 0.5, \"category\": \"2. Font chữ và cỡ chữ\"}'\n"
+            "- Giãn dòng: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"line_spacing\", \"value\": 1.3, \"justify\": true, \"tolerance\": 0.15, \"category\": \"3. Định dạng đoạn văn\"}'\n"
+            "- Trang bìa: rule_type='PRESENCE', expected_value_json='{\"kind\": \"cover_page\", \"required_fields\": [\"tên trường\", \"tên khoa\", \"tên đề tài\", \"giảng viên hướng dẫn\", \"sinh viên\", \"mssv\", \"năm thực hiện\"], \"category\": \"6. Trang bìa\"}'\n"
+            "- Bảng phân công / Lời cam đoan: rule_type='PRESENCE', expected_value_json='{\"kind\": \"table_columns\", \"value\": [\"Bảng phân công\"], \"category\": \"7. Trang phụ và lời cam đoan\"}'\n"
+            "- Mục lục: rule_type='PRESENCE', expected_value_json='{\"kind\": \"heading\", \"value\": \"Mục lục\", \"category\": \"8. Mục lục\"}'\n"
+            "- Dung lượng số trang: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"page_count\", \"min_pages\": 20, \"max_pages\": 50, \"category\": \"18. Khoảng cách và bố cục trang\"}'\n"
+            "- Tài liệu tham khảo: rule_type='PRESENCE', expected_value_json='{\"kind\": \"heading\", \"value\": \"Tài liệu tham khảo\", \"category\": \"19. Tài liệu tham khảo\"}'\n"
+            "\n"
+            "PHẦN 2 - KHUNG CẤU TRÚC ĐỀ CƯƠNG (TEMPLATE) - BẮT BUỘC TÁCH NHỎ:\n"
+            "Nếu tài liệu có khung cấu trúc đề cương (các chương và mục con), bạn BẮT BUỘC PHẢI TÁCH NHỎ TỪNG MỤC RIÊNG BIỆT:\n"
+            "- Mỗi Chương cấp 1: rule_type='TEMPLATE', name='4.X Mục bắt buộc: [Tên chương]', expected_value_json='{\"kind\": \"template_chapter\", \"chapter_name\": \"[Tên chương]\", \"chapter_number\": X, \"level\": 1, \"order_index\": X, \"required_subheadings\": [\"Mục con 1\", \"Mục con 2\"], \"allow_semantic_equivalent\": true, \"category\": \"4. Heading / tiêu đề chương, mục\"}'\n"
+            "- Mỗi Mục con cấp 2: rule_type='TEMPLATE', name='4.X.Y Mục con: [Tên mục con]', expected_value_json='{\"kind\": \"template_section\", \"section_name\": \"[Tên mục con]\", \"parent_chapter\": \"[Tên chương cha]\", \"chapter_number\": X, \"sub_index\": Y, \"level\": 2, \"order_index\": X.Y, \"allow_semantic_equivalent\": true, \"category\": \"4. Heading / tiêu đề chương, mục\"}'\n"
+            "- Thứ tự các chương: rule_type='TEMPLATE', name='5. Thứ tự và phân cấp cấu trúc đề mục (Toàn văn)', expected_value_json='{\"kind\": \"template_sequence\", \"chapters\": [\"Chương 1...\", \"Chương 2...\", ...], \"allow_semantic_equivalent\": true, \"category\": \"5. Đánh số chương và mục\"}'\n"
+            "\n"
+            "QUY TẮC TUYỆT ĐỐI:\n"
+            "1. KHÔNG tự bịa đặt hay giả định bất kỳ giá trị nào nếu văn bản không đề cập.\n"
+            "2. Mục nào quy định KHÔNG nhắc đến thì KHÔNG tạo tiêu chí cho mục đó.\n"
+            "3. Chỉ trích xuất những gì có căn cứ trong tài liệu."
+        )
+
+        prompt = json.dumps(
+            {
+                "regulation_document_text": regulation_text[:12000],
+                "allow_semantic_equivalent": allow_semantic_equivalent,
+            },
+            ensure_ascii=False,
+        )
+
+        print(
+            f"[Gemini RegulationExtractor] Extracting criteria from document ({len(regulation_text)} chars)...",
+            flush=True,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            await self._chat_rate_limiter.acquire()
+            try:
+                async with self._semaphore:
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=self.settings.gemini_chat_model,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=_INSTRUCTION,
+                                temperature=0,
+                                max_output_tokens=4096,
+                                response_mime_type="application/json",
+                                response_schema=LLMCriteriaExtraction,
+                            ),
+                        ),
+                        timeout=self.settings.ai_request_timeout_seconds,
+                    )
+                if response.parsed:
+                    extraction = (
+                        response.parsed
+                        if isinstance(response.parsed, LLMCriteriaExtraction)
+                        else LLMCriteriaExtraction.model_validate(response.parsed)
+                    )
+                elif response.text:
+                    extraction = LLMCriteriaExtraction.model_validate_json(response.text)
+                else:
+                    raise RuntimeError("Gemini returned empty criteria extraction")
+
+                criteria: list[FormatCriterionInput] = []
+                for item in extraction.criteria:
+                    try:
+                        exp_val = json.loads(item.expected_value_json) if item.expected_value_json else {}
+                    except Exception:
+                        exp_val = {}
+                    criteria.append(
+                        FormatCriterionInput(
+                            name=item.name,
+                            description=item.description,
+                            rule_type=FormatCriterionRuleType(item.rule_type),
+                            expected_value=exp_val,
+                            source_citation=item.source_citation or None,
+                        )
+                    )
+
+                # Ensure every subsection is an independent, granular criterion for precise comparison
+                existing_section_names = {
+                    str(c.expected_value.get("section_name", "")).strip().lower()
+                    for c in criteria
+                    if isinstance(c.expected_value, dict) and c.expected_value.get("kind") == "template_section"
+                }
+                expanded_criteria: list[FormatCriterionInput] = []
+                for c in criteria:
+                    expanded_criteria.append(c)
+                    if isinstance(c.expected_value, dict) and c.expected_value.get("kind") == "template_chapter":
+                        chap_name = c.expected_value.get("chapter_name") or c.name
+                        chap_num = c.expected_value.get("chapter_number", 1)
+                        subheadings = c.expected_value.get("required_subheadings", [])
+                        for sub_idx, sub in enumerate(subheadings, 1):
+                            sub_clean = str(sub).strip()
+                            if not sub_clean or sub_clean.lower() in existing_section_names:
+                                continue
+                            existing_section_names.add(sub_clean.lower())
+                            sec_input = FormatCriterionInput(
+                                name=f"4.{chap_num}.{sub_idx} Mục con: {sub_clean}",
+                                description=f"Mục con '{sub_clean}' thuộc {chap_name} (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
+                                rule_type=FormatCriterionRuleType.TEMPLATE,
+                                expected_value={
+                                    "kind": "template_section",
+                                    "section_name": sub_clean,
+                                    "parent_chapter": chap_name,
+                                    "chapter_number": chap_num,
+                                    "sub_index": sub_idx,
+                                    "level": 2,
+                                    "order_index": float(f"{chap_num}.{sub_idx}"),
+                                    "allow_semantic_equivalent": allow_semantic_equivalent,
+                                    "category": "4. Heading / tiêu đề chương, mục",
+                                },
+                                source_citation=c.source_citation,
+                            )
+                            expanded_criteria.append(sec_input)
+                criteria = expanded_criteria
+
+                print(f"[Gemini RegulationExtractor] => extracted {len(criteria)} criteria", flush=True)
+                return criteria
+            except Exception as error:
+                last_error = error
+                print(f"[Gemini RegulationExtractor Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
+                if not self._is_retryable(error) or attempt == _MAX_RETRIES:
+                    break
+                delay = (_BASE_RETRY_DELAY_SECONDS ** attempt) + random.uniform(0.1, 0.4)
+                await asyncio.sleep(delay)
+
+        return []
+
+    async def extract_submission_content_facts(
+        self,
+        full_text: str,
+        cover_text: str,
+    ) -> "LLMSubmissionContentFacts":
+        """Ask Gemini to parse full student submission text and extract structured content facts."""
+        from app.schemas.format_checks import LLMSubmissionContentFacts
+
+        _SUBMISSION_INSTRUCTION = (
+            "Bạn là chuyên gia phân tích và trích xuất cấu trúc văn bản báo cáo học thuật / đồ án sinh viên. "
+            "Nhiệm vụ: Đọc toàn bộ nội dung bài nộp (bao gồm trang đầu/trang bìa, mục lục, các chương mục và tài liệu tham khảo) "
+            "và trích xuất dữ liệu thực tế thành đối tượng có cấu trúc:\n"
+            "1. cover_page_detected_fields: Danh sách các trường thông tin có mặt trên trang bìa (ví dụ: 'tên trường', 'tên khoa', 'tên đề tài', 'giảng viên hướng dẫn', 'sinh viên thực hiện', 'mssv', 'năm thực hiện'...). Chỉ điền những trường thực sự xuất hiện.\n"
+            "2. headings: Danh sách tất cả các tiêu đề chương (cấp 1) và tiêu đề mục con (cấp 2, cấp 3...) xuất hiện trong bài nộp theo đúng thứ tự.\n"
+            "3. has_member_contribution_table: True nếu bài có Bảng phân công đóng góp thành viên hoặc Lời cam đoan; member_table_columns: danh sách tên các cột trong bảng đó (ví dụ 'STT', 'Họ và tên', 'MSSV', 'Nhiệm vụ', 'Tỷ lệ đóng góp'...). Nếu không có thì False và danh sách rỗng.\n"
+            "4. has_table_of_contents: True nếu có phần Mục lục.\n"
+            "5. has_list_of_figures: True nếu có phần Danh mục hình ảnh/đồ thị.\n"
+            "6. has_list_of_tables: True nếu có phần Danh mục bảng biểu.\n"
+            "7. has_references_section: True nếu có phần Tài liệu tham khảo; references_style: 'IEEE', 'APA' hoặc 'OTHER' nếu nhận diện được dạng trích dẫn.\n"
+            "8. table_captions: Danh sách các tên / tiêu đề / chú thích của các bảng biểu xuất hiện trong văn bản.\n"
+            "9. figure_captions: Danh sách các tên / tiêu đề / chú thích của các hình ảnh / biểu đồ xuất hiện trong văn bản.\n"
+            "QUY TẮC: Chỉ trích xuất những gì thực sự có trong văn bản nộp, không tự suy diễn hoặc bịa đặt."
+        )
+
+        prompt = json.dumps(
+            {
+                "cover_page_text": cover_text[:2500],
+                "submission_text_excerpt": full_text[:12000],
+            },
+            ensure_ascii=False,
+        )
+
+        print(
+            f"[Gemini SubmissionFactsExtractor] Extracting content facts from submission ({len(full_text)} chars)...",
+            flush=True,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            await self._chat_rate_limiter.acquire()
+            try:
+                async with self._semaphore:
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=self.settings.gemini_chat_model,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=_SUBMISSION_INSTRUCTION,
+                                temperature=0,
+                                max_output_tokens=3000,
+                                response_mime_type="application/json",
+                                response_schema=LLMSubmissionContentFacts,
+                            ),
+                        ),
+                        timeout=self.settings.ai_request_timeout_seconds,
+                    )
+                if response.parsed:
+                    facts = (
+                        response.parsed
+                        if isinstance(response.parsed, LLMSubmissionContentFacts)
+                        else LLMSubmissionContentFacts.model_validate(response.parsed)
+                    )
+                elif response.text:
+                    facts = LLMSubmissionContentFacts.model_validate_json(response.text)
+                else:
+                    raise RuntimeError("Gemini returned empty submission facts")
+                print(f"[Gemini SubmissionFactsExtractor] => extracted {len(facts.headings)} headings, cover_fields={facts.cover_page_detected_fields}", flush=True)
+                return facts
+            except Exception as error:
+                last_error = error
+                print(f"[Gemini SubmissionFactsExtractor Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
+                if not self._is_retryable(error) or attempt == _MAX_RETRIES:
+                    break
+                delay = (_BASE_RETRY_DELAY_SECONDS ** attempt) + random.uniform(0.1, 0.4)
+                await asyncio.sleep(delay)
+
+        return LLMSubmissionContentFacts()
+
     async def health(self) -> AIHealth:
         try:
             await asyncio.wait_for(

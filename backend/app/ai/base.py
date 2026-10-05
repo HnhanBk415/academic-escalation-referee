@@ -1,6 +1,11 @@
-from typing import Protocol
+from typing import Any, Protocol
 
-from app.schemas.format_checks import CoverPageJudgment, FormatSemanticJudgment
+from app.schemas.format_checks import (
+    CoverPageJudgment,
+    FormatCriterionInput,
+    FormatSemanticJudgment,
+    LLMSubmissionContentFacts,
+)
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -35,5 +40,18 @@ class AIProvider(Protocol):
         required_elements: list[str],
     ) -> CoverPageJudgment: ...
 
+    async def extract_regulation_criteria(
+        self,
+        regulation_text: str,
+        allow_semantic_equivalent: bool = True,
+    ) -> list[FormatCriterionInput]: ...
+
+    async def extract_submission_content_facts(
+        self,
+        full_text: str,
+        cover_text: str,
+    ) -> LLMSubmissionContentFacts: ...
+
     async def health(self) -> AIHealth: ...
+
 
