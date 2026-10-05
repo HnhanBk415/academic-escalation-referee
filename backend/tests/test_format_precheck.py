@@ -215,13 +215,13 @@ async def test_cover_page_detection_and_evaluation(client):
 
 @pytest.mark.asyncio
 async def test_granular_template_and_semantic_equivalence_toggle(client):
-    # A. Draft with allow_semantic_equivalent = True
+    # A. Draft with natural outline criteria
     draft_semantic = await client.post(
         "/api/v1/format-checks/criteria/drafts/from-documents",
         json={
             "course_id": "CO3001",
             "lecturer_id": "lecturer-01",
-            "title": "Checklist Cho phép tương đương ngữ nghĩa",
+            "title": "Checklist Khung cấu trúc đề cương",
             "document_ids": ["format-guidelines-v1"],
             "include_template_structure": True,
             "allow_semantic_equivalent": True,
@@ -230,13 +230,9 @@ async def test_granular_template_and_semantic_equivalence_toggle(client):
     assert draft_semantic.status_code == 201
     crit_semantic = draft_semantic.json()["criteria"]
 
-    # Verify granular criteria exist for each chapter and section
+    # Verify natural text template criteria exist
     names = [c["name"] for c in crit_semantic]
-    assert any("Chương 1" in n for n in names)
-    assert any("Chương 2" in n for n in names)
-    assert any("Chương 3" in n for n in names)
-    assert any("Mục con:" in n for n in names)
-    assert any("Thứ tự và phân cấp cấu trúc đề mục" in n for n in names)
+    assert any("Khung cấu trúc" in n for n in names)
 
     await client.post(f"/api/v1/format-checks/criteria/{draft_semantic.json()['id']}/approve?lecturer_id=lecturer-01")
 
@@ -253,23 +249,21 @@ async def test_granular_template_and_semantic_equivalence_toggle(client):
         files={"file": ("sem_report.docx", sem_doc, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
     assert res_sem.status_code == 200
-    c1_res = next(r for r in res_sem.json()["results"] if "Chương 1" in r["name"])
-    assert c1_res["status"] == "PASS"
+    template_res = next(r for r in res_sem.json()["results"] if "Khung cấu trúc" in r["name"])
+    assert template_res["status"] == "PASS"
 
-    # B. Out of order check: Chapter 2 appears before Chapter 1
-    inverted_doc = _docx_with_cover_and_headings([
-        "Chương 2: Hiện thực",
+    # B. Missing required chapters
+    incomplete_doc = _docx_with_cover_and_headings([
         "Chương 1: Khái niệm",
-        "Chương 3: Đánh giá và Kết luận",
     ])
-    res_inverted = await client.post(
+    res_incomplete = await client.post(
         "/api/v1/format-checks/checks",
         data={"course_id": "CO3001", "actor_id": "demo-student"},
-        files={"file": ("inverted.docx", inverted_doc, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        files={"file": ("incomplete.docx", incomplete_doc, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
-    assert res_inverted.status_code == 200
-    seq_res = next(r for r in res_inverted.json()["results"] if "Thứ tự" in r["name"])
-    assert seq_res["status"] == "FAIL"
+    assert res_incomplete.status_code == 200
+    template_inc_res = next(r for r in res_incomplete.json()["results"] if "Khung cấu trúc" in r["name"])
+    assert template_inc_res["status"] in ("FAIL", "MISSING_STUDENT_INPUT")
 
 
 @pytest.mark.asyncio
@@ -281,7 +275,7 @@ async def test_zero_defaults_strict_extraction():
         regulation_text="Quy chế định dạng...",
         allow_semantic_equivalent=True,
     )
-    assert len(criteria) >= 10
+    assert len(criteria) >= 9
 
     reg_10 = build_regulation_30_criteria(criteria)
     assert len(reg_10) == 10
@@ -289,4 +283,5 @@ async def test_zero_defaults_strict_extraction():
     # 1. Specified items must be True
     margin_cat = next(c for c in reg_10 if c["index"] == 1)
     assert margin_cat["specified"] is True
+
 

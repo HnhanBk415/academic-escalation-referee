@@ -87,6 +87,11 @@ export function getCriterionSummary(item: {
     const prop = expected_value?.property as string;
     const val = expected_value?.value;
     if (prop === "page_count") {
+      const minP = expected_value?.min_pages;
+      const maxP = expected_value?.max_pages;
+      if (minP && maxP) return `${minP} – ${maxP} trang`;
+      if (maxP) return `Tối đa ${maxP} trang`;
+      if (minP) return `Tối thiểu ${minP} trang`;
       const op = expected_value?.operator === "max" ? "Tối đa" : expected_value?.operator === "min" ? "Tối thiểu" : "Chính xác";
       return `${op} ${val} trang`;
     }
@@ -104,6 +109,15 @@ export function getCriterionSummary(item: {
     if (prop === "line_spacing") return `Giãn dòng: ${val}`;
   }
   if (rule_type === "TEMPLATE") {
+    if (expected_value?.requirement_text) {
+      const text = String(expected_value.requirement_text).trim().replace(/\n+/g, " · ");
+      return text.length > 70 ? text.slice(0, 67) + "..." : text;
+    }
+    if (expected_value?.kind === "template_outline") {
+      const headings = (expected_value?.outline_headings as string[]) || [];
+      if (headings.length > 0) return `${headings.length} mục theo khung đề cương`;
+      return "Khung cấu trúc đề cương";
+    }
     if (expected_value?.kind === "template_chapter") {
       const num = expected_value?.chapter_number;
       const sem = expected_value?.allow_semantic_equivalent ? "Tương đương ngữ nghĩa" : "Tên chính xác 100%";
@@ -119,7 +133,7 @@ export function getCriterionSummary(item: {
       return `Thứ tự tuần tự (${chaps?.length || 0} chương)`;
     }
     const count = Array.isArray(expected_value?.headings) ? expected_value.headings.length : 0;
-    return `${count} mục theo dàn ý mẫu`;
+    return count > 0 ? `${count} mục theo dàn ý mẫu` : "Khung cấu trúc đề cương";
   }
   if (rule_type === "PRESENCE") {
     if (expected_value?.kind === "cover_page" || expected_value?.kind === "cover_page_fields" || norm.includes("trang bìa")) {
@@ -138,6 +152,10 @@ export function getCriterionSummary(item: {
       const cols = Array.isArray(expected_value?.value) ? (expected_value.value as string[]).length : 0;
       return `Bảng phân công (${cols} cột bắt buộc)`;
     }
+    if (expected_value?.requirement_text) {
+      const text = String(expected_value.requirement_text).trim();
+      return text.length > 70 ? text.slice(0, 67) + "..." : text;
+    }
     return "Yêu cầu cấu trúc bắt buộc";
   }
   return "";
@@ -155,7 +173,7 @@ export function StructuredContentEditor({
   onChange: (val: Record<string, unknown>) => void;
 }) {
   const [jsonMode, setJsonMode] = useState(false);
-  const [templateTab, setTemplateTab] = useState<"tree" | "multiline">("tree");
+  const [templateTab, setTemplateTab] = useState<"text" | "tree">("text");
   const normalizedName = (name || "").toLowerCase();
 
   // Phân loại phân hệ cấu hình
@@ -168,7 +186,7 @@ export function StructuredContentEditor({
   const isGranularSection = ruleType === "TEMPLATE" && expectedValue?.kind === "template_section";
   const isGranularSequence = ruleType === "TEMPLATE" && expectedValue?.kind === "template_sequence";
 
-  const isTemplate = ruleType === "TEMPLATE" || Array.isArray(expectedValue?.headings);
+  const isTemplate = ruleType === "TEMPLATE" || expectedValue?.kind === "template_outline" || Array.isArray(expectedValue?.headings);
   const isReferences =
     ruleType === "PRESENCE" &&
     (Boolean(expectedValue?.citation_style) ||
@@ -221,8 +239,14 @@ export function StructuredContentEditor({
   const fontSize = Number(expectedValue?.font_size_pt || 13);
   const lineSpacing = Number(expectedValue?.line_spacing || 1.5);
 
-  // Dữ liệu Template Headings
-  const headings = Array.isArray(expectedValue?.headings) ? (expectedValue.headings as string[]) : [];
+  // Dữ liệu Template Headings & Requirement Text
+  const rawReqText = (expectedValue?.requirement_text as string) || "";
+  const headings = Array.isArray(expectedValue?.outline_headings)
+    ? (expectedValue.outline_headings as string[])
+    : Array.isArray(expectedValue?.headings)
+    ? (expectedValue.headings as string[])
+    : rawReqText ? rawReqText.split("\n").map((l) => l.trim()).filter(Boolean) : [];
+  const allowSemantic = expectedValue?.allow_semantic_equivalent !== false;
   const allowExtra = expectedValue?.allow_extra !== false;
   const strictNames = expectedValue?.strict_names !== false;
 
@@ -303,7 +327,7 @@ export function StructuredContentEditor({
 
   return (
     <div className="space-y-3">
-      {/* ── 1. KHUNG ĐỀ MỤC TEMPLATE (CẤU TRÚC PHÂN CẤP & TỪNG MỤC RIÊNG BIỆT) ── */}
+      {/* ── 1. KHUNG ĐỀ MỤC TEMPLATE (VĂN BẢN MÔ TẢ TỰ NHIÊN / DÀN Ý CỦA GIẢNG VIÊN) ── */}
       {isTemplate ? (
         isGranularChapter ? (
           <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 space-y-3.5">
@@ -452,13 +476,22 @@ export function StructuredContentEditor({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h4 className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
-                <span>📑</span> Khung cấu trúc đề mục báo cáo (Template Outline)
+                <span>📑</span> Khung cấu trúc đề cương &amp; Dàn ý báo cáo
               </h4>
               <p className="text-[11px] text-purple-800/80 mt-0.5">
-                Trình bày có tính cấu trúc phân cấp, theo đúng thứ tự các chương mục bắt buộc
+                Được lưu dưới dạng văn bản tự nhiên để LLM đối chiếu toàn diện và linh hoạt theo từng môn học
               </p>
             </div>
             <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-purple-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setTemplateTab("text")}
+                className={`px-2.5 py-1 rounded font-semibold transition-all cursor-pointer ${
+                  templateTab === "text" ? "bg-purple-700 text-white shadow-2xs" : "text-purple-900 hover:bg-purple-50"
+                }`}
+              >
+                📝 Văn bản đề cương
+              </button>
               <button
                 type="button"
                 onClick={() => setTemplateTab("tree")}
@@ -466,21 +499,36 @@ export function StructuredContentEditor({
                   templateTab === "tree" ? "bg-purple-700 text-white shadow-2xs" : "text-purple-900 hover:bg-purple-50"
                 }`}
               >
-                🌳 Cây đề mục phân cấp
-              </button>
-              <button
-                type="button"
-                onClick={() => setTemplateTab("multiline")}
-                className={`px-2.5 py-1 rounded font-semibold transition-all cursor-pointer ${
-                  templateTab === "multiline" ? "bg-purple-700 text-white shadow-2xs" : "text-purple-900 hover:bg-purple-50"
-                }`}
-              >
-                📝 Nhập nhanh nhiều dòng
+                🌳 Danh sách đề mục ({headings.length})
               </button>
             </div>
           </div>
 
-          {templateTab === "tree" ? (
+          {templateTab === "text" ? (
+            <div className="space-y-2">
+              <textarea
+                rows={8}
+                value={rawReqText || headings.join("\n")}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const lines = val.split("\n").map((l) => l.trim()).filter(Boolean);
+                  onChange({
+                    ...expectedValue,
+                    kind: "template_outline",
+                    requirement_text: val,
+                    outline_headings: lines,
+                    allow_semantic_equivalent: allowSemantic,
+                    allow_extra: allowExtra,
+                  });
+                }}
+                className="w-full bg-white border border-purple-300 rounded-xl p-3 text-xs text-slate-900 font-sans leading-relaxed focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                placeholder="Dán hoặc mô tả khung cấu trúc các chương mục theo đề cương:&#10;Chương 1: Khái niệm (1. Mô tả đồ án, 2. Tại sao cần)&#10;Chương 2: Hiện thực (1. Thiết kế hệ thống, 2. Cài đặt và thử nghiệm)&#10;Chương 3: Đánh giá và Kết luận (1. Kết quả đạt được, 2. Hướng phát triển)"
+              />
+              <div className="bg-purple-100/60 rounded-lg p-2.5 text-[11px] text-purple-900 border border-purple-200">
+                💡 <b>Nguyên lý hoạt động:</b> LLM sẽ đọc toàn bộ đoạn văn đề cương này và đối chiếu với toàn bộ đề mục trong bài nộp của sinh viên trong <b>1 lần gọi duy nhất</b>, nhận diện chính xác các đề mục tương đương ngữ nghĩa học thuật.
+              </div>
+            </div>
+          ) : (
             <div className="space-y-2">
               <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
                 {headings.map((heading, hIdx) => {
@@ -514,7 +562,14 @@ export function StructuredContentEditor({
                         onChange={(e) => {
                           const updated = [...headings];
                           updated[hIdx] = e.target.value;
-                          onChange({ ...expectedValue, headings: updated, allow_extra: allowExtra, strict_names: strictNames });
+                          onChange({
+                            ...expectedValue,
+                            kind: "template_outline",
+                            outline_headings: updated,
+                            requirement_text: updated.join("\n"),
+                            allow_semantic_equivalent: allowSemantic,
+                            allow_extra: allowExtra,
+                          });
                         }}
                         className="flex-1 bg-transparent border-0 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-purple-400 rounded px-1.5 py-0.5"
                       />
@@ -528,7 +583,14 @@ export function StructuredContentEditor({
                             const temp = updated[hIdx - 1];
                             updated[hIdx - 1] = updated[hIdx];
                             updated[hIdx] = temp;
-                            onChange({ ...expectedValue, headings: updated, allow_extra: allowExtra, strict_names: strictNames });
+                            onChange({
+                              ...expectedValue,
+                              kind: "template_outline",
+                              outline_headings: updated,
+                              requirement_text: updated.join("\n"),
+                              allow_semantic_equivalent: allowSemantic,
+                              allow_extra: allowExtra,
+                            });
                           }}
                           className="w-5 h-5 rounded hover:bg-purple-200 text-purple-800 text-[11px] font-bold disabled:opacity-30 cursor-pointer flex items-center justify-center"
                           title="Di chuyển lên trên"
@@ -544,7 +606,14 @@ export function StructuredContentEditor({
                             const temp = updated[hIdx + 1];
                             updated[hIdx + 1] = updated[hIdx];
                             updated[hIdx] = temp;
-                            onChange({ ...expectedValue, headings: updated, allow_extra: allowExtra, strict_names: strictNames });
+                            onChange({
+                              ...expectedValue,
+                              kind: "template_outline",
+                              outline_headings: updated,
+                              requirement_text: updated.join("\n"),
+                              allow_semantic_equivalent: allowSemantic,
+                              allow_extra: allowExtra,
+                            });
                           }}
                           className="w-5 h-5 rounded hover:bg-purple-200 text-purple-800 text-[11px] font-bold disabled:opacity-30 cursor-pointer flex items-center justify-center"
                           title="Di chuyển xuống dưới"
@@ -555,7 +624,14 @@ export function StructuredContentEditor({
                           type="button"
                           onClick={() => {
                             const updated = headings.filter((_, i) => i !== hIdx);
-                            onChange({ ...expectedValue, headings: updated, allow_extra: allowExtra, strict_names: strictNames });
+                            onChange({
+                              ...expectedValue,
+                              kind: "template_outline",
+                              outline_headings: updated,
+                              requirement_text: updated.join("\n"),
+                              allow_semantic_equivalent: allowSemantic,
+                              allow_extra: allowExtra,
+                            });
                           }}
                           className="w-5 h-5 rounded hover:bg-rose-100 text-rose-600 text-[11px] font-bold cursor-pointer flex items-center justify-center"
                           title="Xóa đề mục này"
@@ -573,7 +649,14 @@ export function StructuredContentEditor({
                   type="button"
                   onClick={() => {
                     const updated = [...headings, "Tiểu mục mới"];
-                    onChange({ ...expectedValue, headings: updated, allow_extra: allowExtra, strict_names: strictNames });
+                    onChange({
+                      ...expectedValue,
+                      kind: "template_outline",
+                      outline_headings: updated,
+                      requirement_text: updated.join("\n"),
+                      allow_semantic_equivalent: allowSemantic,
+                      allow_extra: allowExtra,
+                    });
                   }}
                   className="px-3 py-1.5 bg-white border border-purple-300 text-purple-900 rounded-lg text-xs font-bold hover:bg-purple-50 transition-all cursor-pointer"
                 >
@@ -581,37 +664,23 @@ export function StructuredContentEditor({
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <textarea
-                rows={7}
-                value={headings.join("\n")}
-                onChange={(e) => {
-                  const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
-                  onChange({ ...expectedValue, headings: lines, allow_extra: allowExtra, strict_names: strictNames });
-                }}
-                className="w-full bg-white border border-purple-300 rounded-xl p-3 text-xs text-slate-900 font-sans leading-relaxed focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                placeholder="Dán toàn bộ khung đề mục (mỗi dòng một mục):&#10;Trang bìa chính&#10;Bảng phân công đóng góp thành viên&#10;Mục lục&#10;Chương 1: Khái niệm&#10;1) Mô tả đồ án&#10;2) Tại sao cần&#10;Chương 2: Hiện thực...&#10;Tài liệu tham khảo"
-              />
-              <span className="text-[11px] text-purple-700 italic block">
-                * Dán trực tiếp danh sách từ đề cương môn học; mỗi dòng sẽ tự động trở thành một mục được kiểm tra tuần tự.
-              </span>
-            </div>
           )}
 
           {/* Cấu hình bổ sung cho Template */}
-          <div className="pt-2 border-t border-purple-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="pt-2 border-t border-purple-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
             <label className="flex items-center gap-2 text-purple-950 font-medium cursor-pointer">
               <input
                 type="checkbox"
-                checked={allowExtra}
-                onChange={(e) => onChange({ ...expectedValue, allow_extra: e.target.checked })}
+                checked={allowSemantic}
+                onChange={(e) => onChange({ ...expectedValue, allow_semantic_equivalent: e.target.checked })}
                 className="rounded text-purple-600 focus:ring-purple-500"
               />
-              <span>Cho phép sinh viên thêm các tiểu mục chi tiết ngoài khung mẫu</span>
+              <span>
+                <b>Cho phép tên tương đương ngữ nghĩa:</b> AI sẽ tự động phân tích và chấp nhận các từ đồng nghĩa học thuật (VD: &quot;Mở đầu&quot; ↔ &quot;Giới thiệu&quot;)
+              </span>
             </label>
-            <span className="text-[11px] font-bold text-purple-900 bg-purple-200/80 px-2.5 py-0.5 rounded-full">
-              {headings.length} đề mục đã cấu hình
+            <span className="text-[11px] font-bold text-purple-900 bg-purple-200/80 px-2.5 py-0.5 rounded-full flex-shrink-0">
+              {headings.length} đề mục
             </span>
           </div>
         </div>

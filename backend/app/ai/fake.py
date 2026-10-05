@@ -460,189 +460,40 @@ class FakeProvider:
                 source_document_id=doc_id,
             ),
             FormatCriterionInput(
-                name="8.1 Mục bắt buộc: Chương 1: Khái niệm",
-                description=f"Yêu cầu có Chương 1: Khái niệm (cấp độ 1, chương thứ 1). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
+                name="8. Khung cấu trúc và đề cương báo cáo",
+                description=(
+                    "Báo cáo phải tuân thủ khung đề cương phân cấp gồm:\n"
+                    "- Chương 1: Khái niệm (1) Mô tả đồ án, 2) Tại sao cần)\n"
+                    "- Chương 2: Hiện thực (1) Thiết kế hệ thống, 2) Cài đặt và thử nghiệm)\n"
+                    "- Chương 3: Đánh giá và Kết luận (1) Kết quả đạt được, 2) Hướng phát triển)"
+                ),
                 rule_type=FormatCriterionRuleType.TEMPLATE,
                 expected_value={
-                    "kind": "template_chapter",
-                    "chapter_name": "Chương 1: Khái niệm",
-                    "chapter_number": 1,
-                    "level": 1,
-                    "order_index": 1,
-                    "required_subheadings": ["1) Mô tả đồ án", "2) Tại sao cần"],
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 1: Khái niệm",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.1.1 Mục con: 1) Mô tả đồ án",
-                description=f"Mục con '1) Mô tả đồ án' thuộc Chương 1: Khái niệm (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_section",
-                    "section_name": "1) Mô tả đồ án",
-                    "parent_chapter": "Chương 1: Khái niệm",
-                    "chapter_number": 1,
-                    "sub_index": 1,
-                    "level": 2,
-                    "order_index": 1.1,
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 1: Khái niệm",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.1.2 Mục con: 2) Tại sao cần",
-                description=f"Mục con '2) Tại sao cần' thuộc Chương 1: Khái niệm (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_section",
-                    "section_name": "2) Tại sao cần",
-                    "parent_chapter": "Chương 1: Khái niệm",
-                    "chapter_number": 1,
-                    "sub_index": 2,
-                    "level": 2,
-                    "order_index": 1.2,
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 1: Khái niệm",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.2 Mục bắt buộc: Chương 2: Hiện thực",
-                description=f"Yêu cầu có Chương 2: Hiện thực (cấp độ 1, chương thứ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_chapter",
-                    "chapter_name": "Chương 2: Hiện thực",
-                    "chapter_number": 2,
-                    "level": 1,
-                    "order_index": 2,
-                    "required_subheadings": ["1) Thiết kế hệ thống", "2) Cài đặt và thử nghiệm"],
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 2: Hiện thực",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.2.1 Mục con: 1) Thiết kế hệ thống",
-                description=f"Mục con '1) Thiết kế hệ thống' thuộc Chương 2: Hiện thực (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_section",
-                    "section_name": "1) Thiết kế hệ thống",
-                    "parent_chapter": "Chương 2: Hiện thực",
-                    "chapter_number": 2,
-                    "sub_index": 1,
-                    "level": 2,
-                    "order_index": 2.1,
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 2: Hiện thực",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.2.2 Mục con: 2) Cài đặt và thử nghiệm",
-                description=f"Mục con '2) Cài đặt và thử nghiệm' thuộc Chương 2: Hiện thực (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_section",
-                    "section_name": "2) Cài đặt và thử nghiệm",
-                    "parent_chapter": "Chương 2: Hiện thực",
-                    "chapter_number": 2,
-                    "sub_index": 2,
-                    "level": 2,
-                    "order_index": 2.2,
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 2: Hiện thực",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.3 Mục bắt buộc: Chương 3: Đánh giá và Kết luận",
-                description=f"Yêu cầu có Chương 3: Đánh giá và Kết luận (cấp độ 1, chương thứ 3). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_chapter",
-                    "chapter_name": "Chương 3: Đánh giá và Kết luận",
-                    "chapter_number": 3,
-                    "level": 1,
-                    "order_index": 3,
-                    "required_subheadings": ["1) Kết quả đạt được", "2) Hướng phát triển"],
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 3: Đánh giá và Kết luận",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.3.1 Mục con: 1) Kết quả đạt được",
-                description=f"Mục con '1) Kết quả đạt được' thuộc Chương 3: Đánh giá và Kết luận (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_section",
-                    "section_name": "1) Kết quả đạt được",
-                    "parent_chapter": "Chương 3: Đánh giá và Kết luận",
-                    "chapter_number": 3,
-                    "sub_index": 1,
-                    "level": 2,
-                    "order_index": 3.1,
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 3: Đánh giá và Kết luận",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="8.3.2 Mục con: 2) Hướng phát triển",
-                description=f"Mục con '2) Hướng phát triển' thuộc Chương 3: Đánh giá và Kết luận (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_section",
-                    "section_name": "2) Hướng phát triển",
-                    "parent_chapter": "Chương 3: Đánh giá và Kết luận",
-                    "chapter_number": 3,
-                    "sub_index": 2,
-                    "level": 2,
-                    "order_index": 3.2,
-                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "8. Khung cấu trúc đề cương & các chương mục",
-                },
-                source_citation="Chương 3: Đánh giá và Kết luận",
-                source_document_id=doc_id,
-            ),
-            FormatCriterionInput(
-                name="9. Thứ tự và phân cấp cấu trúc đề mục",
-                description=f"Kiểm tra tuần tự và phân cấp cấu trúc toàn bài. {'Cho phép tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc chính xác 100%.'}",
-                rule_type=FormatCriterionRuleType.TEMPLATE,
-                expected_value={
-                    "kind": "template_sequence",
-                    "chapters": [
+                    "kind": "template_outline",
+                    "requirement_text": (
+                        "Chương 1: Khái niệm (1) Mô tả đồ án, 2) Tại sao cần)\n"
+                        "Chương 2: Hiện thực (1) Thiết kế hệ thống, 2) Cài đặt và thử nghiệm)\n"
+                        "Chương 3: Đánh giá và Kết luận (1) Kết quả đạt được, 2) Hướng phát triển)"
+                    ),
+                    "outline_headings": [
                         "Chương 1: Khái niệm",
                         "Chương 2: Hiện thực",
                         "Chương 3: Đánh giá và Kết luận",
                     ],
                     "allow_semantic_equivalent": allow_semantic_equivalent,
-                    "category": "9. Thứ tự và phân cấp cấu trúc đề mục",
+                    "category": "8. Khung cấu trúc và đề cương báo cáo",
                 },
-                source_citation="Khung Cấu trúc Báo cáo Bắt buộc (Template)",
+                source_citation="Khung Cấu trúc Báo cáo Bắt buộc (Template)...",
                 source_document_id=doc_id,
             ),
             FormatCriterionInput(
-                name="10. Tài liệu tham khảo và Trích dẫn",
+                name="9. Tài liệu tham khảo và Trích dẫn",
                 description="Có danh mục tài liệu tham khảo theo chuẩn IEEE hoặc APA.",
                 rule_type=FormatCriterionRuleType.PRESENCE,
                 expected_value={
                     "kind": "heading",
                     "value": "Tài liệu tham khảo",
-                    "category": "10. Tài liệu tham khảo và Trích dẫn",
+                    "category": "9. Tài liệu tham khảo và Trích dẫn",
                 },
                 source_citation="Tài liệu tham khảo: Danh sách sách, bài báo khoa học...",
                 source_document_id=doc_id,
@@ -735,6 +586,33 @@ class FakeProvider:
                         criterion_id=cid,
                         verdict="FAIL",
                         reason=cov_res.reason,
+                    )
+            elif kind in ("template_outline", "template_sequence"):
+                outline_headings = exp.get("outline_headings") or exp.get("chapters", [])
+                headings = submission_facts.get("headings", [])
+                if outline_headings:
+                    missing_h = []
+                    for req_h in outline_headings:
+                        sem = await self.judge_format_ambiguity("TEMPLATE", [req_h], headings, c_name, "")
+                        if sem.verdict == "FAIL":
+                            missing_h.append(req_h)
+                    if missing_h:
+                        results[cid] = LLMBatchCriterionJudgment(
+                            criterion_id=cid,
+                            verdict="MISSING_STUDENT_INPUT",
+                            reason=f"Thiếu các mục theo đề cương: {', '.join(missing_h[:2])}",
+                        )
+                    else:
+                        results[cid] = LLMBatchCriterionJudgment(
+                            criterion_id=cid,
+                            verdict="PASS",
+                            reason="Đầy đủ các chương mục theo khung đề cương quy chuẩn.",
+                        )
+                else:
+                    results[cid] = LLMBatchCriterionJudgment(
+                        criterion_id=cid,
+                        verdict="PASS",
+                        reason="Đầy đủ cấu trúc đề cương theo quy định.",
                     )
             elif kind == "template_chapter":
                 chap = exp.get("chapter_name", "")

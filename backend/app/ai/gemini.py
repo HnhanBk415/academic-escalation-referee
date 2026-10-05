@@ -483,21 +483,23 @@ class GeminiProvider:
             "- Giãn dòng: expected_value_json='{\"property\": \"line_spacing\", \"value\": 1.3, \"justify\": true, \"tolerance\": 0.15}'\n"
             "- Dung lượng số trang: expected_value_json='{\"property\": \"page_count\", \"min_pages\": 10, \"max_pages\": 50}'\n"
             "\n"
-            "2. CÁC THÀNH PHẦN HIỆN DIỆN BẮT BUỘC (rule_type='PRESENCE'):\n"
-            "- Trang bìa: expected_value_json='{\"kind\": \"cover_page\", \"required_fields\": [\"tên trường\", \"tên khoa\", \"tên đề tài\", \"giảng viên hướng dẫn\", \"sinh viên\", \"mssv\", \"năm thực hiện\"]}'\n"
-            "- Bảng phân công thành viên: expected_value_json='{\"kind\": \"table_columns\", \"value\": [\"STT\", \"Họ và tên\", \"MSSV\", \"Nhiệm vụ\", \"Tỷ lệ đóng góp (%)\"]}'\n"
-            "- Mục lục / Danh mục: expected_value_json='{\"kind\": \"heading\", \"value\": \"Mục lục\"}'\n"
-            "- Tài liệu tham khảo: expected_value_json='{\"kind\": \"heading\", \"value\": \"Tài liệu tham khảo\", \"style\": \"IEEE\"}'\n"
+            "2. CÁC THÀNH PHẦN BẮT BUỘC (rule_type='PRESENCE'):\n"
+            "- Trang bìa: name='Trang bìa chính', description='Quy định các trường thông tin trên bìa', expected_value_json='{\"kind\": \"cover_page\", \"requirement_text\": \"Tên trường, tên khoa, tên đề tài, GVHD, SV thực hiện, MSSV, năm thực hiện\", \"required_fields\": [\"tên trường\", \"tên khoa\", \"tên đề tài\", \"giảng viên hướng dẫn\", \"sinh viên\", \"mssv\", \"năm thực hiện\"]}'\n"
+            "- Bảng phân công thành viên: name='Bảng phân công đóng góp thành viên', description='Bảng chi tiết trách nhiệm và tỷ lệ phần trăm', expected_value_json='{\"kind\": \"table_columns\", \"requirement_text\": \"Bảng gồm các cột: STT, Họ và tên, MSSV, Nhiệm vụ, Tỷ lệ đóng góp (%)\", \"value\": [\"STT\", \"Họ và tên\", \"MSSV\", \"Nhiệm vụ\", \"Tỷ lệ đóng góp (%)\"]}'\n"
+            "- Mục lục: name='Mục lục báo cáo', description='Mục lục chi tiết các chương và số trang', expected_value_json='{\"kind\": \"heading\", \"value\": \"Mục lục\"}'\n"
+            "- Tài liệu tham khảo: name='Tài liệu tham khảo', description='Danh mục trích dẫn theo chuẩn', expected_value_json='{\"kind\": \"heading\", \"value\": \"Tài liệu tham khảo\", \"style\": \"IEEE\"}'\n"
             "\n"
             "3. KHUNG CẤU TRÚC ĐỀ CƯƠNG VÀ CÁC CHƯƠNG MỤC (rule_type='TEMPLATE'):\n"
-            "- Mỗi Chương: name='Mục bắt buộc: [Tên chương]', expected_value_json='{\"kind\": \"template_chapter\", \"chapter_name\": \"[Tên chương]\", \"chapter_number\": X, \"level\": 1, \"order_index\": X, \"required_subheadings\": [\"Mục con 1\", \"Mục con 2\"], \"allow_semantic_equivalent\": true}'\n"
-            "- Mỗi Mục con: name='Mục con: [Tên mục con]', expected_value_json='{\"kind\": \"template_section\", \"section_name\": \"[Tên mục con]\", \"parent_chapter\": \"[Tên chương]\", \"level\": 2, \"allow_semantic_equivalent\": true}'\n"
-            "- Thứ tự các chương: name='Thứ tự và phân cấp cấu trúc đề mục', expected_value_json='{\"kind\": \"template_sequence\", \"chapters\": [\"Chương 1...\", \"Chương 2...\"], \"allow_semantic_equivalent\": true}'\n"
+            "- Trích xuất khung đề cương các chương/mục theo dạng VĂN BẢN / ĐOẠN VĂN TỰ NHIÊN hoặc danh sách dàn ý đầy đủ:\n"
+            "  name='Khung cấu trúc và đề cương báo cáo',\n"
+            "  description='Toàn bộ khung dàn ý các chương và mục con yêu cầu theo tài liệu (ví dụ: Chương 1: ..., Chương 2: ..., Chương 3: ...)',\n"
+            "  expected_value_json='{\"kind\": \"template_outline\", \"requirement_text\": \"Chương 1: ... (1.1, 1.2)\\nChương 2: ... (2.1, 2.2)...\", \"outline_headings\": [\"Chương 1: ...\", \"Chương 2: ...\"], \"allow_semantic_equivalent\": true}'\n"
             "\n"
             "QUY TẮC TUYỆT ĐỐI:\n"
             "1. KHÔNG tự bịa đặt hay giả định bất kỳ giá trị nào nếu văn bản của giảng viên không đề cập.\n"
             "2. Văn bản có bao nhiêu yêu cầu thì trích xuất đúng bấy nhiêu yêu cầu, không tự thêm mục thừa.\n"
-            "3. Trích dẫn chính xác câu trích nguồn trong tài liệu vào source_citation."
+            "3. Giữ nguyên văn các câu mô tả yêu cầu trong tài liệu vào description và requirement_text.\n"
+            "4. Trích dẫn chính xác câu trích nguồn trong tài liệu vào source_citation."
         )
 
         prompt = json.dumps(
@@ -558,43 +560,6 @@ class GeminiProvider:
                             source_citation=item.source_citation or None,
                         )
                     )
-
-                # Ensure every subsection is an independent, granular criterion for precise comparison
-                existing_section_names = {
-                    str(c.expected_value.get("section_name", "")).strip().lower()
-                    for c in criteria
-                    if isinstance(c.expected_value, dict) and c.expected_value.get("kind") == "template_section"
-                }
-                expanded_criteria: list[FormatCriterionInput] = []
-                for c in criteria:
-                    expanded_criteria.append(c)
-                    if isinstance(c.expected_value, dict) and c.expected_value.get("kind") == "template_chapter":
-                        chap_name = c.expected_value.get("chapter_name") or c.name
-                        chap_num = c.expected_value.get("chapter_number", 1)
-                        subheadings = c.expected_value.get("required_subheadings", [])
-                        for sub_idx, sub in enumerate(subheadings, 1):
-                            sub_clean = str(sub).strip()
-                            if not sub_clean or sub_clean.lower() in existing_section_names:
-                                continue
-                            existing_section_names.add(sub_clean.lower())
-                            sec_input = FormatCriterionInput(
-                                name=f"Mục con: {sub_clean}",
-                                description=f"Mục con '{sub_clean}' thuộc {chap_name} (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
-                                rule_type=FormatCriterionRuleType.TEMPLATE,
-                                expected_value={
-                                    "kind": "template_section",
-                                    "section_name": sub_clean,
-                                    "parent_chapter": chap_name,
-                                    "chapter_number": chap_num,
-                                    "sub_index": sub_idx,
-                                    "level": 2,
-                                    "order_index": float(f"{chap_num}.{sub_idx}"),
-                                    "allow_semantic_equivalent": allow_semantic_equivalent,
-                                },
-                                source_citation=c.source_citation,
-                            )
-                            expanded_criteria.append(sec_input)
-                criteria = expanded_criteria
 
                 print(f"[Gemini RegulationExtractor] => extracted {len(criteria)} criteria", flush=True)
                 return criteria
