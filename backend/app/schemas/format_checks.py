@@ -197,4 +197,18 @@ class LLMCriteriaExtraction(BaseModel):
     criteria: list[LLMCriterionItem] = Field(default_factory=list, description="Danh sách các tiêu chí thể thức và đề cương trích xuất từ quy chế")
 
 
+class LLMBatchCriterionJudgment(BaseModel):
+    criterion_id: str = Field(description="ID của tiêu chí cần đánh giá")
+    verdict: str = Field(description="'PASS', 'AMBIGUOUS', 'FAIL', hoặc 'MISSING_STUDENT_INPUT'")
+    reason: str = Field(description="Giải thích ngắn gọn bằng tiếng Việt (≤ 200 ký tự)")
+    detected_element: str | None = Field(default=None, description="Thành phần/đề mục tương ứng tìm thấy trong bài nộp")
+
+
+class LLMBatchReviewResponse(BaseModel):
+    judgments: list[LLMBatchCriterionJudgment] = Field(
+        default_factory=list,
+        description="Danh sách kết quả rà soát đồng loạt cho các tiêu chí ngữ nghĩa",
+    )
+
+
 

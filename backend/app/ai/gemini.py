@@ -685,6 +685,109 @@ class GeminiProvider:
 
         return LLMSubmissionContentFacts()
 
+    async def batch_judge_submission_criteria(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+        """Review ALL semantic checklist criteria against student submission facts in a SINGLE batch LLM call."""
+        from app.schemas.format_checks import (
+            LLMBatchCriterionJudgment,
+            LLMBatchReviewResponse,
+        )
+
+        if not criteria_items:
+            return {}
+
+        _BATCH_REVIEW_INSTRUCTION = (
+            "Bạn là chuyên gia rà soát và kiểm định định dạng bài báo cáo / đồ án học thuật. "
+            "Nhiệm vụ: Đối chiếu đồng loạt danh sách các tiêu chí quy định (criteria_to_review) "
+            "với toàn bộ dữ liệu thực tế đã trích xuất từ bài nộp của sinh viên (submission_facts), "
+            "sau đó đưa ra phán quyết chính xác cho TỪNG tiêu chí:\n\n"
+            "QUY TẮC ĐÁNH GIÁ CHO TỪNG TIÊU CHÍ:\n"
+            "1. 'PASS': Bài nộp có đầy đủ hoặc đề mục/nội dung khớp chính xác/tương đương ngữ nghĩa học thuật đạt chuẩn.\n"
+            "2. 'MISSING_STUDENT_INPUT': Tiêu chí này được tài liệu quy định yêu cầu, nhưng bài nộp hoàn toàn KHÔNG CÓ "
+            "(ví dụ: thiếu hẳn trường thông tin bìa, thiếu hẳn bảng phân công, thiếu hẳn mục lục, hoặc thiếu hẳn một chương/mục con). "
+            "Sinh viên bắt buộc phải tự điền/bổ sung vào báo cáo.\n"
+            "3. 'AMBIGUOUS': Đề mục hoặc nội dung trong bài nộp CÓ xuất hiện nhưng tên gọi khác biệt đáng kể hoặc có sự mơ hồ, "
+            "cần chuyển giảng viên phụ trách xem xét và quyết định ngoại lệ.\n"
+            "4. 'FAIL': Vi phạm quy định rõ ràng hoặc xung đột cấu trúc.\n\n"
+            "YÊU CẦU ĐẦU RA:\n"
+            "- Trả về danh sách phán quyết chứa đúng 'criterion_id' tương ứng của từng tiêu chí trong danh sách criteria_to_review.\n"
+            "- 'reason': Giải thích súc tích bằng tiếng Việt (≤ 200 ký tự).\n"
+            "- 'detected_element': Tên đề mục hoặc thành phần tương ứng tìm thấy trong bài nộp (nếu có)."
+        )
+
+        prompt = json.dumps(
+            {
+                "criteria_to_review": criteria_items,
+                "submission_facts": {
+                    "cover_page_detected_fields": submission_facts.get("cover_page_fields", []),
+                    "cover_sample": submission_facts.get("cover_sample", "")[:1200],
+                    "headings": submission_facts.get("headings", []),
+                    "has_member_contribution_table": submission_facts.get("has_member_contribution_table", False),
+                    "member_table_columns": submission_facts.get("member_table_columns", []),
+                    "has_table_of_contents": submission_facts.get("has_table_of_contents", False),
+                    "has_list_of_figures": submission_facts.get("has_list_of_figures", False),
+                    "has_list_of_tables": submission_facts.get("has_list_of_tables", False),
+                    "has_references_section": submission_facts.get("has_references_section", False),
+                    "references_style": submission_facts.get("references_style"),
+                    "table_captions": submission_facts.get("table_captions", [])[:10],
+                    "figure_captions": submission_facts.get("figure_captions", [])[:10],
+                    "filename": submission_facts.get("filename", ""),
+                },
+            },
+            ensure_ascii=False,
+        )
+
+        print(
+            f"[Gemini BatchReview] Reviewing {len(criteria_items)} criteria in 1 batch call...",
+            flush=True,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            await self._chat_rate_limiter.acquire()
+            try:
+                async with self._semaphore:
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=self.settings.gemini_chat_model,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=_BATCH_REVIEW_INSTRUCTION,
+                                temperature=0,
+                                max_output_tokens=4000,
+                                response_mime_type="application/json",
+                                response_schema=LLMBatchReviewResponse,
+                            ),
+                        ),
+                        timeout=self.settings.ai_request_timeout_seconds,
+                    )
+                if response.parsed:
+                    batch_res = (
+                        response.parsed
+                        if isinstance(response.parsed, LLMBatchReviewResponse)
+                        else LLMBatchReviewResponse.model_validate(response.parsed)
+                    )
+                elif response.text:
+                    batch_res = LLMBatchReviewResponse.model_validate_json(response.text)
+                else:
+                    raise RuntimeError("Gemini returned empty batch review")
+
+                judgments_map = {j.criterion_id: j for j in batch_res.judgments}
+                print(f"[Gemini BatchReview] => successfully judged {len(judgments_map)} criteria in 1 single call", flush=True)
+                return judgments_map
+            except Exception as error:
+                last_error = error
+                print(f"[Gemini BatchReview Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
+                if not self._is_retryable(error) or attempt == _MAX_RETRIES:
+                    break
+                delay = (_BASE_RETRY_DELAY_SECONDS ** attempt) + random.uniform(0.1, 0.4)
+                await asyncio.sleep(delay)
+
+        return {}
+
     async def health(self) -> AIHealth:
         try:
             await asyncio.wait_for(

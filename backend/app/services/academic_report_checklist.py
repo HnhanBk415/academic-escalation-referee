@@ -579,11 +579,12 @@ async def evaluate_academic_checklist(
     structure: dict[str, Any],
     ai_provider: Any = None,
 ) -> tuple[list[FormatCriterionResult], list[dict[str, Any]], FormatCheckOverallStatus]:
-    """Pure 2-List AI review & comparison engine:
+    """Pure 2-List AI review & comparison engine (1-Batch LLM Call):
 
     1. List 1: Teacher regulation criteria (mapped to 30 categories).
     2. List 2: Student submission facts (measurements + AI semantic content).
-    3. Evaluate each item:
+    3. AI Batch Review: Evaluates ALL semantic criteria at once in 1 SINGLE LLM call (zero loop calls).
+    4. Evaluates status for each item:
        - Specified=False in regulation -> NOT_SPECIFIED.
        - Specified=True but submission Missing -> MISSING_STUDENT_INPUT (prompt student).
        - Ambiguous / Wording variance -> ESCALATE to Lecturer (AMBIGUOUS).
@@ -594,8 +595,35 @@ async def evaluate_academic_checklist(
     regulation_30 = build_regulation_30_criteria(criteria)
     submission_30 = build_submission_30_facts(structure)
 
-    # 1. Evaluate Individual Criteria for detailed feedback
+    # 1. Prepare semantic criteria for 1 single batch review call
+    semantic_criteria_items: list[dict[str, Any]] = []
+    for c in criteria:
+        if getattr(c, "review_only", False) or not getattr(c, "automatable", True):
+            continue
+        rule_type = getattr(c, "rule_type", None)
+        rule_type_val = rule_type.value if hasattr(rule_type, "value") else str(rule_type)
+        if rule_type in (FormatCriterionRuleType.PRESENCE, FormatCriterionRuleType.TEMPLATE) or rule_type_val in ("PRESENCE", "TEMPLATE"):
+            semantic_criteria_items.append({
+                "criterion_id": str(getattr(c, "id", "")),
+                "name": str(getattr(c, "name", "")),
+                "rule_type": rule_type_val,
+                "expected_value": getattr(c, "expected_value", {}) or {},
+                "source_citation": getattr(c, "source_citation", "") or "",
+            })
+
+    batch_judgments: dict[str, Any] = {}
+    if semantic_criteria_items and ai_provider is not None:
+        try:
+            batch_judgments = await ai_provider.batch_judge_submission_criteria(
+                criteria_items=semantic_criteria_items,
+                submission_facts=structure,
+            )
+        except Exception as e:
+            print(f"[AcademicChecklist] Batch LLM review fallback: {e}", flush=True)
+
+    # 2. Evaluate Individual Criteria
     for criterion in criteria:
+        cid_str = str(getattr(criterion, "id", ""))
         if getattr(criterion, "review_only", False) or not getattr(criterion, "automatable", True):
             results.append(
                 FormatCriterionResult(
@@ -613,7 +641,7 @@ async def evaluate_academic_checklist(
         prop = expected.get("property")
         kind = expected.get("kind")
 
-        # A. MEASUREMENT RULES
+        # A. MEASUREMENT RULES (Direct mathematical & structural calculations - 0 AI calls)
         if criterion.rule_type == FormatCriterionRuleType.MEASUREMENT:
             if prop == "margins_cm":
                 actual_margins = structure.get("margins_cm")
@@ -740,27 +768,31 @@ async def evaluate_academic_checklist(
                         )
                     )
 
-        # B. PRESENCE RULES
+        # B. PRESENCE RULES (Checked from single batch judgment or fallback)
         elif criterion.rule_type == FormatCriterionRuleType.PRESENCE:
-            if kind == "cover_page":
-                req_fields = expected.get("required_fields", [])
+            if cid_str in batch_judgments:
+                bj = batch_judgments[cid_str]
+                v_map = {
+                    "PASS": FormatCriterionResultStatus.PASS,
+                    "FAIL": FormatCriterionResultStatus.FAIL,
+                    "AMBIGUOUS": FormatCriterionResultStatus.AMBIGUOUS,
+                    "MISSING_STUDENT_INPUT": FormatCriterionResultStatus.FAIL,
+                }
+                results.append(
+                    FormatCriterionResult(
+                        criterion_id=criterion.id,
+                        name=criterion.name,
+                        status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
+                        message=bj.reason,
+                        expected_value=expected,
+                        actual_value={"detected": bj.detected_element},
+                        source_citation=criterion.source_citation,
+                    )
+                )
+            elif kind == "cover_page":
                 cover_sample = structure.get("cover_sample", "")
-
-                if ai_provider is not None:
-                    judgment = await ai_provider.judge_cover_page(cover_sample, req_fields)
-                    if judgment.is_cover_page and not judgment.missing_elements:
-                        status = FormatCriterionResultStatus.PASS
-                        msg = f"Trang bìa hợp lệ, đầy đủ các trường thông tin: {', '.join(judgment.detected_elements)}."
-                    elif judgment.is_cover_page:
-                        status = FormatCriterionResultStatus.AMBIGUOUS
-                        msg = f"Đã nhận diện trang bìa nhưng thiếu trường: {', '.join(judgment.missing_elements)}. Cần sinh viên bổ sung hoặc GV xem xét."
-                    else:
-                        status = FormatCriterionResultStatus.FAIL
-                        msg = f"Không nhận diện được trang bìa hợp lệ theo quy định: {judgment.reason}"
-                else:
-                    status = FormatCriterionResultStatus.PASS if len(cover_sample) > 30 else FormatCriterionResultStatus.FAIL
-                    msg = "Đã tìm thấy trang bìa." if status == FormatCriterionResultStatus.PASS else "Không tìm thấy trang bìa."
-
+                status = FormatCriterionResultStatus.PASS if len(cover_sample) > 30 else FormatCriterionResultStatus.FAIL
+                msg = "Đã tìm thấy trang bìa." if status == FormatCriterionResultStatus.PASS else "Không tìm thấy trang bìa."
                 results.append(
                     FormatCriterionResult(
                         criterion_id=criterion.id,
@@ -772,7 +804,6 @@ async def evaluate_academic_checklist(
                         source_citation=criterion.source_citation,
                     )
                 )
-
             elif kind == "table_columns":
                 has_table = structure.get("has_member_contribution_table", False)
                 status = FormatCriterionResultStatus.PASS if has_table else FormatCriterionResultStatus.FAIL
@@ -788,7 +819,6 @@ async def evaluate_academic_checklist(
                         source_citation=criterion.source_citation,
                     )
                 )
-
             elif kind == "heading":
                 desired = expected.get("value")
                 desired_items = [str(desired)] if isinstance(desired, (str, int)) else [str(x) for x in desired]
@@ -818,39 +848,41 @@ async def evaluate_academic_checklist(
                     )
                 )
 
-        # C. TEMPLATE RULES (Granular Chapters & Sections)
+        # C. TEMPLATE RULES (Granular Chapters & Sections from single batch judgment)
         elif criterion.rule_type == FormatCriterionRuleType.TEMPLATE:
-            if kind == "template_chapter":
+            if cid_str in batch_judgments:
+                bj = batch_judgments[cid_str]
+                v_map = {
+                    "PASS": FormatCriterionResultStatus.PASS,
+                    "FAIL": FormatCriterionResultStatus.FAIL,
+                    "AMBIGUOUS": FormatCriterionResultStatus.AMBIGUOUS,
+                    "MISSING_STUDENT_INPUT": FormatCriterionResultStatus.FAIL,
+                }
+                results.append(
+                    FormatCriterionResult(
+                        criterion_id=criterion.id,
+                        name=criterion.name,
+                        status=v_map.get(bj.verdict, FormatCriterionResultStatus.AMBIGUOUS),
+                        message=bj.reason,
+                        expected_value=expected,
+                        actual_value={"detected": bj.detected_element},
+                        source_citation=criterion.source_citation,
+                    )
+                )
+            elif kind == "template_chapter":
                 chap_name = expected.get("chapter_name", "")
-                allow_semantic = expected.get("allow_semantic_equivalent", True)
                 actual_headings = [str(h) for h in structure.get("headings", [])]
 
                 found_heading = None
-                is_semantic = False
                 for h in actual_headings:
                     is_algo, _ = _is_heading_matching_algorithmically(chap_name, h)
                     if is_algo:
                         found_heading = h
                         break
-                    if allow_semantic and ai_provider is not None:
-                        try:
-                            judgment = await ai_provider.judge_format_ambiguity(
-                                rule_type="TEMPLATE",
-                                expected_items=[chap_name],
-                                actual_items=[h],
-                                criterion_name=criterion.name,
-                                source_citation=criterion.source_citation or "",
-                            )
-                            if judgment.verdict in ("PASS", "AMBIGUOUS"):
-                                found_heading = h
-                                is_semantic = (judgment.verdict == "AMBIGUOUS")
-                                break
-                        except Exception:
-                            pass
 
                 if found_heading:
-                    status = FormatCriterionResultStatus.AMBIGUOUS if is_semantic else FormatCriterionResultStatus.PASS
-                    msg = f"Đã tìm thấy chương '{found_heading}' ({'Chuyển GV xem xét tên tương đương' if is_semantic else 'Khớp quy định'})."
+                    status = FormatCriterionResultStatus.PASS
+                    msg = f"Đã tìm thấy chương '{found_heading}' khớp quy định."
                 else:
                     status = FormatCriterionResultStatus.FAIL
                     msg = f"Thiếu chương bắt buộc '{chap_name}' theo khung đề cương quy định."
@@ -870,34 +902,17 @@ async def evaluate_academic_checklist(
             elif kind == "template_section":
                 sec_name = expected.get("section_name", "")
                 parent_chap = expected.get("parent_chapter", "")
-                allow_semantic = expected.get("allow_semantic_equivalent", True)
                 actual_headings = [str(h) for h in structure.get("headings", [])]
 
                 found_heading = None
-                is_semantic = False
                 for h in actual_headings:
                     is_algo, _ = _is_heading_matching_algorithmically(sec_name, h)
                     if is_algo:
                         found_heading = h
                         break
-                    if allow_semantic and ai_provider is not None:
-                        try:
-                            judgment = await ai_provider.judge_format_ambiguity(
-                                rule_type="TEMPLATE",
-                                expected_items=[sec_name],
-                                actual_items=[h],
-                                criterion_name=criterion.name,
-                                source_citation=criterion.source_citation or "",
-                            )
-                            if judgment.verdict in ("PASS", "AMBIGUOUS"):
-                                found_heading = h
-                                is_semantic = (judgment.verdict == "AMBIGUOUS")
-                                break
-                        except Exception:
-                            pass
 
                 if found_heading:
-                    status = FormatCriterionResultStatus.AMBIGUOUS if is_semantic else FormatCriterionResultStatus.PASS
+                    status = FormatCriterionResultStatus.PASS
                     msg = f"Đã tìm thấy mục con '{found_heading}' thuộc {parent_chap}."
                 else:
                     status = FormatCriterionResultStatus.FAIL
@@ -978,39 +993,6 @@ async def evaluate_academic_checklist(
                                 source_citation=criterion.source_citation,
                             )
                         )
-                    elif ai_provider is not None:
-                        try:
-                            judgment = await ai_provider.judge_format_ambiguity(
-                                rule_type="TEMPLATE",
-                                expected_items=template,
-                                actual_items=headings,
-                                criterion_name=criterion.name,
-                                source_citation=criterion.source_citation or "",
-                            )
-                            v_map = {"PASS": FormatCriterionResultStatus.PASS, "FAIL": FormatCriterionResultStatus.FAIL, "AMBIGUOUS": FormatCriterionResultStatus.AMBIGUOUS}
-                            results.append(
-                                FormatCriterionResult(
-                                    criterion_id=criterion.id,
-                                    name=criterion.name,
-                                    status=v_map.get(judgment.verdict, FormatCriterionResultStatus.AMBIGUOUS),
-                                    message=f"AI phân tích dàn ý: {judgment.reason}",
-                                    expected_value=expected,
-                                    actual_value={"headings": headings},
-                                    source_citation=criterion.source_citation,
-                                )
-                            )
-                        except Exception:
-                            results.append(
-                                FormatCriterionResult(
-                                    criterion_id=criterion.id,
-                                    name=criterion.name,
-                                    status=FormatCriterionResultStatus.AMBIGUOUS if all_found else FormatCriterionResultStatus.FAIL,
-                                    message="Đề mục tương tự nhưng tên gọi khác biệt; cần giảng viên xem xét." if all_found else "Thiếu đề mục bắt buộc.",
-                                    expected_value=expected,
-                                    actual_value={"headings": headings},
-                                    source_citation=criterion.source_citation,
-                                )
-                            )
                     else:
                         results.append(
                             FormatCriterionResult(

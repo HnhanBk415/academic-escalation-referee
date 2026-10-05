@@ -67,6 +67,22 @@ class UnavailableProvider:
         from app.schemas.format_checks import LLMSubmissionContentFacts
         return LLMSubmissionContentFacts()
 
+    async def batch_judge_submission_criteria(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+        from app.schemas.format_checks import LLMBatchCriterionJudgment
+        return {
+            c.get("criterion_id", ""): LLMBatchCriterionJudgment(
+                criterion_id=c.get("criterion_id", ""),
+                verdict="AMBIGUOUS",
+                reason=f"AI không khả dụng ({self.detail}); chuyển giảng viên xem xét.",
+            )
+            for c in criteria_items
+            if c.get("criterion_id")
+        }
+
     async def health(self) -> AIHealth:
         return AIHealth(
             mode=self.mode,

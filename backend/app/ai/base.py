@@ -4,6 +4,7 @@ from app.schemas.format_checks import (
     CoverPageJudgment,
     FormatCriterionInput,
     FormatSemanticJudgment,
+    LLMBatchCriterionJudgment,
     LLMSubmissionContentFacts,
 )
 from app.schemas.referee import AIHealth, RefereeDecision
@@ -51,6 +52,12 @@ class AIProvider(Protocol):
         full_text: str,
         cover_text: str,
     ) -> LLMSubmissionContentFacts: ...
+
+    async def batch_judge_submission_criteria(
+        self,
+        criteria_items: list[dict[str, Any]],
+        submission_facts: dict[str, Any],
+    ) -> dict[str, LLMBatchCriterionJudgment]: ...
 
     async def health(self) -> AIHealth: ...
 
