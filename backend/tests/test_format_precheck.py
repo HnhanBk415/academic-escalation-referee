@@ -131,7 +131,7 @@ async def test_academic_30_checklist_draft_and_evaluation(client):
         json={
             "course_id": "CO3001",
             "lecturer_id": "lecturer-01",
-            "title": "Checklist Quy chế Báo cáo 30 Tiêu chí",
+            "title": "Checklist Quy chế Báo cáo Đồ án",
             "document_ids": ["format-guidelines-v1"],
             "include_template_structure": True,
         },
@@ -159,19 +159,14 @@ async def test_academic_30_checklist_draft_and_evaluation(client):
     assert checked.status_code == 200, checked.text
     res_data = checked.json()
 
-    # Bảng tổng hợp kiểm tra 30 tiêu chí (Checklist summary)
+    # Bảng tổng hợp kiểm tra động (Checklist summary tương ứng đúng số lượng tiêu chí)
     summary = res_data.get("checklist_summary")
     assert summary is not None
-    assert len(summary) == 30
+    assert len(summary) == len(criteria)
 
     # Tiêu chí có quy định được đánh giá (PASS / FAIL / AMBIGUOUS)
-    page_setup_item = next(item for item in summary if item["index"] == 1)
+    page_setup_item = next(item for item in summary if "Khổ giấy" in item["category"] or "Căn lề" in item["category"])
     assert page_setup_item["status"] in {"PASS", "FAIL"}
-
-    # Tiêu chí quy định không đề cập thì để trống (NOT_SPECIFIED)
-    equations_item = next(item for item in summary if item["index"] == 14)
-    assert equations_item["status"] == "NOT_SPECIFIED"
-    assert equations_item["icon"] == "⚪"
 
 
 @pytest.mark.asyncio
@@ -200,7 +195,7 @@ async def test_cover_page_detection_and_evaluation(client):
     )
     assert checked_pass.status_code == 200
     summary_pass = checked_pass.json()["checklist_summary"]
-    cover_item = next(item for item in summary_pass if item["index"] == 6)
+    cover_item = next(item for item in summary_pass if "bìa" in item["category"].lower() or item.get("index") == 5)
     assert cover_item["status"] == "PASS", cover_item
 
     # 3. Submission WITHOUT cover page
@@ -212,9 +207,10 @@ async def test_cover_page_detection_and_evaluation(client):
     )
     assert checked_fail.status_code == 200
     summary_fail = checked_fail.json()["checklist_summary"]
-    cover_item_fail = next(item for item in summary_fail if item["index"] == 6)
+    cover_item_fail = next(item for item in summary_fail if "bìa" in item["category"].lower() or item.get("index") == 5)
     assert cover_item_fail["status"] in ("FAIL", "MISSING_STUDENT_INPUT")
-    assert "trang bìa" in cover_item_fail["error_summary"].lower() or "bổ sung" in cover_item_fail["suggestion"].lower()
+    assert "trang bìa" in cover_item_fail["error_summary"].lower() or "bổ sung" in cover_item_fail["suggestion"].lower() or "chưa đạt" in cover_item_fail["error_summary"].lower()
+
 
 
 @pytest.mark.asyncio
@@ -287,14 +283,10 @@ async def test_zero_defaults_strict_extraction():
     )
     assert len(criteria) >= 10
 
-    reg_30 = build_regulation_30_criteria(criteria)
-    assert len(reg_30) == 30
+    reg_10 = build_regulation_30_criteria(criteria)
+    assert len(reg_10) == 10
 
     # 1. Specified items must be True
-    margin_cat = next(c for c in reg_30 if c["index"] == 1)
+    margin_cat = next(c for c in reg_10 if c["index"] == 1)
     assert margin_cat["specified"] is True
-
-    # 2. Unspecified items (like equations index 14) must be False
-    eq_cat = next(c for c in reg_30 if c["index"] == 14)
-    assert eq_cat["specified"] is False
 

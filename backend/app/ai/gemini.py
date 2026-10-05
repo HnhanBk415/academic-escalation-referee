@@ -474,29 +474,30 @@ class GeminiProvider:
         from app.schemas.format_checks import FormatCriterionInput, LLMCriteriaExtraction
 
         _INSTRUCTION = (
-            "Bạn là chuyên gia trích xuất quy chế thể thức và khung đề cương báo cáo học thuật. "
-            "Nhiệm vụ: Đọc toàn bộ văn bản quy chế và trích xuất ĐẦY ĐỦ cả QUY ĐỊNH HÌNH THỨC (FORMAT) và KHUNG CẤU TRÚC ĐỀ CƯƠNG (TEMPLATE) thành danh sách criteria. "
+            "Bạn là chuyên gia trích xuất quy chế thể thức và khung đề cương báo cáo học thuật từ tài liệu của giảng viên. "
+            "Nhiệm vụ: Đọc toàn bộ văn bản quy chế do giảng viên tải lên và trích xuất ĐẦY ĐỦ các tiêu chí thực tế có trong tài liệu:\n"
             "\n"
-            "PHẦN 1 - QUY ĐỊNH HÌNH THỨC (FORMAT):\n"
-            "- Khổ giấy & Căn lề: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"margins_cm\", \"value\": {\"top\": 2.5, \"bottom\": 2.5, \"left\": 3.0, \"right\": 2.0}, \"paper_size\": \"A4\", \"orientation\": \"PORTRAIT\", \"tolerance\": 0.15, \"category\": \"1. Khổ giấy và thiết lập trang\"}'\n"
-            "- Phông chữ & Cỡ chữ: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"font_name\", \"value\": \"Times New Roman\", \"font_size_pt\": 13.0, \"tolerance\": 0.5, \"category\": \"2. Font chữ và cỡ chữ\"}'\n"
-            "- Giãn dòng: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"line_spacing\", \"value\": 1.3, \"justify\": true, \"tolerance\": 0.15, \"category\": \"3. Định dạng đoạn văn\"}'\n"
-            "- Trang bìa: rule_type='PRESENCE', expected_value_json='{\"kind\": \"cover_page\", \"required_fields\": [\"tên trường\", \"tên khoa\", \"tên đề tài\", \"giảng viên hướng dẫn\", \"sinh viên\", \"mssv\", \"năm thực hiện\"], \"category\": \"6. Trang bìa\"}'\n"
-            "- Bảng phân công / Lời cam đoan: rule_type='PRESENCE', expected_value_json='{\"kind\": \"table_columns\", \"value\": [\"Bảng phân công\"], \"category\": \"7. Trang phụ và lời cam đoan\"}'\n"
-            "- Mục lục: rule_type='PRESENCE', expected_value_json='{\"kind\": \"heading\", \"value\": \"Mục lục\", \"category\": \"8. Mục lục\"}'\n"
-            "- Dung lượng số trang: rule_type='MEASUREMENT', expected_value_json='{\"property\": \"page_count\", \"min_pages\": 20, \"max_pages\": 50, \"category\": \"18. Khoảng cách và bố cục trang\"}'\n"
-            "- Tài liệu tham khảo: rule_type='PRESENCE', expected_value_json='{\"kind\": \"heading\", \"value\": \"Tài liệu tham khảo\", \"category\": \"19. Tài liệu tham khảo\"}'\n"
+            "1. CÁC TIÊU CHÍ ĐO LƯỜNG VẬT LÝ (rule_type='MEASUREMENT'):\n"
+            "- Khổ giấy & Căn lề: expected_value_json='{\"property\": \"margins_cm\", \"value\": {\"top\": 2.5, \"bottom\": 2.5, \"left\": 3.0, \"right\": 2.0}, \"paper_size\": \"A4\", \"orientation\": \"PORTRAIT\", \"tolerance\": 0.15}'\n"
+            "- Phông chữ & Cỡ chữ: expected_value_json='{\"property\": \"font_name\", \"value\": \"Times New Roman\", \"font_size_pt\": 13.0, \"tolerance\": 0.5}'\n"
+            "- Giãn dòng: expected_value_json='{\"property\": \"line_spacing\", \"value\": 1.3, \"justify\": true, \"tolerance\": 0.15}'\n"
+            "- Dung lượng số trang: expected_value_json='{\"property\": \"page_count\", \"min_pages\": 10, \"max_pages\": 50}'\n"
             "\n"
-            "PHẦN 2 - KHUNG CẤU TRÚC ĐỀ CƯƠNG (TEMPLATE) - BẮT BUỘC TÁCH NHỎ:\n"
-            "Nếu tài liệu có khung cấu trúc đề cương (các chương và mục con), bạn BẮT BUỘC PHẢI TÁCH NHỎ TỪNG MỤC RIÊNG BIỆT:\n"
-            "- Mỗi Chương cấp 1: rule_type='TEMPLATE', name='4.X Mục bắt buộc: [Tên chương]', expected_value_json='{\"kind\": \"template_chapter\", \"chapter_name\": \"[Tên chương]\", \"chapter_number\": X, \"level\": 1, \"order_index\": X, \"required_subheadings\": [\"Mục con 1\", \"Mục con 2\"], \"allow_semantic_equivalent\": true, \"category\": \"4. Heading / tiêu đề chương, mục\"}'\n"
-            "- Mỗi Mục con cấp 2: rule_type='TEMPLATE', name='4.X.Y Mục con: [Tên mục con]', expected_value_json='{\"kind\": \"template_section\", \"section_name\": \"[Tên mục con]\", \"parent_chapter\": \"[Tên chương cha]\", \"chapter_number\": X, \"sub_index\": Y, \"level\": 2, \"order_index\": X.Y, \"allow_semantic_equivalent\": true, \"category\": \"4. Heading / tiêu đề chương, mục\"}'\n"
-            "- Thứ tự các chương: rule_type='TEMPLATE', name='5. Thứ tự và phân cấp cấu trúc đề mục (Toàn văn)', expected_value_json='{\"kind\": \"template_sequence\", \"chapters\": [\"Chương 1...\", \"Chương 2...\", ...], \"allow_semantic_equivalent\": true, \"category\": \"5. Đánh số chương và mục\"}'\n"
+            "2. CÁC THÀNH PHẦN HIỆN DIỆN BẮT BUỘC (rule_type='PRESENCE'):\n"
+            "- Trang bìa: expected_value_json='{\"kind\": \"cover_page\", \"required_fields\": [\"tên trường\", \"tên khoa\", \"tên đề tài\", \"giảng viên hướng dẫn\", \"sinh viên\", \"mssv\", \"năm thực hiện\"]}'\n"
+            "- Bảng phân công thành viên: expected_value_json='{\"kind\": \"table_columns\", \"value\": [\"STT\", \"Họ và tên\", \"MSSV\", \"Nhiệm vụ\", \"Tỷ lệ đóng góp (%)\"]}'\n"
+            "- Mục lục / Danh mục: expected_value_json='{\"kind\": \"heading\", \"value\": \"Mục lục\"}'\n"
+            "- Tài liệu tham khảo: expected_value_json='{\"kind\": \"heading\", \"value\": \"Tài liệu tham khảo\", \"style\": \"IEEE\"}'\n"
+            "\n"
+            "3. KHUNG CẤU TRÚC ĐỀ CƯƠNG VÀ CÁC CHƯƠNG MỤC (rule_type='TEMPLATE'):\n"
+            "- Mỗi Chương: name='Mục bắt buộc: [Tên chương]', expected_value_json='{\"kind\": \"template_chapter\", \"chapter_name\": \"[Tên chương]\", \"chapter_number\": X, \"level\": 1, \"order_index\": X, \"required_subheadings\": [\"Mục con 1\", \"Mục con 2\"], \"allow_semantic_equivalent\": true}'\n"
+            "- Mỗi Mục con: name='Mục con: [Tên mục con]', expected_value_json='{\"kind\": \"template_section\", \"section_name\": \"[Tên mục con]\", \"parent_chapter\": \"[Tên chương]\", \"level\": 2, \"allow_semantic_equivalent\": true}'\n"
+            "- Thứ tự các chương: name='Thứ tự và phân cấp cấu trúc đề mục', expected_value_json='{\"kind\": \"template_sequence\", \"chapters\": [\"Chương 1...\", \"Chương 2...\"], \"allow_semantic_equivalent\": true}'\n"
             "\n"
             "QUY TẮC TUYỆT ĐỐI:\n"
-            "1. KHÔNG tự bịa đặt hay giả định bất kỳ giá trị nào nếu văn bản không đề cập.\n"
-            "2. Mục nào quy định KHÔNG nhắc đến thì KHÔNG tạo tiêu chí cho mục đó.\n"
-            "3. Chỉ trích xuất những gì có căn cứ trong tài liệu."
+            "1. KHÔNG tự bịa đặt hay giả định bất kỳ giá trị nào nếu văn bản của giảng viên không đề cập.\n"
+            "2. Văn bản có bao nhiêu yêu cầu thì trích xuất đúng bấy nhiêu yêu cầu, không tự thêm mục thừa.\n"
+            "3. Trích dẫn chính xác câu trích nguồn trong tài liệu vào source_citation."
         )
 
         prompt = json.dumps(
@@ -577,7 +578,7 @@ class GeminiProvider:
                                 continue
                             existing_section_names.add(sub_clean.lower())
                             sec_input = FormatCriterionInput(
-                                name=f"4.{chap_num}.{sub_idx} Mục con: {sub_clean}",
+                                name=f"Mục con: {sub_clean}",
                                 description=f"Mục con '{sub_clean}' thuộc {chap_name} (cấp độ 2). {'Cho phép tên tương đương ngữ nghĩa.' if allow_semantic_equivalent else 'Bắt buộc tên chính xác 100%.'}",
                                 rule_type=FormatCriterionRuleType.TEMPLATE,
                                 expected_value={
@@ -589,7 +590,6 @@ class GeminiProvider:
                                     "level": 2,
                                     "order_index": float(f"{chap_num}.{sub_idx}"),
                                     "allow_semantic_equivalent": allow_semantic_equivalent,
-                                    "category": "4. Heading / tiêu đề chương, mục",
                                 },
                                 source_citation=c.source_citation,
                             )
@@ -724,7 +724,8 @@ class GeminiProvider:
                 "criteria_to_review": criteria_items,
                 "submission_facts": {
                     "cover_page_detected_fields": submission_facts.get("cover_page_fields", []),
-                    "cover_sample": submission_facts.get("cover_sample", "")[:1200],
+                    "cover_sample": submission_facts.get("cover_sample", "")[:1500],
+                    "full_text_excerpt": submission_facts.get("full_text_sample", "")[:6000],
                     "headings": submission_facts.get("headings", []),
                     "has_member_contribution_table": submission_facts.get("has_member_contribution_table", False),
                     "member_table_columns": submission_facts.get("member_table_columns", []),

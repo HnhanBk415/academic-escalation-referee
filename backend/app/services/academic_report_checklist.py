@@ -55,41 +55,24 @@ def _clean_font_name(font_raw: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 30 MASTER CHECKLIST CATEGORIES METADATA
+# 10 MASTER CORE CHECKLIST CATEGORIES METADATA
 # ─────────────────────────────────────────────────────────────────────────────
 
-CHECKLIST_30_CATEGORIES: list[dict[str, Any]] = [
-    {"index": 1, "code": "page_setup", "name": "1. Khổ giấy và thiết lập trang"},
-    {"index": 2, "code": "typography", "name": "2. Font chữ và cỡ chữ"},
-    {"index": 3, "code": "paragraph_format", "name": "3. Định dạng đoạn văn"},
-    {"index": 4, "code": "heading_structure", "name": "4. Heading / tiêu đề chương, mục"},
-    {"index": 5, "code": "numbering", "name": "5. Đánh số chương và mục"},
-    {"index": 6, "code": "cover_page", "name": "6. Trang bìa"},
-    {"index": 7, "code": "front_matter", "name": "7. Trang phụ và lời cam đoan"},
-    {"index": 8, "code": "table_of_contents", "name": "8. Mục lục"},
-    {"index": 9, "code": "list_of_figures", "name": "9. Danh mục hình"},
-    {"index": 10, "code": "list_of_tables", "name": "10. Danh mục bảng"},
-    {"index": 11, "code": "list_of_abbreviations", "name": "11. Danh mục từ viết tắt"},
-    {"index": 12, "code": "figures", "name": "12. Hình ảnh và đồ thị"},
-    {"index": 13, "code": "tables", "name": "13. Bảng biểu"},
-    {"index": 14, "code": "equations", "name": "14. Công thức toán học"},
-    {"index": 15, "code": "header_footer", "name": "15. Header và Footer"},
-    {"index": 16, "code": "page_numbering", "name": "16. Đánh số trang"},
-    {"index": 17, "code": "section_breaks", "name": "17. Section / Page Break"},
-    {"index": 18, "code": "layout_spacing", "name": "18. Khoảng cách và bố cục trang"},
-    {"index": 19, "code": "references", "name": "19. Tài liệu tham khảo"},
-    {"index": 20, "code": "in_text_citations", "name": "20. Trích dẫn trong nội dung"},
-    {"index": 21, "code": "terminology", "name": "21. Thuật ngữ và viết tắt"},
-    {"index": 22, "code": "spelling_grammar", "name": "22. Chính tả và lỗi đánh máy"},
-    {"index": 23, "code": "consistency", "name": "23. Tính nhất quán toàn báo cáo"},
-    {"index": 24, "code": "overall_structure", "name": "24. Kiểm tra cấu trúc tổng thể"},
-    {"index": 25, "code": "appendices", "name": "25. Phụ lục"},
-    {"index": 26, "code": "cross_references", "name": "26. Kiểm tra liên kết chéo"},
-    {"index": 27, "code": "word_quality", "name": "27. Kỹ thuật Word / Styles"},
-    {"index": 28, "code": "pdf_export", "name": "28. Kiểm tra khi xuất PDF"},
-    {"index": 29, "code": "file_naming", "name": "29. Kiểm tra tên file"},
-    {"index": 30, "code": "final_summary", "name": "30. Bảng tổng hợp kiểm tra"},
+CHECKLIST_10_CATEGORIES: list[dict[str, Any]] = [
+    {"index": 1, "code": "page_setup", "name": "1. Khổ giấy và Căn lề trang"},
+    {"index": 2, "code": "typography", "name": "2. Phông chữ và Cỡ chữ"},
+    {"index": 3, "code": "paragraph_format", "name": "3. Giãn dòng và Định dạng đoạn văn"},
+    {"index": 4, "code": "page_count", "name": "4. Dung lượng số trang quy định"},
+    {"index": 5, "code": "cover_page", "name": "5. Trang bìa và Thông tin hành chính"},
+    {"index": 6, "code": "member_contribution", "name": "6. Bảng phân công & Đóng góp thành viên"},
+    {"index": 7, "code": "table_of_contents", "name": "7. Mục lục báo cáo"},
+    {"index": 8, "code": "template_structure", "name": "8. Khung cấu trúc đề cương & các chương mục"},
+    {"index": 9, "code": "template_sequence", "name": "9. Thứ tự và Phân cấp cấu trúc đề mục"},
+    {"index": 10, "code": "references", "name": "10. Tài liệu tham khảo và Trích dẫn"},
 ]
+
+# Backward-compatibility alias
+CHECKLIST_30_CATEGORIES = CHECKLIST_10_CATEGORIES
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -128,15 +111,15 @@ def _is_heading_matching_algorithmically(expected_name: str, actual_name: str) -
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. LIST 1: REGULATION 30 CHECKLIST BUILDER
+# 1. LIST 1: REGULATION 10 CHECKLIST BUILDER
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_regulation_30_criteria(criteria: list[Any]) -> list[dict[str, Any]]:
-    """Construct List 1: Maps approved teacher criteria to the 30 standardized categories.
+    """Construct List 1: Maps approved teacher criteria to the 10 standardized core categories.
 
     If a category has no matching criterion in the active criteria set, specified is False.
     """
-    category_map: dict[int, list[Any]] = {cat["index"]: [] for cat in CHECKLIST_30_CATEGORIES}
+    category_map: dict[int, list[Any]] = {cat["index"]: [] for cat in CHECKLIST_10_CATEGORIES}
 
     for c in criteria:
         exp = getattr(c, "expected_value", {}) or {}
@@ -145,53 +128,41 @@ def build_regulation_30_criteria(criteria: list[Any]) -> list[dict[str, Any]]:
         c_name = getattr(c, "name", "").lower()
         c_cat = str(exp.get("category", "")).lower()
 
-        if prop == "margins_cm" or "khổ giấy" in c_name or "căn lề" in c_name:
+        if prop == "margins_cm" or "khổ giấy" in c_name or "căn lề" in c_name or "lề trang" in c_name or "page_setup" in c_cat or "1." in c_cat:
             category_map[1].append(c)
-        elif prop == "font_name" or "phông chữ" in c_name or "cỡ chữ" in c_name:
+        elif prop in ("font_name", "font_size_pt") or "phông" in c_name or "font" in c_name or "cỡ chữ" in c_name or "typography" in c_cat or "2." in c_cat:
             category_map[2].append(c)
-        elif prop == "line_spacing" or "đoạn văn" in c_name or "giãn dòng" in c_name:
+        elif prop == "line_spacing" or "đoạn văn" in c_name or "giãn dòng" in c_name or "paragraph_format" in c_cat or "3." in c_cat:
             category_map[3].append(c)
-        elif kind in ("template_chapter", "template_section") or "mục bắt buộc" in c_name or "mục con" in c_name:
+        elif prop == "page_count" or "dung lượng" in c_name or "số trang" in c_name or "page_count" in c_cat or "4." in c_cat:
             category_map[4].append(c)
-        elif kind == "template_sequence" or "thứ tự" in c_name or "phân cấp" in c_name:
+        elif kind in ("cover_page", "cover_page_fields") or "trang bìa" in c_name or "bìa" in c_name or "cover_page" in c_cat or "5." in c_cat or "6." in c_cat:
             category_map[5].append(c)
-        elif kind == "cover_page" or "trang bìa" in c_name:
+        elif kind == "table_columns" or "phân công" in c_name or "cam đoan" in c_name or "đóng góp" in c_name or "member_contribution" in c_cat or "front_matter" in c_cat or "7." in c_cat or "6." in c_cat:
             category_map[6].append(c)
-        elif kind == "table_columns" or "phân công" in c_name or "cam đoan" in c_name:
+        elif (kind == "heading" and ("mục lục" in c_name or exp.get("value") == "Mục lục")) or "mục lục" in c_name or "table_of_contents" in c_cat or "danh mục hình" in c_name or "danh mục bảng" in c_name or "7." in c_cat or "8." in c_cat:
             category_map[7].append(c)
-        elif kind == "heading" and ("mục lục" in c_name or exp.get("value") == "Mục lục"):
+        elif kind in ("template_chapter", "template_section") or "mục bắt buộc" in c_name or "mục con" in c_name or "chương" in c_name or "template_structure" in c_cat or "heading_structure" in c_cat or "đề cương" in c_name or "8." in c_cat:
             category_map[8].append(c)
-        elif "danh mục hình" in c_name:
+        elif kind == "template_sequence" or "thứ tự" in c_name or "phân cấp" in c_name or "template_sequence" in c_cat or "numbering" in c_cat or "9." in c_cat:
             category_map[9].append(c)
-        elif "danh mục bảng" in c_name:
+        elif "tài liệu tham khảo" in c_name or "trích dẫn" in c_name or "references" in c_cat or "in_text_citations" in c_cat or (kind == "heading" and "tham khảo" in str(exp.get("value", "")).lower()) or "10." in c_cat or "19." in c_cat:
             category_map[10].append(c)
-        elif "viết tắt" in c_name or "thuật ngữ" in c_name:
-            category_map[11].append(c)
-        elif "hình ảnh" in c_name or "đồ thị" in c_name:
-            category_map[12].append(c)
-        elif "bảng biểu" in c_name:
-            category_map[13].append(c)
-        elif prop == "page_count" or "dung lượng" in c_name or "số trang" in c_name:
-            category_map[18].append(c)
-        elif "tài liệu tham khảo" in c_name or (kind == "heading" and "tham khảo" in str(exp.get("value", "")).lower()):
-            category_map[19].append(c)
-        elif "trích dẫn" in c_name:
-            category_map[20].append(c)
         else:
-            for cat in CHECKLIST_30_CATEGORIES:
+            for cat in CHECKLIST_10_CATEGORIES:
                 if cat["code"] in c_cat or f"{cat['index']}." in c_name:
                     category_map[cat["index"]].append(c)
                     break
 
-    regulation_30: list[dict[str, Any]] = []
-    for cat in CHECKLIST_30_CATEGORIES:
+    regulation_10: list[dict[str, Any]] = []
+    for cat in CHECKLIST_10_CATEGORIES:
         idx = cat["index"]
         items = category_map.get(idx, [])
         is_specified = len(items) > 0
         desc = "; ".join(getattr(i, "description", "") for i in items) if is_specified else "Quy chế môn học không đề cập quy định bắt buộc cho mục này."
         citations = [getattr(i, "source_citation", "") for i in items if getattr(i, "source_citation", None)]
 
-        regulation_30.append({
+        regulation_10.append({
             "index": idx,
             "code": cat["code"],
             "name": cat["name"],
@@ -201,7 +172,7 @@ def build_regulation_30_criteria(criteria: list[Any]) -> list[dict[str, Any]]:
             "source_citation": "; ".join(citations) if citations else None,
         })
 
-    return regulation_30
+    return regulation_10
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -374,6 +345,7 @@ async def extract_report_facts(
             "references_style": ai_facts.references_style,
             "cover_page_fields": ai_facts.cover_page_detected_fields,
             "cover_sample": cover_text[:1200],
+            "full_text_sample": all_text[:15000],
             "max_consecutive_empty_paras": max_empty_streak,
             "consecutive_spaces_count": consecutive_spaces_count,
             "filename": filename,
@@ -446,6 +418,7 @@ async def extract_report_facts(
             "references_style": ai_facts.references_style,
             "cover_page_fields": ai_facts.cover_page_detected_fields,
             "cover_sample": cover_text[:1200],
+            "full_text_sample": all_text[:15000],
             "max_consecutive_empty_paras": 0,
             "consecutive_spaces_count": 0,
             "filename": filename,
@@ -459,10 +432,10 @@ async def extract_report_facts(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_submission_30_facts(facts: dict[str, Any]) -> list[dict[str, Any]]:
-    """Construct List 2: Maps extracted facts from student submission to 30 categories."""
-    submission_30: list[dict[str, Any]] = []
+    """Construct List 2: Maps extracted facts from student submission to 10 core categories."""
+    submission_10: list[dict[str, Any]] = []
 
-    for cat in CHECKLIST_30_CATEGORIES:
+    for cat in CHECKLIST_10_CATEGORIES:
         idx = cat["index"]
         code = cat["code"]
         name = cat["name"]
@@ -476,89 +449,65 @@ def build_submission_30_facts(facts: dict[str, Any]) -> list[dict[str, Any]]:
             sizes = facts.get("paper_sizes", [])
             present = bool(margins or sizes)
             actual_val = {"margins": margins[:1] if margins else None, "paper_sizes": sizes[:1] if sizes else None}
-            details = f"Khổ giấy {sizes[0]['orientation'] if sizes else 'N/A'}, lề section đầu: {margins[0] if margins else 'N/A'}"
+            details = f"Khổ giấy {sizes[0]['orientation'] if sizes else 'A4'}, lề section đầu: {margins[0] if margins else 'N/A'}"
         elif idx == 2:
             fonts = facts.get("font_names") or []
             sizes_pt = facts.get("font_sizes_pt") or []
             present = bool(fonts)
             actual_val = {"fonts": fonts, "sizes_pt": sizes_pt}
-            details = f"Font: {', '.join(fonts[:3])}; Cỡ chữ: {sizes_pt[:5]}"
+            details = f"Font: {', '.join(fonts[:3]) if fonts else 'N/A'}; Cỡ chữ: {sizes_pt[:5] if sizes_pt else 'N/A'}"
         elif idx == 3:
             spacings = facts.get("line_spacings") or []
             alignments = facts.get("alignments") or {}
             present = bool(spacings or alignments)
             actual_val = {"line_spacings": spacings, "alignments": alignments}
-            details = f"Giãn dòng: {spacings[:3]}; Căn lề: {alignments}"
+            details = f"Giãn dòng: {spacings[:3] if spacings else 'N/A'}; Căn lề: {alignments if alignments else 'N/A'}"
         elif idx == 4:
-            headings = facts.get("headings") or []
-            present = bool(headings)
-            actual_val = {"headings": headings}
-            details = f"Đã tìm thấy {len(headings)} đề mục trong bài nộp."
+            pages = facts.get("page_count")
+            present = pages is not None
+            actual_val = {"page_count": pages}
+            details = f"Dung lượng thực tế: {pages} trang."
         elif idx == 5:
-            headings = facts.get("headings") or []
-            present = bool(headings)
-            actual_val = {"headings": headings}
-            details = f"Thứ tự các đề mục: {headings[:4]}"
-        elif idx == 6:
             cover_fields = facts.get("cover_page_fields") or []
             has_cover_text = len(facts.get("cover_sample", "")) > 20
             present = bool(cover_fields or has_cover_text)
             actual_val = {"fields": cover_fields, "sample": facts.get("cover_sample", "")[:200]}
             details = f"Trường thông tin trang bìa: {', '.join(cover_fields) if cover_fields else 'Đã nhận diện văn bản trang đầu'}"
-        elif idx == 7:
+        elif idx == 6:
             has_tbl = facts.get("has_member_contribution_table", False)
             cols = facts.get("member_table_columns", [])
-            present = has_tbl
+            present = has_tbl or len(cols) > 0
             actual_val = {"has_table": has_tbl, "columns": cols}
-            details = f"Bảng phân công thành viên: {'Có' if has_tbl else 'Chưa có'}"
-        elif idx == 8:
+            details = f"Bảng phân công thành viên: {'Có (' + ', '.join(cols[:4]) + ')' if has_tbl else ('Có' if cols else 'Chưa có')}"
+        elif idx == 7:
             has_toc = facts.get("has_table_of_contents", False)
-            present = has_toc
-            actual_val = {"has_toc": has_toc}
-            details = "Có Mục lục" if has_toc else "Chưa có Mục lục"
-        elif idx == 9:
             has_lof = facts.get("has_list_of_figures", False)
-            present = has_lof
-            actual_val = {"has_lof": has_lof}
-            details = "Có Danh mục hình" if has_lof else "Chưa có"
-        elif idx == 10:
             has_lot = facts.get("has_list_of_tables", False)
-            present = has_lot
-            actual_val = {"has_lot": has_lot}
-            details = "Có Danh mục bảng" if has_lot else "Chưa có"
-        elif idx == 12:
-            fig_caps = facts.get("figure_captions", [])
-            present = len(fig_caps) > 0
-            actual_val = {"figure_captions": fig_caps}
-            details = f"Tìm thấy {len(fig_caps)} hình ảnh có chú thích."
-        elif idx == 13:
-            tbl_count = facts.get("table_count", 0)
-            tbl_caps = facts.get("table_captions", [])
-            present = tbl_count > 0 or len(tbl_caps) > 0
-            actual_val = {"table_count": tbl_count, "table_captions": tbl_caps}
-            details = f"Tìm thấy {tbl_count} bảng biểu."
-        elif idx == 18:
-            pages = facts.get("page_count")
-            present = pages is not None
-            actual_val = {"page_count": pages}
-            details = f"Dung lượng thực tế: {pages} trang."
-        elif idx == 19:
+            present = has_toc or has_lof or has_lot
+            actual_val = {"has_toc": has_toc, "has_lof": has_lof, "has_lot": has_lot}
+            details = f"Mục lục: {'Có' if has_toc else 'Chưa có'}" + (f", Danh mục hình/bảng: {'Có' if (has_lof or has_lot) else 'Không'}" if (has_lof or has_lot) else "")
+        elif idx == 8:
+            headings = facts.get("headings") or []
+            present = bool(headings)
+            actual_val = {"headings": headings}
+            details = f"Đã tìm thấy {len(headings)} đề mục trong bài nộp."
+        elif idx == 9:
+            headings = facts.get("headings") or []
+            present = bool(headings)
+            actual_val = {"headings": headings}
+            details = f"Thứ tự các đề mục: {headings[:4]}"
+        elif idx == 10:
             has_refs = facts.get("has_references_section", False)
             style = facts.get("references_style")
             present = has_refs
             actual_val = {"has_references": has_refs, "style": style}
             details = f"Tài liệu tham khảo: {'Có' if has_refs else 'Chưa có'} (Chuẩn {style or 'Tự do'})"
-        elif idx == 29:
-            fname = facts.get("filename", "")
-            present = bool(fname)
-            actual_val = {"filename": fname}
-            details = f"Tên tệp nộp: {fname}"
         else:
             present = False
             actual_val = None
             details = "Chưa có dữ liệu trích xuất tự động"
 
-        submission_30.append({
+        submission_10.append({
             "index": idx,
             "code": code,
             "name": name,
@@ -567,7 +516,7 @@ def build_submission_30_facts(facts: dict[str, Any]) -> list[dict[str, Any]]:
             "details": details,
         })
 
-    return submission_30
+    return submission_10
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1006,88 +955,93 @@ async def evaluate_academic_checklist(
                             )
                         )
 
-    # 2. BUILD THE 30-CATEGORY SUMMARY TABLE COMPARING LIST 1 VS LIST 2
+    # 2. BUILD FULLY DYNAMIC SUMMARY TABLE DIRECTLY FROM EVALUATED CRITERIA
     checklist_summary: list[dict[str, Any]] = []
 
-    for i in range(len(CHECKLIST_30_CATEGORIES)):
-        reg = regulation_30[i]
-        sub = submission_30[i]
-        idx = reg["index"]
-        name = reg["name"]
-
-        # Case 1: Not specified in regulations
-        if not reg["specified"]:
-            checklist_summary.append({
-                "index": idx,
-                "category": name,
-                "status": "NOT_SPECIFIED",
-                "icon": "⚪",
-                "error_summary": "Quy chế môn học không đề cập quy định bắt buộc cho mục này.",
-                "evidence": "Không có trong tài liệu quy định",
-                "suggestion": "Không cần can thiệp",
-                "action": "Không quy định",
-            })
-            continue
-
-        # Case 2: Specified in regulations, but missing in student submission
-        if not sub["present"]:
-            checklist_summary.append({
-                "index": idx,
-                "category": name,
-                "status": "MISSING_STUDENT_INPUT",
-                "icon": "⚠️",
-                "error_summary": f"Quy định yêu cầu: {reg['description']}. Không tìm thấy trong bài nộp.",
-                "evidence": "Không tìm thấy dữ liệu trong file bài nộp",
-                "suggestion": "Sinh viên cần bổ sung thông tin hoặc mục này vào báo cáo.",
-                "action": "Cần bổ sung thông tin (cho sinh viên điền vào)",
-            })
-            continue
-
-        # Case 3: Both specified and present -> Find matching result status
-        matched_res = next((r for r in results if r.name.startswith(f"{idx}.") or (r.expected_value and reg["code"] in str(r.expected_value.get("category", "")).lower())), None)
-        if not matched_res and idx == 4:
-            matched_res = next((r for r in results if r.expected_value and r.expected_value.get("kind") in ("template_chapter", "template_section")), None)
-        if not matched_res and idx == 5:
-            matched_res = next((r for r in results if r.expected_value and r.expected_value.get("kind") == "template_sequence"), None)
-        if not matched_res and idx == 6:
-            matched_res = next((r for r in results if r.expected_value and r.expected_value.get("kind") == "cover_page"), None)
-        if not matched_res and idx == 7:
-            matched_res = next((r for r in results if r.expected_value and r.expected_value.get("kind") == "table_columns"), None)
+    for idx, criterion in enumerate(criteria, start=1):
+        cid = getattr(criterion, "id", None)
+        matched_res = next((r for r in results if r.criterion_id == cid), None) if cid else None
+        if not matched_res:
+            matched_res = next((r for r in results if r.name == getattr(criterion, "name", "")), None)
 
         st = matched_res.status.value if matched_res else "PASS"
-        if st == "PASS":
-            checklist_summary.append({
-                "index": idx,
-                "category": name,
-                "status": "PASS",
-                "icon": "✅",
-                "error_summary": "Không lỗi, đạt chuẩn quy định.",
-                "evidence": sub["details"],
-                "suggestion": "Giữ nguyên",
-                "action": "Hợp lệ",
-            })
-        elif st == "AMBIGUOUS":
-            checklist_summary.append({
-                "index": idx,
-                "category": name,
-                "status": "AMBIGUOUS",
-                "icon": "⚠️",
-                "error_summary": f"Có sự khác biệt ngữ nghĩa: {matched_res.message if matched_res else sub['details']}.",
-                "evidence": sub["details"],
-                "suggestion": "Chuyển giảng viên phụ trách xem xét và quyết định ngoại lệ.",
-                "action": "Chuyển giảng viên xem xét",
-            })
+        rule_type = getattr(criterion, "rule_type", FormatCriterionRuleType.MEASUREMENT)
+        rule_type_val = rule_type.value if hasattr(rule_type, "value") else str(rule_type)
+
+        evidence_str = ""
+        if matched_res and matched_res.actual_value:
+            act = matched_res.actual_value
+            if "margins_cm" in act:
+                m_list = act.get("margins_cm", [])
+                if m_list and isinstance(m_list, list):
+                    m0 = m_list[0]
+                    evidence_str = f"Lề: trên {m0.get('top')}cm, dưới {m0.get('bottom')}cm, trái {m0.get('left')}cm, phải {m0.get('right')}cm"
+                else:
+                    evidence_str = "Số đo lề trang"
+            elif "font_names" in act:
+                fonts = act.get("font_names") or []
+                evidence_str = f"Phông: {', '.join(str(f) for f in fonts[:3])}"
+            elif "line_spacings" in act:
+                spacings = act.get("line_spacings") or []
+                evidence_str = f"Giãn dòng: {', '.join(str(s) for s in spacings[:3])}"
+            elif "page_count" in act:
+                evidence_str = f"Số trang thực tế: {act.get('page_count')} trang"
+            elif "detected" in act and act["detected"]:
+                evidence_str = f"Nhận diện: {act['detected']}"
+            elif "found_heading" in act and act["found_heading"]:
+                evidence_str = f"Đề mục tìm thấy: {act['found_heading']}"
+            elif "cover_fields" in act and act["cover_fields"]:
+                evidence_str = f"Trường bìa: {', '.join(str(f) for f in act['cover_fields'][:5])}"
+            elif "has_table" in act:
+                evidence_str = "Có bảng phân công đóng góp" if act["has_table"] else "Chưa tìm thấy bảng phân công"
+            elif "headings" in act:
+                h = act["headings"]
+                if isinstance(h, list) and h:
+                    evidence_str = f"Đề mục: {', '.join(str(x) for x in h[:3])}"
+                else:
+                    evidence_str = "Đã đối chiếu đề mục"
+            else:
+                evidence_str = "Đã đối chiếu nội dung bài nộp"
+        elif structure.get("filename"):
+            evidence_str = f"Bài nộp {structure.get('filename')}"
         else:
-            checklist_summary.append({
-                "index": idx,
-                "category": name,
-                "status": "FAIL",
-                "icon": "❌",
-                "error_summary": matched_res.message if matched_res else "Chưa đạt yêu cầu theo quy chế.",
-                "evidence": sub["details"],
-                "suggestion": f"Điều chỉnh lại theo quy định: {reg['description']}",
-                "action": "Cần sửa lại",
-            })
+            evidence_str = "Đã đối chiếu dữ liệu bài nộp"
+
+        if st == "PASS":
+            icon = "✅"
+            err_summary = matched_res.message if matched_res else "Đạt chuẩn quy định."
+            sugg = "Đạt chuẩn, giữ nguyên."
+            action = "Hợp lệ"
+        elif st == "AMBIGUOUS":
+            icon = "⚠️"
+            err_summary = matched_res.message if matched_res else "Có sự khác biệt ngữ nghĩa."
+            sugg = "Chuyển giảng viên phụ trách xem xét và quyết định ngoại lệ."
+            action = "Chuyển giảng viên xem xét"
+        elif st == "UNMEASURABLE":
+            icon = "⚪"
+            err_summary = matched_res.message if matched_res else "Không đo được tự động."
+            sugg = "Giảng viên sẽ kiểm tra trực tiếp."
+            action = "Kiểm tra thủ công"
+        else:  # FAIL / MISSING
+            icon = "❌"
+            err_summary = matched_res.message if matched_res else "Chưa đạt yêu cầu theo quy chế."
+            c_desc = getattr(criterion, "description", "")
+            sugg = f"Điều chỉnh lại theo quy định: {c_desc}" if c_desc else "Cần bổ sung hoặc sửa lại theo quy định."
+            action = "Cần sửa lại"
+
+        checklist_summary.append({
+            "index": idx,
+            "criterion_id": str(getattr(criterion, "id", idx)),
+            "category": getattr(criterion, "name", f"Tiêu chí {idx}"),
+            "rule_type": rule_type_val,
+            "status": st,
+            "icon": icon,
+            "error_summary": err_summary,
+            "evidence": evidence_str,
+            "suggestion": sugg,
+            "action": action,
+            "source_citation": getattr(criterion, "source_citation", None),
+        })
 
     # Overall status
     usable_ids = {c.id for c in criteria if getattr(c, "automatable", True) and not getattr(c, "review_only", False)}
@@ -1100,3 +1054,4 @@ async def evaluate_academic_checklist(
         overall = FormatCheckOverallStatus.PASS
 
     return results, checklist_summary, overall
+
