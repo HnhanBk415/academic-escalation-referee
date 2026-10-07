@@ -1,6 +1,10 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+const ACCESS_TOKEN_KEY = "aer.access-token";
 
 let lastRequestId: string | null = null;
+let demoActorId: string | null = null;
+let accessToken: string | null =
+  typeof window === "undefined" ? null : window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
 
 export class ApiError extends Error {
   constructor(
@@ -17,8 +21,25 @@ export function getLastRequestId(): string | null {
   return lastRequestId;
 }
 
+export function setDemoActorId(actorId: string | null): void {
+  demoActorId = actorId;
+}
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+  if (typeof window === "undefined") return;
+  if (token) window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+  else window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+export function hasAccessToken(): boolean {
+  return Boolean(accessToken);
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  else if (demoActorId) headers.set("X-Demo-Actor-ID", demoActorId);
   if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -45,4 +66,3 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const postJson = <T>(path: string, payload: unknown, headers?: HeadersInit) =>
   api<T>(path, { method: "POST", body: JSON.stringify(payload), headers });
-

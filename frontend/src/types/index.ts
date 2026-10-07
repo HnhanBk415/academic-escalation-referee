@@ -269,3 +269,22 @@ export interface DocumentSummary {
   status: string;
   course_id: string;
 }
+
+export interface OperationsActivity {
+  id: string;
+  event_type: string;
+  entity_type: string;
+  entity_id: string;
+  actor_id: string | null;
+  created_at: string;
+}
+
+export interface OperationsOverview {
+  total_questions: number;
+  open_cases: number;
+  overdue_cases: number;
+  active_exceptions: number;
+  active_documents: number;
+  pending_format_reviews: number;
+  recent_activity: OperationsActivity[];
+}

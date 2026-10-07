@@ -30,6 +30,9 @@ def load_demo_config() -> dict:
             print(f"[Seed] Error reading {config_file}: {e}", flush=True)
     return {
         "lecturers": [{"id": "lecturer-01", "display_name": "TS. Trần Minh Tuấn"}],
+        "academic_affairs": [
+            {"id": "academic-affairs-01", "display_name": "Phòng Đào tạo demo"}
+        ],
         "students": [
             {"id": "demo-student", "display_name": "Sinh viên demo"},
             {"id": "student-a1", "display_name": "Nguyễn Văn A (Student A1)"},
@@ -56,7 +59,20 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             existing.display_name = display_name
             existing.role = ActorRole.LECTURER
 
-    # 2. Seed Students from config
+    # 2. Seed Academic Affairs users from config
+    for item in cfg.get("academic_affairs", []):
+        actor_id = item["id"]
+        display_name = item.get("display_name", actor_id)
+        existing = await session.get(Actor, actor_id)
+        if existing is None:
+            session.add(
+                Actor(id=actor_id, display_name=display_name, role=ActorRole.ACADEMIC_AFFAIRS)
+            )
+        else:
+            existing.display_name = display_name
+            existing.role = ActorRole.ACADEMIC_AFFAIRS
+
+    # 3. Seed Students from config
     student_ids: list[str] = []
     for item in cfg.get("students", []):
         actor_id = item["id"]
@@ -70,17 +86,49 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             existing.role = ActorRole.STUDENT
     await session.commit()
 
-    # 3. Scan and sync all documents and courses dynamically from data/sample-documents/
+    # 4. Seed the configured courses before groups and documents reference them.
+    # demo-config.json is the canonical source for the public demo catalog; its
+    # document_directory field maps a course to a source folder on disk.
+    document_directory_map: dict[str, str] = {}
+    for item in cfg.get("courses", []):
+        course_id = item["id"]
+        existing = await session.get(Course, course_id)
+        if existing is None:
+            session.add(
+                Course(
+                    id=course_id,
+                    code=item.get("code", course_id),
+                    name=item.get("name", course_id),
+                    semester=item.get("semester", "261"),
+                )
+            )
+        else:
+            existing.code = item.get("code", course_id)
+            existing.name = item.get("name", course_id)
+            existing.semester = item.get("semester", "261")
+
+        document_directory = item.get("document_directory")
+        if document_directory:
+            document_directory_map[document_directory] = course_id
+    await session.commit()
+
+    # 5. Scan and sync documents from only the configured source directories.
+    # This prevents unconfigured folders from silently changing the demo catalog.
     from app.ingestion.service import scan_and_sync_documents
 
     print(
         "[Seed] Scanning and syncing documents from data/sample-documents/...",
         flush=True,
     )
-    await scan_and_sync_documents(session, provider=embedding_provider)
+    await scan_and_sync_documents(
+        session,
+        provider=embedding_provider,
+        course_directory_map=document_directory_map or None,
+        create_default_groups=False,
+    )
     await session.commit()
 
-    # 4. Seed Configured Groups & Memberships from demo-config.json
+    # 5. Seed configured groups and memberships.
     configured_groups = cfg.get("groups", [])
     configured_group_ids: set[str] = set()
     for g_item in configured_groups:
@@ -111,7 +159,7 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             if existing_mem is None:
                 session.add(GroupMembership(actor_id=m_id, group_id=grp_id))
 
-    # 5. For any auto-discovered groups not explicitly in config, ensure demo students are attached
+    # 6. For any auto-discovered groups not explicitly in config, ensure demo students are attached.
     all_groups = (await session.scalars(select(Group))).all()
     for grp in all_groups:
         if grp.id not in configured_group_ids:

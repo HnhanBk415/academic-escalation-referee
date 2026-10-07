@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { api } from "./api/client";
+import { api, hasAccessToken, setAccessToken, setDemoActorId } from "./api/client";
 import { Sidebar, type ActiveTab, type Role } from "./components/Sidebar";
 import { AuditPage } from "./pages/AuditPage";
 import { ExceptionsView } from "./pages/ExceptionsView";
 import { FormatPrecheckPage } from "./pages/FormatPrecheckPage";
+import { HomePage } from "./pages/HomePage";
 import { LecturerInboxView } from "./pages/LecturerInboxView";
+import { LoginPage, type AuthActor } from "./pages/LoginPage";
+import { OperationsPage } from "./pages/OperationsPage";
 import { StudentHistoryView } from "./pages/StudentHistoryView";
 import { StudentSubmitView } from "./pages/StudentSubmitView";
 import { VerifyPage } from "./pages/VerifyPage";
@@ -12,7 +15,8 @@ import type { AIHealth, DashboardCounts, DemoCatalog } from "./types";
 
 export function App() {
   const [role, setRole] = useState<Role>("student");
-  const [activeTab, setActiveTab] = useState<ActiveTab>("submit");
+  const [authenticatedActor, setAuthenticatedActor] = useState<AuthActor | null | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("home");
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | undefined>();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [queueCount, setQueueCount] = useState<number>(0);
@@ -24,7 +28,38 @@ export function App() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
 
   useEffect(() => {
+    setDemoActorId(
+      role === "student"
+        ? "demo-student"
+        : role === "lecturer"
+          ? "lecturer-01"
+          : "academic-affairs-01",
+    );
+  }, [role]);
+
+  useEffect(() => {
+    async function restoreSession() {
+      try {
+        const actor = await api<AuthActor>("/api/v1/auth/me");
+        setAuthenticatedActor(actor);
+        setRole(
+          actor.role === "STUDENT"
+            ? "student"
+            : actor.role === "LECTURER"
+              ? "lecturer"
+              : "academic_affairs",
+        );
+      } catch {
+        if (hasAccessToken()) setAccessToken(null);
+        setAuthenticatedActor(null);
+      }
+    }
+    void restoreSession();
+  }, []);
+
+  useEffect(() => {
     async function loadCatalog() {
+      if (!authenticatedActor) return;
       try {
         const data = await api<DemoCatalog>("/api/v1/demo/catalog");
         setCatalog(data);
@@ -39,7 +74,7 @@ export function App() {
       }
     }
     void loadCatalog();
-  }, []);
+  }, [authenticatedActor]);
 
   const handleSelectCourse = (courseId: string) => {
     setSelectedCourseId(courseId);
@@ -63,6 +98,7 @@ export function App() {
   };
 
   useEffect(() => {
+    if (!authenticatedActor) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const checkHealth = async () => {
@@ -88,15 +124,22 @@ export function App() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [authenticatedActor]);
 
   const handleSelectRole = (newRole: Role) => {
     setRole(newRole);
-    if (newRole === "student") {
-      setActiveTab("submit");
-    } else {
-      setActiveTab("inbox");
-    }
+    setActiveTab("home");
+  };
+
+  const handleLoggedIn = (actor: AuthActor) => {
+    setAuthenticatedActor(actor);
+    setRole(
+      actor.role === "STUDENT"
+        ? "student"
+        : actor.role === "LECTURER"
+          ? "lecturer"
+          : "academic_affairs",
+    );
   };
 
   const handleQuestionSubmitted = (questionId: string) => {
@@ -109,6 +152,14 @@ export function App() {
     setActiveTab("history");
   };
 
+  if (authenticatedActor === undefined) {
+    return <main className="grid h-screen place-items-center bg-slate-950 text-sm text-slate-300">Đang kiểm tra phiên đăng nhập...</main>;
+  }
+
+  if (authenticatedActor === null) {
+    return <LoginPage onLoggedIn={handleLoggedIn} />;
+  }
+
   return (
     <div className="flex h-screen w-screen bg-[#F8FAFC] text-slate-900 overflow-hidden font-sans">
       {/* Fixed 260px Left Sidebar */}
@@ -120,10 +171,20 @@ export function App() {
         pendingCount={pendingCount}
         queueCount={queueCount}
         aiOnline={ai?.available ?? false}
+        allowRoleSwitch={!hasAccessToken()}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 h-screen overflow-hidden flex flex-col min-w-0 bg-[#F8FAFC]">
+        {activeTab === "home" && (
+          <HomePage
+            role={role}
+            catalog={catalog}
+            selectedCourseId={selectedCourseId}
+            aiOnline={ai?.available ?? false}
+            onNavigate={setActiveTab}
+          />
+        )}
         {activeTab === "submit" && (
           <StudentSubmitView
             catalog={catalog}
@@ -145,7 +206,7 @@ export function App() {
         )}
         {activeTab === "format" && (
           <FormatPrecheckPage
-            role={role}
+            role={role === "student" ? "student" : "lecturer"}
             catalog={catalog}
             selectedCourseId={selectedCourseId}
             onSelectCourse={handleSelectCourse}
@@ -155,6 +216,7 @@ export function App() {
           <LecturerInboxView onDecisionMade={refreshCounts} />
         )}
         {activeTab === "exceptions" && <ExceptionsView />}
+        {activeTab === "operations" && <OperationsPage onOpenAudit={() => setActiveTab("audit")} />}
         {activeTab === "audit" && (
           <div className="overflow-y-auto flex-1 p-8 bg-[#F8FAFC]">
             <AuditPage />

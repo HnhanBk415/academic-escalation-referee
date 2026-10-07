@@ -7,6 +7,13 @@ from google import genai
 from google.genai import types
 
 from app.core.config import Settings
+from app.schemas.format_checks import (
+    CoverPageJudgment,
+    FormatCriterionInput,
+    FormatSemanticJudgment,
+    LLMBatchCriterionJudgment,
+    LLMSubmissionContentFacts,
+)
 from app.schemas.referee import AIHealth, RefereeDecision
 
 SYSTEM_INSTRUCTION = """Bạn là Academic Escalation Referee.
@@ -195,7 +202,6 @@ class GeminiProvider:
             flush=True,
         )
 
-        last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             await self._chat_rate_limiter.acquire()
             max_chars = _MAX_EVIDENCE_CHARS if attempt == 1 else _MAX_EVIDENCE_CHARS_ON_RETRY
@@ -227,7 +233,6 @@ class GeminiProvider:
                     return decision
                 raise RuntimeError("Gemini did not return a structured RefereeDecision")
             except Exception as error:
-                last_error = error
                 print(
                     f"[Gemini Error] Attempt {attempt} failed "
                     f"({type(error).__name__}: {error})",
@@ -244,8 +249,6 @@ class GeminiProvider:
                 if delay > 0:
                     await asyncio.sleep(delay)
 
-        if last_error:
-            raise last_error
         raise RuntimeError("Gemini did not return a structured RefereeDecision")
 
     def _decision_prompt(
@@ -305,15 +308,13 @@ class GeminiProvider:
         actual_items: list[str],
         criterion_name: str,
         source_citation: str,
-    ) -> "FormatSemanticJudgment":
+    ) -> FormatSemanticJudgment:
         """Ask Gemini whether actual heading/column names are semantically equivalent to expected ones.
 
         Returns a FormatSemanticJudgment with verdict in {PASS, FAIL, AMBIGUOUS} and a
         short Vietnamese reason.  Falls back to AMBIGUOUS on any error so human review
         always acts as the safety net.
         """
-        from app.schemas.format_checks import FormatSemanticJudgment
-
         _FORMAT_JUDGE_INSTRUCTION = (
             "Bạn là công cụ kiểm tra hình thức báo cáo đồ án đại học. "
             "Nhiệm vụ duy nhất: xác định liệu các tên đề mục / cột bảng mà sinh viên dùng "
@@ -391,10 +392,8 @@ class GeminiProvider:
         self,
         first_page_text: str,
         required_elements: list[str],
-    ) -> "CoverPageJudgment":
+    ) -> CoverPageJudgment:
         """Ask Gemini whether the first page text is a valid academic cover page and extract its elements."""
-        from app.schemas.format_checks import CoverPageJudgment
-
         _COVER_JUDGE_INSTRUCTION = (
             "Bạn là chuyên gia thẩm định trang bìa báo cáo học thuật / đồ án sinh viên. "
             "Nhiệm vụ: Phân tích nội dung trang đầu tiên của văn bản nộp để xác định: "
@@ -468,10 +467,10 @@ class GeminiProvider:
         self,
         regulation_text: str,
         allow_semantic_equivalent: bool = True,
-    ) -> list["FormatCriterionInput"]:
+    ) -> list[FormatCriterionInput]:
         """Ask Gemini to parse full regulation document and extract structured criteria."""
         from app.core.enums import FormatCriterionRuleType
-        from app.schemas.format_checks import FormatCriterionInput, LLMCriteriaExtraction
+        from app.schemas.format_checks import LLMCriteriaExtraction
 
         _INSTRUCTION = (
             "Bạn là chuyên gia trích xuất quy chế thể thức và khung đề cương báo cáo học thuật từ tài liệu của giảng viên.\n"
@@ -515,7 +514,6 @@ class GeminiProvider:
             flush=True,
         )
 
-        last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             await self._chat_rate_limiter.acquire()
             try:
@@ -564,7 +562,6 @@ class GeminiProvider:
                 print(f"[Gemini RegulationExtractor] => extracted {len(criteria)} criteria", flush=True)
                 return criteria
             except Exception as error:
-                last_error = error
                 print(f"[Gemini RegulationExtractor Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
                 if not self._is_retryable(error) or attempt == _MAX_RETRIES:
                     break
@@ -577,10 +574,8 @@ class GeminiProvider:
         self,
         full_text: str,
         cover_text: str,
-    ) -> "LLMSubmissionContentFacts":
+    ) -> LLMSubmissionContentFacts:
         """Ask Gemini to parse full student submission text and extract structured content facts."""
-        from app.schemas.format_checks import LLMSubmissionContentFacts
-
         _SUBMISSION_INSTRUCTION = (
             "Bạn là chuyên gia phân tích và trích xuất cấu trúc văn bản báo cáo học thuật / đồ án sinh viên. "
             "Nhiệm vụ: Đọc toàn bộ nội dung bài nộp (bao gồm trang đầu/trang bìa, mục lục, khung cấu trúc template, các chương mục và tài liệu tham khảo) "
@@ -615,7 +610,6 @@ class GeminiProvider:
             flush=True,
         )
 
-        last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             await self._chat_rate_limiter.acquire()
             try:
@@ -647,7 +641,6 @@ class GeminiProvider:
                 print(f"[Gemini SubmissionFactsExtractor] => extracted {len(facts.headings)} headings, cover_fields={facts.cover_page_detected_fields}", flush=True)
                 return facts
             except Exception as error:
-                last_error = error
                 print(f"[Gemini SubmissionFactsExtractor Error] Attempt {attempt}: {type(error).__name__}: {error}", flush=True)
                 if not self._is_retryable(error) or attempt == _MAX_RETRIES:
                     break
@@ -660,10 +653,8 @@ class GeminiProvider:
         self,
         criterion_item: dict[str, Any],
         submission_facts: dict[str, Any],
-    ) -> "LLMBatchCriterionJudgment":
+    ) -> LLMBatchCriterionJudgment:
         """Review ONE specific semantic checklist criterion against student submission facts with dedicated deep reasoning."""
-        from app.schemas.format_checks import LLMBatchCriterionJudgment
-
         cid = str(criterion_item.get("criterion_id", ""))
         c_name = str(criterion_item.get("name", ""))
 
@@ -757,10 +748,8 @@ class GeminiProvider:
         self,
         criteria_items: list[dict[str, Any]],
         submission_facts: dict[str, Any],
-    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+    ) -> dict[str, LLMBatchCriterionJudgment]:
         """Review each semantic checklist criterion via separate dedicated LLM calls concurrently."""
-        from app.schemas.format_checks import LLMBatchCriterionJudgment
-
         if not criteria_items:
             return {}
 
@@ -776,7 +765,7 @@ class GeminiProvider:
         judgments = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: dict[str, LLMBatchCriterionJudgment] = {}
-        for item, j in zip(criteria_items, judgments):
+        for item, j in zip(criteria_items, judgments, strict=True):
             cid = str(item.get("criterion_id", ""))
             if isinstance(j, Exception):
                 print(f"[Gemini IndividualReview Error] Criterion {cid}: {j}", flush=True)

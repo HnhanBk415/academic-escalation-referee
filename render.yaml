@@ -10,6 +10,14 @@ services:
     envVars:
       - key: APP_ENV
         value: production
+      - key: AUTH_MODE
+        value: password
+      - key: AUTH_SECRET_KEY
+        sync: false
+      - key: AUTH_USERS_JSON
+        sync: false
+      - key: AUTH_TOKEN_TTL_MINUTES
+        value: "480"
       - key: AI_MODE
         value: gemini
       - key: GEMINI_API_KEY
@@ -22,9 +30,17 @@ services:
         value: "768"
       - key: AI_REQUEST_TIMEOUT_SECONDS
         value: "60"
+      - key: AI_HEALTH_CACHE_SECONDS
+        value: "45"
       - key: PROMPT_VERSION
-        value: referee-v2-semantic-routing
+        value: referee-v3-structured-exceptions
+      - key: FORMAT_CHECK_MAX_UPLOAD_BYTES
+        value: "15728640"
+      - key: FORMAT_REVIEW_RETENTION_DAYS
+        value: "30"
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGINS
+        sync: false
+      - key: PUBLIC_BASE_URL
         sync: false

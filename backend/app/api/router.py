@@ -1,14 +1,27 @@
 from fastapi import APIRouter
 
-from app.api.routes import audit, cases, demo, documents, exceptions, format_checks, health, questions
+from app.api.routes import (
+    audit,
+    auth,
+    cases,
+    demo,
+    documents,
+    exceptions,
+    format_checks,
+    health,
+    operations,
+    questions,
+)
 
 api_router = APIRouter()
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
 api_router.include_router(questions.router, prefix="/questions", tags=["questions"])
 api_router.include_router(cases.router, prefix="/cases", tags=["cases"])
 api_router.include_router(exceptions.router, prefix="/exceptions", tags=["exceptions"])
 api_router.include_router(format_checks.router, prefix="/format-checks", tags=["format-checks"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
+api_router.include_router(operations.router, prefix="/operations", tags=["operations"])
 api_router.include_router(demo.router, prefix="/demo", tags=["demo"])
 
 root_router = APIRouter()

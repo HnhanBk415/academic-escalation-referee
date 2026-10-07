@@ -15,7 +15,6 @@ from app.ingestion.chunking import chunk_text
 from app.ingestion.extractors import extract_text
 from app.models import Document, DocumentChunk, RetrievalEvidence
 from app.schemas.documents import IngestResponse
-from app.services.ids import new_id
 
 
 def _find_repo_root() -> Path:
@@ -231,11 +230,14 @@ async def scan_and_sync_documents(
     session: AsyncSession,
     provider: AIProvider,
     default_course_id: str = "DADN",
+    course_directory_map: dict[str, str] | None = None,
+    create_default_groups: bool = True,
 ) -> list[IngestResponse]:
     """
-    Scans the data/sample-documents directory for all PDF/MD/TXT files across all course subdirectories,
-    dynamically discovers courses and groups based on folder names, registers Document entities,
-    and ingests them into the vector database.
+    Scans all PDF/MD/TXT files in the configured course directories, registers
+    Document entities, and ingests them into the vector database. When a
+    course-directory map is supplied, it is the authoritative catalog and maps
+    source folders to canonical course IDs.
     """
     from app.models import Course, Group
 
@@ -244,12 +246,21 @@ async def scan_and_sync_documents(
         return []
 
     # 1. Discover all course subdirectories and ensure courses & groups exist
-    course_dirs = [
+    all_course_dirs = [
         d for d in ALLOWED_DOCUMENT_ROOT.iterdir()
         if d.is_dir() and not d.name.startswith((".", "~"))
     ]
+    course_dirs = (
+        [directory for directory in all_course_dirs if directory.name in course_directory_map]
+        if course_directory_map is not None
+        else all_course_dirs
+    )
     for c_dir in course_dirs:
-        c_id = c_dir.name
+        c_id = (
+            course_directory_map.get(c_dir.name, c_dir.name)
+            if course_directory_map
+            else c_dir.name
+        )
         existing_course = await session.get(Course, c_id)
         if existing_course is None:
             code = c_id.split("-")[0].strip()
@@ -257,18 +268,24 @@ async def scan_and_sync_documents(
             sem = "242" if "242" in c_id else "261"
             session.add(Course(id=c_id, code=code, name=c_name, semester=sem))
 
-            grp_a_id = f"{c_id.lower()}-group-a"
-            grp_b_id = f"{c_id.lower()}-group-b"
-            if await session.get(Group, grp_a_id) is None:
-                session.add(Group(id=grp_a_id, course_id=c_id, name=f"{code} Group A", semester=sem))
-            if await session.get(Group, grp_b_id) is None:
-                session.add(Group(id=grp_b_id, course_id=c_id, name=f"{code} Group B", semester=sem))
+            if create_default_groups:
+                grp_a_id = f"{c_id.lower()}-group-a"
+                grp_b_id = f"{c_id.lower()}-group-b"
+                if await session.get(Group, grp_a_id) is None:
+                    session.add(Group(id=grp_a_id, course_id=c_id, name=f"{code} Group A", semester=sem))
+                if await session.get(Group, grp_b_id) is None:
+                    session.add(Group(id=grp_b_id, course_id=c_id, name=f"{code} Group B", semester=sem))
             await session.commit()
 
     results: list[IngestResponse] = []
     files = sorted(
-        [p for p in ALLOWED_DOCUMENT_ROOT.rglob("*") if p.is_file()],
-        key=lambda p: (str(p.parent), p.name),
+        [
+            path
+            for course_dir in course_dirs
+            for path in course_dir.rglob("*")
+            if path.is_file()
+        ],
+        key=lambda path: (str(path.parent), path.name),
     )
 
     for file_path in files:
@@ -282,12 +299,17 @@ async def scan_and_sync_documents(
         filename = file_path.name
 
         # Infer course_id from parent folder if inside a subfolder
+        source_directory = file_path.parent.name
         inferred_course_id = (
-            file_path.parent.name
+            source_directory
             if file_path.parent != ALLOWED_DOCUMENT_ROOT and file_path.parent.name
             else default_course_id
         )
-        course_id = inferred_course_id
+        course_id = (
+            course_directory_map.get(source_directory, inferred_course_id)
+            if course_directory_map
+            else inferred_course_id
+        )
 
         # Derive clean document ID and Title dynamically from file and folder name
         clean_stem = re.sub(r"[^a-zA-Z0-9_-]", "-", file_path.stem.lower()).strip("-")
@@ -300,7 +322,7 @@ async def scan_and_sync_documents(
             is_shared_filename = any(
                 (other_dir / filename).is_file()
                 for other_dir in course_dirs
-                if other_dir.name != course_id
+                if other_dir.name != source_directory
             )
             doc_id = f"{clean_course}-{clean_stem}" if is_shared_filename else clean_stem
 
@@ -355,4 +377,3 @@ async def scan_and_sync_documents(
             print(f"[Auto-Scan Error] Failed to ingest '{filename}': {exc}", flush=True)
 
     return results
-

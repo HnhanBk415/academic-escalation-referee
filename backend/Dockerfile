@@ -37,9 +37,9 @@ USER aer
 
 EXPOSE 8000
 
-# Run schema migrations and idempotent seed on startup with fallback,
-# ensuring initial policy documents and actors are ready immediately.
+# Run schema migrations and the idempotent seed before accepting traffic.
+# A deployment without its policy documents must fail visibly rather than start incomplete.
 CMD ["sh", "-c", \
   "python -m alembic upgrade head && \
-   (python -m app.db.seed || true) && \
+   python -m app.db.seed && \
    python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

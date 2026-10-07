@@ -2,6 +2,15 @@ import React from "react";
 
 export type IconProps = { size?: number; className?: string };
 
+export function IconHome({ size = 15, className = "" }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
+      <path d="M9 21v-7h6v7" />
+    </svg>
+  );
+}
+
 export function IconMessageSquare({ size = 15, className = "" }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -188,4 +197,3 @@ export function IconThumbDown({ size = 14, className = "" }: IconProps) {
     </svg>
   );
 }
-

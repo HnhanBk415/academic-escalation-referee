@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     app_env: str = "development"
     database_url: str = "sqlite+aiosqlite:///./aer.db"
 
+    # `demo` preserves the hackathon's role-switching experience. A deployed
+    # environment must use `password`; the API then derives identity from a
+    # signed Bearer token rather than client-supplied actor ids.
+    auth_mode: Literal["demo", "password"] = "demo"
+    auth_secret_key: str = ""
+    auth_users_json: str = ""
+    auth_token_ttl_minutes: int = 480
+
     ai_mode: Literal["fake", "gemini"] = "fake"
     gemini_api_key: str = ""
     gemini_chat_model: str = "gemini-3.1-flash-lite"
@@ -53,4 +61,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

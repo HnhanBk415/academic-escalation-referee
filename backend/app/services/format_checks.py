@@ -21,10 +21,10 @@ from app.core.enums import (
     FormatCheckOverallStatus,
     FormatCriteriaSetStatus,
     FormatCriterionResultStatus,
-    FormatCriterionRuleType,
     FormatReviewStatus,
 )
 from app.core.errors import AppError
+from app.ingestion.service import resolve_source_path
 from app.models import (
     Actor,
     Course,
@@ -47,7 +47,6 @@ from app.schemas.format_checks import (
     FormatReviewCaseResponse,
     FormatReviewDecisionCreate,
 )
-from app.ingestion.service import resolve_source_path
 from app.services.academic_report_checklist import (
     evaluate_academic_checklist,
     extract_report_facts,
@@ -77,7 +76,6 @@ def _criterion_is_automatable(item: FormatCriterionInput) -> bool:
         return False
     rule_type_str = item.rule_type.value if hasattr(item.rule_type, "value") else str(item.rule_type)
     exp = item.expected_value or {}
-    kind = str(exp.get("kind", ""))
 
     if rule_type_str == "MEASUREMENT":
         return str(exp.get("property", "")) in SUPPORTED_MEASUREMENTS
@@ -257,14 +255,13 @@ async def draft_from_documents(
     )
 
 
-async def list_criteria_sets(session: AsyncSession, course_id: str) -> list[FormatCriteriaSetResponse]:
-    items = (
-        await session.scalars(
-            select(FormatCriteriaSet)
-            .where(FormatCriteriaSet.course_id == course_id)
-            .order_by(FormatCriteriaSet.version.desc())
-        )
-    ).all()
+async def list_criteria_sets(
+    session: AsyncSession, course_id: str, *, active_only: bool = False
+) -> list[FormatCriteriaSetResponse]:
+    statement = select(FormatCriteriaSet).where(FormatCriteriaSet.course_id == course_id)
+    if active_only:
+        statement = statement.where(FormatCriteriaSet.status == FormatCriteriaSetStatus.ACTIVE)
+    items = (await session.scalars(statement.order_by(FormatCriteriaSet.version.desc()))).all()
     return [await _criteria_response(session, item) for item in items]
 
 
@@ -330,7 +327,7 @@ def _convert_docx_to_pdf_bytes(payload: bytes) -> bytes | None:
                 tmpdir,
                 str(in_path),
             ]
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=25)
+            subprocess.run(cmd, capture_output=True, timeout=25)
             out_pdf = Path(tmpdir) / "submission.pdf"
             if out_pdf.exists():
                 return out_pdf.read_bytes()

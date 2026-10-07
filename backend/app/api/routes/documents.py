@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
-from app.api.deps import get_ai_provider
+from app.api.deps import get_ai_provider, get_current_actor
+from app.core.auth import CurrentActor, require_role
+from app.core.enums import ActorRole
 from app.db.session import get_session
 from app.ingestion.service import ingest_document
 from app.schemas.documents import DocumentCreate, DocumentResponse, IngestResponse
@@ -23,6 +25,7 @@ ProviderDependency = Annotated[AIProvider, Depends(get_ai_provider)]
 async def list_documents(
     session: SessionDependency,
     course_id: str | None = None,
+    current: CurrentActor = Depends(get_current_actor),
 ) -> list[DocumentResponse]:
     return await list_documents_response(session, course_id=course_id)
 
@@ -31,7 +34,9 @@ async def list_documents(
 async def sync_documents(
     session: SessionDependency,
     provider: ProviderDependency,
+    current: CurrentActor = Depends(get_current_actor),
 ) -> list[IngestResponse]:
+    require_role(current, ActorRole.ACADEMIC_AFFAIRS)
     from app.ingestion.service import scan_and_sync_documents
     return await scan_and_sync_documents(session, provider=provider)
 
@@ -40,7 +45,9 @@ async def sync_documents(
 async def create_document(
     payload: DocumentCreate,
     session: SessionDependency,
+    current: CurrentActor = Depends(get_current_actor),
 ) -> DocumentResponse:
+    require_role(current, ActorRole.ACADEMIC_AFFAIRS)
     return await register_document(session, payload)
 
 
@@ -49,7 +56,9 @@ async def ingest(
     document_id: str,
     session: SessionDependency,
     provider: ProviderDependency,
+    current: CurrentActor = Depends(get_current_actor),
 ) -> IngestResponse:
+    require_role(current, ActorRole.ACADEMIC_AFFAIRS)
     return await ingest_document(session, document_id, provider=provider)
 
 
@@ -57,5 +66,6 @@ async def ingest(
 async def get_document(
     document_id: str,
     session: SessionDependency,
+    current: CurrentActor = Depends(get_current_actor),
 ) -> DocumentResponse:
     return await get_document_response(session, document_id)

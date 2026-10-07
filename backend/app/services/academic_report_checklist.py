@@ -32,7 +32,6 @@ from app.core.enums import (
     FormatCriterionRuleType,
 )
 from app.schemas.format_checks import (
-    FormatCriterionInput,
     FormatCriterionResult,
     LLMSubmissionContentFacts,
 )
@@ -900,4 +899,3 @@ async def evaluate_academic_checklist(
         overall = FormatCheckOverallStatus.PASS
 
     return results, checklist_summary, overall
-

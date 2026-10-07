@@ -21,7 +21,8 @@
 13. [Cấu hình môi trường](#13-cấu-hình-môi-trường)
 14. [Triển khai (Deployment)](#14-triển-khai-deployment)
 15. [Scripts phát triển](#15-scripts-phát-triển)
-16. [Luồng xử lý câu hỏi](#16-luồng-xử-lý-câu-hỏi)
+16. [Kiểm thử & CI](#16-kiểm-thử--ci)
+17. [Luồng xử lý câu hỏi](#17-luồng-xử-lý-câu-hỏi)
 
 ---
 
@@ -41,6 +42,13 @@
 - 🎓 **Sinh viên** – gửi câu hỏi, xem lịch sử, phản hồi làm rõ
 - 👨‍🏫 **Giảng viên** – xem inbox, xử lý escalation, ra quyết định
 - 🏛️ **Phòng Đào tạo (Academic Affairs)** – xem toàn bộ audit log
+
+> [!IMPORTANT]
+> [!NOTE]
+> Local mặc định chạy `AUTH_MODE=demo` để thuận tiện trình diễn role switch. Production chạy
+> `AUTH_MODE=password`: đăng nhập cấp Bearer token có hạn, backend lấy danh tính từ token (không
+> tin `actor_id`/`reviewer_id` do browser gửi) và chặn quyền theo vai trò. Không public hệ thống
+> với `AUTH_MODE=demo`.
 
 ---
 
@@ -100,7 +108,8 @@ project/
 │   │   │       ├── exceptions.py# Policy exceptions management
 │   │   │       ├── documents.py # Document upload & ingestion
 │   │   │       ├── audit.py     # Audit event log
-│   │   │       └── demo.py      # Demo seeding endpoints
+│   │   │       ├── demo.py      # Demo catalog + reset endpoint
+│   │   │       └── format_checks.py # Tiêu chí, pre-check và review thể thức
 │   │   ├── core/                # Cross-cutting concerns
 │   │   │   ├── config.py        # Settings (pydantic-settings)
 │   │   │   ├── enums.py         # All domain enumerations
@@ -120,6 +129,7 @@ project/
 │   │   │   ├── audit.py         # AuditEvent schemas
 │   │   │   ├── referee.py       # AI RefereeDecision schema
 │   │   │   ├── demo.py          # Demo seed schema
+│   │   │   ├── format_checks.py # DTO cho kiểm tra hình thức
 │   │   │   └── common.py        # Shared base schemas
 │   │   ├── services/            # Business logic layer
 │   │   │   ├── questions.py     # Question submission + AI routing
@@ -127,6 +137,8 @@ project/
 │   │   │   ├── exceptions.py    # Exception CRUD + revocation
 │   │   │   ├── documents.py     # Document management
 │   │   │   ├── audit.py         # Audit logging service
+│   │   │   ├── format_checks.py # Pre-check + lecturer review thể thức
+│   │   │   ├── academic_report_checklist.py # Bóc tách và đối chiếu DOCX/PDF
 │   │   │   └── ids.py           # ID generation helpers
 │   │   ├── ingestion/           # Document ingestion pipeline
 │   │   │   ├── service.py       # Main ingestion orchestration
@@ -142,7 +154,7 @@ project/
 ├── frontend/                    # React TypeScript frontend
 │   ├── src/
 │   │   ├── main.tsx             # React entry point
-│   │   ├── App.tsx              # Router setup + layout
+│   │   ├── App.tsx              # SPA shell + state điều hướng tab
 │   │   ├── styles.css           # Global CSS design system
 │   │   ├── api/                 # API client functions
 │   │   ├── types/               # TypeScript type definitions
@@ -158,26 +170,27 @@ project/
 │   │   │   ├── RouteBadge.tsx
 │   │   │   └── Icons.tsx
 │   │   └── pages/
+│   │       ├── HomePage.tsx
 │   │       ├── StudentPage.tsx
 │   │       ├── StudentSubmitView.tsx
 │   │       ├── StudentHistoryView.tsx
 │   │       ├── LecturerPage.tsx
 │   │       ├── LecturerInboxView.tsx
 │   │       ├── ExceptionsView.tsx
+│   │       ├── OperationsPage.tsx
 │   │       ├── AuditPage.tsx
-│   │       └── VerifyPage.tsx
+│   │       ├── VerifyPage.tsx
+│   │       └── FormatPrecheckPage.tsx
 │   ├── package.json
 │   ├── vite.config.ts
 │   ├── nginx.conf
 │   └── Dockerfile
 │
 ├── data/
+│   ├── demo-config.json         # Courses, groups, actor demo, document mapping
 │   └── sample-documents/
-│       ├── group-policy-v1.md   # Quy định nhóm đồ án CO3001
-│       ├── project-rubric-v1.md # Rubric đánh giá đồ án
-│       ├── dadn-course-plan.pdf
-│       ├── dadn-rubric.pdf
-│       └── dadn-work-plan.pdf
+│       ├── DACN/                # Tài liệu cho CO3001
+│       └── DADN/                # Tài liệu cho DADN-HK242
 │
 ├── harness/                     # AI evaluation framework
 │   ├── runner/__main__.py
@@ -224,7 +237,7 @@ project/
 | Framework | **React** | latest |
 | Language | **TypeScript** | latest |
 | Build tool | **Vite** | latest |
-| Routing | **react-router-dom** | latest |
+| Điều hướng | Sidebar tab state (có `BrowserRouter` wrapper) | – |
 | Styling | **Vanilla CSS** | – |
 | Testing | **vitest** | latest |
 | Web server | **Nginx** (container) | – |
@@ -387,7 +400,7 @@ erDiagram
 
 | File | Mô tả |
 |------|-------|
-| `base.py` | Abstract `AIProvider` interface: `route_question()`, `embed_texts()`, `health()` |
+| `base.py` | `AIProvider` protocol: embedding, quyết định câu hỏi, trích xuất/đánh giá thể thức, health |
 | `factory.py` | `build_ai_provider(settings)` → trả về Gemini hoặc Fake |
 | `gemini.py` | Gemini implementation: async rate limiter (14 RPM), retry (3 lần), structured output |
 | `fake.py` | Fake provider: deterministic responses cho testing |
@@ -421,9 +434,11 @@ erDiagram
 |------|-------|
 | `questions.py` | Submit question → RAG → AI → lưu kết quả + audit |
 | `cases.py` | Tạo/cập nhật escalation case, ghi nhận human decision |
-| `exceptions.py` | CRUD policy exception, revoke |
+| `exceptions.py` | Xem và thu hồi policy exception |
 | `documents.py` | Upload, status tracking |
 | `audit.py` | Ghi audit event |
+| `format_checks.py` | Quản lý bộ tiêu chí, pre-check bài nộp và case cần giảng viên review |
+| `academic_report_checklist.py` | Trích xuất dữ kiện thể thức từ DOCX/PDF và đối chiếu checklist |
 | `ids.py` | Sinh ID có prefix (qs_, case_, exc_, …) |
 
 ### `app/core/policy_topics.py` — Policy Topics
@@ -438,18 +453,21 @@ GROUP_CONTEXT, SECURITY, AI_AVAILABILITY, GENERAL
 
 ## 7. Frontend – Trang & Component
 
-### Pages
+### Màn hình
 
-| Page | Path | Người dùng | Mô tả |
+Frontend hiện là **một SPA theo tab sidebar**, không có URL route riêng cho từng màn hình.
+
+| Màn hình | Tab sidebar | Người dùng | Mô tả |
 |------|------|-----------|-------|
-| `StudentPage` | `/student` | Sinh viên | Portal entry, chọn student |
-| `StudentSubmitView` | `/student/submit` | Sinh viên | Form gửi câu hỏi, xem kết quả AI |
-| `StudentHistoryView` | `/student/history` | Sinh viên | Lịch sử câu hỏi + workflow tracker |
-| `LecturerPage` | `/lecturer` | Giảng viên | Portal entry, chọn lecturer |
-| `LecturerInboxView` | `/lecturer/inbox` | Giảng viên | Danh sách escalation case, ra quyết định |
-| `ExceptionsView` | `/lecturer/exceptions` | Giảng viên | Quản lý policy exceptions |
-| `AuditPage` | `/audit` | Admin | Toàn bộ audit event log |
-| `VerifyPage` | `/verify` | Dev/Admin | Health check + system verify |
+| `HomePage` | Trang hướng dẫn | Sinh viên, giảng viên, Phòng Đào tạo | Homepage giới thiệu phạm vi, 3 bước sử dụng, các kết quả có thể nhận và điều hướng nhanh |
+| `StudentSubmitView` | Hỏi đáp quy chế | Sinh viên | Gửi câu hỏi, chọn course/nhóm và xem quyết định AI |
+| `StudentHistoryView` | Hồ sơ của tôi | Sinh viên | Lịch sử câu hỏi + workflow tracker |
+| `FormatPrecheckPage` | Kiểm tra hình thức / Tiêu chí hình thức | Sinh viên, giảng viên | Nộp bài, quản lý bộ tiêu chí và xử lý các điểm mơ hồ |
+| `LecturerInboxView` | Hàng chờ thẩm định | Giảng viên | Danh sách escalation case, ra quyết định |
+| `ExceptionsView` | Ngoại lệ quy chế | Giảng viên | Xem và thu hồi policy exception |
+| `OperationsPage` | Trung tâm vận hành | Phòng Đào tạo | Theo dõi volume yêu cầu, case/SLA, ngoại lệ, tài liệu, format review và audit gần đây |
+| `AuditPage` | Audit Log | Chung | Toàn bộ audit event log |
+| `VerifyPage` | Verify Harness | Chung | Kiểm tra hệ thống và scenario demo |
 
 ### Components
 
@@ -536,37 +554,49 @@ Base URL: `/api` hoặc `/api/v1`
 ### Health
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/health` | Health check (DB + AI status) |
+| GET | `/health` | Health check database |
+| GET | `/health/ai` | Trạng thái AI provider đang dùng |
 
 ### Questions
 | Method | Path | Mô tả |
 |--------|------|-------|
+| GET | `/questions/counts` | Số lượng câu hỏi/case cho badge dashboard |
 | POST | `/questions` | Gửi câu hỏi mới (trigger AI) |
-| GET | `/questions` | Danh sách câu hỏi (filter: actor, course, status) |
+| GET | `/questions` | Danh sách câu hỏi (filter: actor, course, group, limit, offset) |
 | GET | `/questions/{id}` | Chi tiết câu hỏi |
-| POST | `/questions/{id}/clarify` | Phản hồi câu hỏi làm rõ |
-| POST | `/questions/{id}/cancel` | Sinh viên tự huỷ câu hỏi |
+| POST | `/questions/{id}/clarifications` | Phản hồi câu hỏi làm rõ |
+
+### Authentication
+| Method | Path | Mô tả |
+|--------|------|-------|
+| POST | `/auth/login` | Đăng nhập bằng tài khoản được cấp khi `AUTH_MODE=password` |
+| GET | `/auth/me` | Danh tính và vai trò của phiên hiện tại |
+
+### Operations (Academic Affairs)
+| Method | Path | Mô tả |
+|--------|------|-------|
+| GET | `/operations/overview` | Chỉ số vận hành: case, SLA, ngoại lệ, tài liệu, format review và audit gần đây |
 
 ### Cases (Escalation)
 | Method | Path | Mô tả |
 |--------|------|-------|
 | GET | `/cases` | Danh sách escalation cases |
 | GET | `/cases/{id}` | Chi tiết case |
-| POST | `/cases/{id}/decide` | Giảng viên ra quyết định |
-| POST | `/cases/{id}/assign` | Gán reviewer |
+| POST | `/cases/{id}/decision` | Giảng viên ra quyết định (hỗ trợ `Idempotency-Key`) |
+| POST | `/cases/{id}/cancel` | Hủy case bởi người dùng phù hợp |
 
 ### Policy Exceptions
 | Method | Path | Mô tả |
 |--------|------|-------|
 | GET | `/exceptions` | Danh sách exceptions |
-| POST | `/exceptions` | Tạo exception thủ công |
-| GET | `/exceptions/{id}` | Chi tiết exception |
+| GET | `/exceptions/overview` | Tổng quan ngoại lệ theo course |
 | POST | `/exceptions/{id}/revoke` | Thu hồi exception |
 
 ### Documents
 | Method | Path | Mô tả |
 |--------|------|-------|
 | GET | `/documents` | Danh sách tài liệu |
+| POST | `/documents/sync` | Quét và đồng bộ tài liệu mẫu từ `data/sample-documents` |
 | POST | `/documents` | Upload tài liệu mới |
 | GET | `/documents/{id}` | Chi tiết tài liệu |
 | POST | `/documents/{id}/ingest` | Kích hoạt ingestion |
@@ -574,13 +604,26 @@ Base URL: `/api` hoặc `/api/v1`
 ### Audit
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/audit` | Audit event log (paginated) |
+| GET | `/audit` | Audit event log mới nhất (giới hạn `limit`) |
 
 ### Demo
 | Method | Path | Mô tả |
 |--------|------|-------|
-| POST | `/demo/seed` | Seed dữ liệu demo |
-| DELETE | `/demo/reset` | Reset database |
+| GET | `/demo/catalog` | Danh sách course/nhóm/giảng viên demo |
+| POST | `/demo/reset` | Xóa dữ liệu nghiệp vụ rồi seed lại demo và tài liệu |
+
+### Kiểm tra hình thức
+| Method | Path | Mô tả |
+|--------|------|-------|
+| GET | `/format-checks/criteria?course_id=...` | Danh sách bộ tiêu chí của học phần |
+| POST | `/format-checks/criteria/drafts` | Tạo bản nháp tiêu chí thủ công |
+| POST | `/format-checks/criteria/drafts/from-documents` | Trích xuất nháp tiêu chí từ tài liệu bằng AI |
+| POST | `/format-checks/criteria/{id}/approve` | Giảng viên duyệt bộ tiêu chí |
+| POST | `/format-checks/checks` | Upload DOCX/PDF để pre-check |
+| GET | `/format-checks/reviews` | Case thể thức chờ giảng viên review |
+| GET | `/format-checks/reviews/student` | Case thể thức của sinh viên |
+| POST | `/format-checks/reviews/{id}/decision` | Ra quyết định cho một case thể thức |
+| GET | `/format-checks/metrics` | Chỉ số kiểm tra theo học phần |
 
 ---
 
@@ -670,13 +713,14 @@ Dataset đánh giá chất lượng AI routing, bao gồm:
 
 ## 12. Tài liệu mẫu (Sample Documents)
 
-| File | Nội dung |
-|------|---------|
-| `group-policy-v1.md` | Quy định nhóm: 3-5 thành viên, ngoại lệ cần giảng viên duyệt, quy định sử dụng AI |
-| `project-rubric-v1.md` | Rubric: báo cáo 30%, sản phẩm 40%, trình bày 20%, cộng tác 10%; trễ hạn -10%/ngày (tối đa 2 ngày) |
-| `dadn-course-plan.pdf` | Kế hoạch môn học DADN |
-| `dadn-rubric.pdf` | Rubric đầy đủ của môn DADN |
-| `dadn-work-plan.pdf` | Kế hoạch làm việc nhóm DADN |
+| Course | Thư mục | Tài liệu |
+|--------|---------|----------|
+| CO3001 | `data/sample-documents/DACN/` | `group-policy-v1.md`, `project-rubric-v1.md`, `format-guidelines-v1.md` |
+| DADN-HK242 | `data/sample-documents/DADN/` | `dadn-course-plan.pdf`, `dadn-rubric.pdf`, `dadn-work-plan.pdf`, `format-guidelines-v1.md` |
+
+Đường dẫn thư mục được ánh xạ với course trong `data/demo-config.json`. Sau khi thay đổi
+tài liệu demo, dùng **Reset Data Demo** trên sidebar hoặc gọi `POST /api/v1/demo/reset`
+để seed và ingest lại dữ liệu.
 
 ---
 
@@ -689,6 +733,12 @@ APP_ENV=development
 # Database
 DATABASE_URL=postgresql+asyncpg://aer:aer@localhost:5433/aer
 
+# Authentication (local demo giữ role switch; production phải dùng password)
+AUTH_MODE=demo                         # "demo" hoặc "password"
+AUTH_SECRET_KEY=                       # >= 32 ký tự, bắt buộc khi password
+AUTH_USERS_JSON=                       # {"actor_id":"pbkdf2_sha256$..."}
+AUTH_TOKEN_TTL_MINUTES=480
+
 # AI Provider
 AI_MODE=fake                          # "fake" hoặc "gemini"
 AI_HEALTH_CACHE_SECONDS=45
@@ -698,6 +748,8 @@ GEMINI_EMBED_MODEL=gemini-embedding-001
 EMBEDDING_DIMENSIONS=768
 AI_REQUEST_TIMEOUT_SECONDS=30
 AI_MAX_CONCURRENCY=1
+FORMAT_CHECK_MAX_UPLOAD_BYTES=15728640
+FORMAT_REVIEW_RETENTION_DAYS=30
 
 # RAG
 RAG_TOP_K=8                           # Số chunks lấy ra từ vector search
@@ -723,8 +775,8 @@ CORS_ORIGINS=http://localhost:5173,http://localhost
 ### Docker Compose (Local / Self-hosted)
 
 ```bash
-# Build và khởi động toàn bộ stack
-docker compose up --build
+# Build và chạy nền toàn bộ stack
+docker compose up -d --build
 
 # Services:
 # postgres  → localhost:5433
@@ -734,21 +786,48 @@ docker compose up --build
 
 Thứ tự khởi động: `postgres` (healthcheck) → `api` (healthcheck) → `web`
 
+Với PostgreSQL volume mới, API tự chạy migration và seed dữ liệu demo khi khởi động. Nếu đã
+giữ volume cũ rồi kéo code có thay đổi `data/demo-config.json` hoặc tài liệu mẫu, mở
+`http://localhost` và nhấn **Reset Data Demo** để nạp lại đúng course, group và tài liệu.
+Xem trạng thái/log khi cần:
+
+```bash
+docker compose ps
+docker compose logs -f api
+docker compose logs -f web
+```
+
 ### Render.com (Cloud)
 
-Cấu hình trong `render.yaml`:
-- **Service**: `academic-escalation-referee-api`
-- **Runtime**: Docker (backend Dockerfile)
-- **Region**: Singapore
-- **Plan**: Free
-- **Health check**: `/health`
-- **Env vars cần điền tay**: `GEMINI_API_KEY`, `DATABASE_URL`, `CORS_ORIGINS`
-
-Frontend deploy riêng trên **Vercel** (tự động nhận CORS từ `*.vercel.app`).
+API deploy qua `render.yaml`; frontend deploy riêng trên Vercel từ thư mục `frontend/`.
+Thiết lập production chi tiết, biến môi trường bắt buộc, CORS và checklist xác nhận nằm trong
+[DEPLOYMENT.md](DEPLOYMENT.md). Database production phải hỗ trợ extension **pgvector**.
 
 ---
 
 ## 15. Scripts phát triển
+
+### macOS / Linux
+
+```bash
+# Chạy backend độc lập (cần PostgreSQL và .env hợp lệ)
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/alembic upgrade head
+.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Chạy frontend ở terminal khác
+cd frontend
+npm ci
+npm run dev
+```
+
+Khi sửa frontend trong Docker, chạy lại `docker compose up -d --build web`. Khi chỉ sửa
+backend, source `backend/app` đã được bind mount trong Compose; vẫn nên chạy test trước khi
+reload/rebuild.
+
+### Windows PowerShell
 
 ```powershell
 # Cài đặt ban đầu
@@ -781,7 +860,31 @@ python scripts\ingest_dadn_documents.py
 
 ---
 
-## 16. Luồng xử lý câu hỏi
+## 16. Kiểm thử & CI
+
+Workflow [`.github/workflows/quality.yml`](.github/workflows/quality.yml) chạy trên mọi
+`push` và `pull_request`:
+
+| Job | Kiểm tra |
+|-----|----------|
+| Backend | `ruff check .` và `pytest tests -q` (Python 3.13) |
+| Frontend | `npm ci`, `npm test`, `npm run build` (Node 22) |
+| Docker | `docker compose build` sau khi hai job trên thành công |
+
+Chạy cùng các kiểm tra đó ở máy local (sau khi đã tạo virtual environment trong `backend/`):
+
+```bash
+(cd backend && .venv/bin/ruff check . && .venv/bin/python -m pytest tests -q)
+(cd frontend && npm test && npm run build)
+docker compose build
+```
+
+`E501` được Ruff bỏ qua có chủ đích vì prompt AI và fixture tài liệu chứa chuỗi dài không thể
+tách mà không làm giảm tính dễ đọc; các nhóm lỗi `E`, `F`, `I`, `UP`, `B` còn lại vẫn được kiểm tra.
+
+---
+
+## 17. Luồng xử lý câu hỏi
 
 ```mermaid
 flowchart TD
@@ -796,7 +899,7 @@ flowchart TD
     H -->|CLARIFY| J["❓ Lưu clarifying_question\nQuestionStatus: CLARIFICATION_REQUIRED"]
     H -->|ESCALATE| K["⚡ Tạo EscalationCase + SLA\nQuestionStatus: ESCALATED"]
     H -->|REJECT| L["🚫 Lưu reason\nQuestionStatus: REJECTED"]
-    J --> M["Sinh viên phản hồi\nPOST /questions/id/clarify"]
+    J --> M["Sinh viên phản hồi\nPOST /questions/id/clarifications"]
     M --> F
     K --> N["👨‍🏫 Giảng viên\n/lecturer/inbox"]
     N --> O{"Human Decision"}
@@ -812,4 +915,4 @@ flowchart TD
 
 ---
 
-*Generated: 2026-10-03 | Project: Academic Escalation Referee v0.1.0*
+*Cập nhật: 2026-10-07 | Project: Academic Escalation Referee v0.1.0*

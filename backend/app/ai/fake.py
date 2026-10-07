@@ -9,6 +9,13 @@ from app.core.policy_topics import (
     infer_policy_topic,
     policy_topics_in_text,
 )
+from app.schemas.format_checks import (
+    CoverPageJudgment,
+    FormatCriterionInput,
+    FormatSemanticJudgment,
+    LLMBatchCriterionJudgment,
+    LLMSubmissionContentFacts,
+)
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -241,10 +248,8 @@ class FakeProvider:
         actual_items: list[str],
         criterion_name: str,
         source_citation: str,
-    ) -> "FormatSemanticJudgment":
+    ) -> FormatSemanticJudgment:
         """Deterministic stub: pass when every expected item has enough shared tokens."""
-        from app.schemas.format_checks import FormatSemanticJudgment
-
         SYNONYM_SETS = [
             {"khái niệm", "mở đầu", "giới thiệu", "tổng quan", "đặt vấn đề", "giới thiệu tổng quan"},
             {"hiện thực", "cài đặt", "thiết kế và cài đặt", "triển khai", "thực nghiệm"},
@@ -305,10 +310,8 @@ class FakeProvider:
         self,
         first_page_text: str,
         required_elements: list[str],
-    ) -> "CoverPageJudgment":
+    ) -> CoverPageJudgment:
         """Deterministic cover page judgment for tests and local development."""
-        from app.schemas.format_checks import CoverPageJudgment
-
         norm = unicodedata.normalize("NFC", first_page_text.lower())
         detected: list[str] = []
         for req in required_elements:
@@ -345,10 +348,9 @@ class FakeProvider:
         self,
         regulation_text: str,
         allow_semantic_equivalent: bool = True,
-    ) -> list["FormatCriterionInput"]:
+    ) -> list[FormatCriterionInput]:
         """Deterministic criteria extractor for tests and local development."""
         from app.core.enums import FormatCriterionRuleType
-        from app.schemas.format_checks import FormatCriterionInput
 
         doc_id = "format-guidelines-v1"
         return [
@@ -504,10 +506,8 @@ class FakeProvider:
         self,
         full_text: str,
         cover_text: str,
-    ) -> "LLMSubmissionContentFacts":
+    ) -> LLMSubmissionContentFacts:
         """Deterministic submission facts extraction for tests and fake provider."""
-        from app.schemas.format_checks import LLMSubmissionContentFacts
-
         norm = unicodedata.normalize("NFC", cover_text.lower())
         detected_cover: list[str] = []
         for field in ("tên trường", "tên khoa", "tên đề tài", "giảng viên hướng dẫn", "sinh viên", "mssv", "năm thực hiện"):
@@ -553,10 +553,8 @@ class FakeProvider:
         self,
         criterion_item: dict[str, Any],
         submission_facts: dict[str, Any],
-    ) -> "LLMBatchCriterionJudgment":
+    ) -> LLMBatchCriterionJudgment:
         """Deterministic evaluation for a single criterion."""
-        from app.schemas.format_checks import LLMBatchCriterionJudgment
-
         cid = str(criterion_item.get("criterion_id", ""))
         exp = criterion_item.get("expected_value", {}) or {}
         kind = exp.get("kind", "")
@@ -699,7 +697,7 @@ class FakeProvider:
         self,
         criteria_items: list[dict[str, Any]],
         submission_facts: dict[str, Any],
-    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+    ) -> dict[str, LLMBatchCriterionJudgment]:
         results: dict[str, LLMBatchCriterionJudgment] = {}
         for c in criteria_items:
             cid = str(c.get("criterion_id", ""))
@@ -710,9 +708,8 @@ class FakeProvider:
         self,
         criteria_items: list[dict[str, Any]],
         submission_facts: dict[str, Any],
-    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+    ) -> dict[str, LLMBatchCriterionJudgment]:
         return await self.judge_multiple_criteria_individually(criteria_items, submission_facts)
 
     async def health(self) -> AIHealth:
         return AIHealth(mode="fake", available=True, model="deterministic-fake-v1")
-

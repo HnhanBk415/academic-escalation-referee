@@ -1,8 +1,30 @@
 {
+  "courses": [
+    {
+      "id": "CO3001",
+      "code": "CO3001",
+      "name": "Đồ án chuyên ngành",
+      "semester": "261",
+      "document_directory": "DACN"
+    },
+    {
+      "id": "DADN-HK242",
+      "code": "DADN",
+      "name": "Đồ án đa ngành",
+      "semester": "242",
+      "document_directory": "DADN"
+    }
+  ],
   "lecturers": [
     {
       "id": "lecturer-01",
       "display_name": "TS. Trần Minh Tuấn"
+    }
+  ],
+  "academic_affairs": [
+    {
+      "id": "academic-affairs-01",
+      "display_name": "Phòng Đào tạo demo"
     }
   ],
   "students": [
@@ -34,7 +56,6 @@
       "name": "Nhóm 01 - CO3001",
       "semester": "261",
       "member_ids": [
-        "demo-student",
         "student-a1"
       ]
     },
@@ -53,7 +74,6 @@
       "name": "Nhóm A - DADN HK242",
       "semester": "242",
       "member_ids": [
-        "demo-student",
         "student-dadn-a1"
       ]
     },

@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
-from app.api.deps import get_ai_provider
-from app.core.enums import QuestionStatus
+from app.api.deps import get_ai_provider, get_current_actor
+from app.core.auth import CurrentActor, effective_actor_id, production_auth_enabled, require_role
+from app.core.enums import ActorRole, QuestionStatus
 from app.core.errors import AppError
 from app.db.session import get_session
 from app.models import Question
@@ -26,6 +27,7 @@ router = APIRouter()
 
 @router.get("/counts", response_model=DashboardCounts)
 async def get_dashboard_counts(
+    current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> DashboardCounts:
     return await dashboard_counts(session)
@@ -38,8 +40,11 @@ async def list_questions(
     group_id: str | None = None,
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> list[QuestionResponse]:
+    if production_auth_enabled() and current.role == ActorRole.STUDENT:
+        actor_id = effective_actor_id(current, actor_id)
     return await list_questions_response(
         session,
         actor_id=actor_id,
@@ -56,7 +61,10 @@ async def create_question(
     request: Request,
     session: AsyncSession = Depends(get_session),
     provider: AIProvider = Depends(get_ai_provider),
+    current: CurrentActor = Depends(get_current_actor),
 ) -> QuestionResponse:
+    require_role(current, ActorRole.STUDENT)
+    payload = payload.model_copy(update={"actor_id": effective_actor_id(current, payload.actor_id)})
     return await submit_question(
         session,
         payload,
@@ -68,8 +76,14 @@ async def create_question(
 @router.get("/{question_id}", response_model=QuestionResponse)
 async def get_question(
     question_id: str,
+    current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> QuestionResponse:
+    question = await session.get(Question, question_id)
+    if question is None:
+        raise AppError("QUESTION_NOT_FOUND", "Không tìm thấy câu hỏi.", status_code=404)
+    if production_auth_enabled() and current.role == ActorRole.STUDENT and question.actor_id != current.id:
+        raise AppError("QUESTION_NOT_AUTHORIZED", "Không có quyền xem câu hỏi này.", status_code=403)
     return await get_question_response(session, question_id)
 
 
@@ -80,10 +94,14 @@ async def clarify_question(
     request: Request,
     session: AsyncSession = Depends(get_session),
     provider: AIProvider = Depends(get_ai_provider),
+    current: CurrentActor = Depends(get_current_actor),
 ) -> QuestionResponse:
     original = await session.get(Question, question_id)
     if original is None:
         raise AppError("QUESTION_NOT_FOUND", "Không tìm thấy câu hỏi.", status_code=404)
+    require_role(current, ActorRole.STUDENT)
+    if production_auth_enabled() and original.actor_id != current.id:
+        raise AppError("QUESTION_NOT_AUTHORIZED", "Không có quyền bổ sung câu hỏi này.", status_code=403)
     if original.status != QuestionStatus.CLARIFICATION_REQUIRED:
         raise AppError(
             "CLARIFICATION_NOT_EXPECTED",
@@ -122,4 +140,3 @@ async def clarify_question(
     )
     await session.commit()
     return child
-

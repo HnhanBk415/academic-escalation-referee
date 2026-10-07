@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_actor
+from app.core.auth import CurrentActor, require_role
+from app.core.enums import ActorRole
 from app.db.session import get_session
 from app.models import AuditEvent
 from app.schemas.audit import AuditEventResponse
@@ -32,8 +35,10 @@ def _response(event: AuditEvent) -> AuditEventResponse:
 @router.get("", response_model=list[AuditEventResponse])
 async def get_audit(
     limit: int = Query(default=100, ge=1, le=500),
+    current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> list[AuditEventResponse]:
+    require_role(current, ActorRole.ACADEMIC_AFFAIRS)
     events = (
         await session.scalars(
             select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(limit)
@@ -46,8 +51,10 @@ async def get_audit(
 async def get_entity_audit(
     entity_type: str,
     entity_id: str,
+    current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> list[AuditEventResponse]:
+    require_role(current, ActorRole.ACADEMIC_AFFAIRS)
     events = (
         await session.scalars(
             select(AuditEvent)
@@ -59,4 +66,3 @@ async def get_entity_audit(
         )
     ).all()
     return [_response(event) for event in events]
-

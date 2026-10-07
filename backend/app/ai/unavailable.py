@@ -1,6 +1,12 @@
 from typing import Any
 
-from app.schemas.format_checks import FormatSemanticJudgment
+from app.schemas.format_checks import (
+    CoverPageJudgment,
+    FormatCriterionInput,
+    FormatSemanticJudgment,
+    LLMBatchCriterionJudgment,
+    LLMSubmissionContentFacts,
+)
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -44,9 +50,7 @@ class UnavailableProvider:
         self,
         first_page_text: str,
         required_elements: list[str],
-    ) -> "CoverPageJudgment":
-        from app.schemas.format_checks import CoverPageJudgment
-
+    ) -> CoverPageJudgment:
         return CoverPageJudgment(
             is_cover_page=False,
             detected_elements=[],
@@ -58,23 +62,21 @@ class UnavailableProvider:
         self,
         regulation_text: str,
         allow_semantic_equivalent: bool = True,
-    ) -> list["FormatCriterionInput"]:
+    ) -> list[FormatCriterionInput]:
         return []
 
     async def extract_submission_content_facts(
         self,
         full_text: str,
         cover_text: str,
-    ) -> "LLMSubmissionContentFacts":
-        from app.schemas.format_checks import LLMSubmissionContentFacts
+    ) -> LLMSubmissionContentFacts:
         return LLMSubmissionContentFacts()
 
     async def judge_single_criterion(
         self,
         criterion_item: dict[str, Any],
         submission_facts: dict[str, Any],
-    ) -> "LLMBatchCriterionJudgment":
-        from app.schemas.format_checks import LLMBatchCriterionJudgment
+    ) -> LLMBatchCriterionJudgment:
         return LLMBatchCriterionJudgment(
             criterion_id=str(criterion_item.get("criterion_id", "")),
             verdict="AMBIGUOUS",
@@ -85,8 +87,7 @@ class UnavailableProvider:
         self,
         criteria_items: list[dict[str, Any]],
         submission_facts: dict[str, Any],
-    ) -> dict[str, "LLMBatchCriterionJudgment"]:
-        from app.schemas.format_checks import LLMBatchCriterionJudgment
+    ) -> dict[str, LLMBatchCriterionJudgment]:
         return {
             c.get("criterion_id", ""): LLMBatchCriterionJudgment(
                 criterion_id=str(c.get("criterion_id", "")),
@@ -101,7 +102,7 @@ class UnavailableProvider:
         self,
         criteria_items: list[dict[str, Any]],
         submission_facts: dict[str, Any],
-    ) -> dict[str, "LLMBatchCriterionJudgment"]:
+    ) -> dict[str, LLMBatchCriterionJudgment]:
         return await self.judge_multiple_criteria_individually(criteria_items, submission_facts)
 
     async def health(self) -> AIHealth:

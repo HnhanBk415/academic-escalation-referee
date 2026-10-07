@@ -5,6 +5,7 @@ import {
   IconBookOpen,
   IconClipboard,
   IconInbox,
+  IconHome,
   IconMessageSquare,
   IconRotateCcw,
   IconScale,
@@ -12,8 +13,8 @@ import {
   IconShield,
 } from "./Icons";
 
-export type Role = "student" | "lecturer";
-export type ActiveTab = "submit" | "history" | "format" | "inbox" | "exceptions" | "audit" | "verify";
+export type Role = "student" | "lecturer" | "academic_affairs";
+export type ActiveTab = "home" | "submit" | "history" | "format" | "inbox" | "exceptions" | "operations" | "audit" | "verify";
 
 interface SidebarProps {
   role: Role;
@@ -23,6 +24,7 @@ interface SidebarProps {
   pendingCount?: number;
   queueCount?: number;
   aiOnline?: boolean;
+  allowRoleSwitch?: boolean;
 }
 
 export function Sidebar({
@@ -33,6 +35,7 @@ export function Sidebar({
   pendingCount = 0,
   queueCount = 0,
   aiOnline = true,
+  allowRoleSwitch = true,
 }: SidebarProps) {
   const [resetting, setResetting] = useState(false);
 
@@ -76,11 +79,11 @@ export function Sidebar({
       </div>
 
       {/* Role Switcher */}
-      <div className="px-4 py-3 border-b border-slate-800/80">
+      {allowRoleSwitch && <div className="px-4 py-3 border-b border-slate-800/80">
         <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-2 px-1">
           Chế độ
         </p>
-        <div className="flex bg-slate-900/90 border border-slate-800 rounded-lg p-1 gap-1">
+        <div className="grid grid-cols-3 bg-slate-900/90 border border-slate-800 rounded-lg p-1 gap-1">
           <button
             type="button"
             onClick={() => onSelectRole("student")}
@@ -103,11 +106,28 @@ export function Sidebar({
           >
             Giảng viên
           </button>
+          <button
+            type="button"
+            onClick={() => onSelectRole("academic_affairs")}
+            className={`py-1.5 px-1 rounded-md text-[11px] font-semibold transition-all ${
+              role === "academic_affairs"
+                ? "bg-[#B91C1C] text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Đào tạo
+          </button>
         </div>
-      </div>
+      </div>}
 
       {/* Navigation Links */}
       <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
+        <NavItem
+          icon={<IconHome size={16} />}
+          label="Trang hướng dẫn"
+          active={activeTab === "home"}
+          onClick={() => onSelectTab("home")}
+        />
         {role === "student" ? (
           <>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-1 px-2.5">
@@ -133,7 +153,7 @@ export function Sidebar({
               onClick={() => onSelectTab("format")}
             />
           </>
-        ) : (
+        ) : role === "lecturer" ? (
           <>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-1 px-2.5">
               Giảng viên
@@ -158,6 +178,12 @@ export function Sidebar({
               onClick={() => onSelectTab("format")}
             />
           </>
+        ) : (
+          <>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-1 px-2.5">Phòng Đào tạo</p>
+            <NavItem icon={<IconScale size={16} />} label="Trung tâm vận hành" active={activeTab === "operations"} onClick={() => onSelectTab("operations")} />
+            <NavItem icon={<IconScroll size={16} />} label="Audit Trail" active={activeTab === "audit"} onClick={() => onSelectTab("audit")} />
+          </>
         )}
 
         {/* Shared System Section */}
@@ -165,12 +191,12 @@ export function Sidebar({
           <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mb-1 px-2.5">
             Hệ thống
           </p>
-          <NavItem
+          {role !== "academic_affairs" && <NavItem
             icon={<IconScroll size={16} />}
             label="Audit Log"
             active={activeTab === "audit"}
             onClick={() => onSelectTab("audit")}
-          />
+          />}
           <NavItem
             icon={<IconShield size={16} />}
             label="Verify Harness"
@@ -200,14 +226,14 @@ export function Sidebar({
       <div className="px-3 py-3 border-t border-slate-800/80 bg-[#070A10]">
         <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 transition-all cursor-pointer group">
           <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-inner">
-            {role === "student" ? "NV" : "TM"}
+            {role === "student" ? "NV" : role === "lecturer" ? "TM" : "ĐT"}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-slate-100 truncate">
-              {role === "student" ? "Nguyễn Văn An" : "TS. Trần Minh Tuấn"}
+              {role === "student" ? "Nguyễn Văn An" : role === "lecturer" ? "TS. Trần Minh Tuấn" : "Phòng Đào tạo demo"}
             </p>
             <p className="text-[10px] text-slate-400 font-mono truncate mt-0.5">
-              {role === "student" ? "2110482" : "Giảng viên phụ trách"}
+              {role === "student" ? "2110482" : role === "lecturer" ? "Giảng viên phụ trách" : "Giám sát vận hành"}
             </p>
           </div>
           <span className="text-slate-500 group-hover:text-slate-300 transition-colors">

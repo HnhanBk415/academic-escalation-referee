@@ -3,9 +3,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.factory import build_ai_provider
+from app.api.deps import get_current_actor
+from app.core.auth import CurrentActor, require_role
+from app.core.enums import ActorRole
 from app.core.errors import AppError
 from app.db.session import get_session
-from app.ingestion.service import scan_and_sync_documents
 from app.models import (
     Actor,
     Course,
@@ -17,6 +19,7 @@ from app.models import (
     FormatCriterion,
     FormatReviewCase,
     Group,
+    GroupMembership,
     HumanDecision,
     PolicyException,
     Question,
@@ -35,6 +38,7 @@ router = APIRouter()
 
 @router.get("/catalog", response_model=DemoCatalogResponse)
 async def get_demo_catalog(
+    current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> DemoCatalogResponse:
     lecturer = await session.get(Actor, "lecturer-01")
@@ -72,8 +76,10 @@ async def get_demo_catalog(
 @router.post("/reset")
 async def reset_demo(
     request: Request,
+    current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
+    require_role(current, ActorRole.ACADEMIC_AFFAIRS)
     from app.db.seed import seed_demo
 
     models_to_reset = (
@@ -86,6 +92,11 @@ async def reset_demo(
         FormatCheckMetric,
         FormatCriterion,
         FormatCriteriaSet,
+        DocumentChunk,
+        Document,
+        GroupMembership,
+        Group,
+        Course,
     )
     deleted_counts = {
         model.__tablename__: int(

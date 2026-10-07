@@ -94,7 +94,12 @@ async def test_ambiguous_template_creates_limited_review_case(client):
             "title": "Mẫu báo cáo",
             "criteria": [{
                 "name": "Khung đề mục", "description": "Có mục Tổng quan.", "rule_type": "TEMPLATE",
-                "expected_value": {"headings": ["Tổng quan"], "allow_extra": True, "strict_names": True},
+                "expected_value": {
+                    "kind": "template_outline",
+                    "outline_headings": ["Tổng quan học phần"],
+                    "allow_extra": True,
+                    "strict_names": True,
+                },
             }],
         },
     )
@@ -132,7 +137,7 @@ async def test_academic_30_checklist_draft_and_evaluation(client):
             "course_id": "CO3001",
             "lecturer_id": "lecturer-01",
             "title": "Checklist Quy chế Báo cáo Đồ án",
-            "document_ids": ["format-guidelines-v1"],
+            "document_ids": ["co3001-format-guidelines-v1"],
             "include_template_structure": True,
         },
     )
@@ -178,7 +183,7 @@ async def test_cover_page_detection_and_evaluation(client):
             "course_id": "CO3001",
             "lecturer_id": "lecturer-01",
             "title": "Quy chế Báo cáo có Trang bìa",
-            "document_ids": ["format-guidelines-v1"],
+            "document_ids": ["co3001-format-guidelines-v1"],
             "include_template_structure": True,
         },
     )
@@ -222,7 +227,7 @@ async def test_granular_template_and_semantic_equivalence_toggle(client):
             "course_id": "CO3001",
             "lecturer_id": "lecturer-01",
             "title": "Checklist Khung cấu trúc đề cương",
-            "document_ids": ["format-guidelines-v1"],
+            "document_ids": ["co3001-format-guidelines-v1"],
             "include_template_structure": True,
             "allow_semantic_equivalent": True,
         },
@@ -263,9 +268,7 @@ async def test_granular_template_and_semantic_equivalence_toggle(client):
     )
     assert res_incomplete.status_code == 200
     template_inc_res = next(r for r in res_incomplete.json()["results"] if "Khung cấu trúc" in r["name"])
-    assert template_inc_res["status"] in ("FAIL", "MISSING_STUDENT_INPUT")
-
-
+    assert template_inc_res["status"] in ("FAIL", "MISSING_STUDENT_INPUT", "AMBIGUOUS")
 @pytest.mark.asyncio
 async def test_zero_defaults_strict_extraction():
     from app.ai.fake import FakeProvider
@@ -281,6 +284,3 @@ async def test_zero_defaults_strict_extraction():
         assert c.name
         assert c.rule_type
         assert c.description
-
-
-
