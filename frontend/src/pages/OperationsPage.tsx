@@ -54,6 +54,33 @@ export function OperationsPage({ onOpenAudit }: { onOpenAudit: () => void }) {
           ))}
         </section>
 
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#DC2626]">Flow 2 · Pre-check thể thức</p>
+              <h2 className="mt-1 text-lg font-extrabold text-slate-900">Sức khỏe policy và lượt kiểm tra hôm nay</h2>
+              <p className="mt-1 text-xs text-slate-500">Tách riêng lỗi cần sửa, ca cần giảng viên và file không đủ dữ liệu để ưu tiên xử lý đúng.</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">
+              {overview?.active_format_policy_profiles ?? "—"} profile đang áp dụng
+            </span>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              ["Lượt kiểm tra", overview?.format_checks_today, "bg-slate-50 text-slate-900"],
+              ["Cần sửa", overview?.format_needs_fix_today, "bg-rose-50 text-rose-800"],
+              ["Chờ giảng viên", overview?.format_needs_review_today, "bg-amber-50 text-amber-900"],
+              ["Không thể kiểm tra", overview?.format_unable_to_check_today, "bg-sky-50 text-sky-900"],
+              ["Môn chưa có policy", overview?.courses_without_active_format_policy, "bg-violet-50 text-violet-900"],
+            ].map(([label, value, tone]) => (
+              <article key={String(label)} className={`rounded-xl border border-slate-200 p-4 ${tone}`}>
+                <p className="text-2xl font-extrabold">{value ?? "—"}</p>
+                <p className="mt-1 text-xs font-semibold">{label}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
           <article className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wider text-red-300">Khối lượng toàn hệ thống</p>

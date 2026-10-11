@@ -39,10 +39,16 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 
 
 @router.get("/criteria", response_model=list[FormatCriteriaSetResponse])
-async def get_criteria(course_id: str, session: SessionDependency, current: CurrentActor = Depends(get_current_actor)) -> list[FormatCriteriaSetResponse]:
+async def get_criteria(
+    course_id: str,
+    session: SessionDependency,
+    report_type: str | None = None,
+    current: CurrentActor = Depends(get_current_actor),
+) -> list[FormatCriteriaSetResponse]:
     return await list_criteria_sets(
         session,
         course_id,
+        report_type=report_type,
         active_only=production_auth_enabled() and current.role == ActorRole.STUDENT,
     )
 
@@ -79,6 +85,7 @@ async def submit_check(
     session: SessionDependency,
     course_id: Annotated[str, Form(...)],
     actor_id: Annotated[str, Form()] = "demo-student",
+    report_type: Annotated[str, Form()] = "default",
     file: UploadFile = File(...),
     provider=Depends(get_ai_provider),
     current: CurrentActor = Depends(get_current_actor),
@@ -88,6 +95,7 @@ async def submit_check(
         session,
         course_id=course_id,
         actor_id=effective_actor_id(current, actor_id),
+        report_type=report_type,
         filename=file.filename or "submission",
         payload=await file.read(),
         request_id=request.state.request_id,

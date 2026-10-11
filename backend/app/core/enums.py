@@ -102,16 +102,29 @@ class FormatCriterionRuleType(StrEnum):
     TEMPLATE = "TEMPLATE"
 
 
+class FormatRuleHandling(StrEnum):
+    BLOCKING = "BLOCKING"
+    ADVISORY = "ADVISORY"
+    MANUAL_REVIEW = "MANUAL_REVIEW"
+
+
+class FormatUnableAction(StrEnum):
+    UNABLE_TO_CHECK = "UNABLE_TO_CHECK"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+
+
 class FormatCriterionResultStatus(StrEnum):
     PASS = "PASS"
     FAIL = "FAIL"
     UNMEASURABLE = "UNMEASURABLE"
     AMBIGUOUS = "AMBIGUOUS"
+    MANUAL_REVIEW = "MANUAL_REVIEW"
 
 
 class FormatCheckOverallStatus(StrEnum):
     PASS = "PASS"
     NEEDS_FIX = "NEEDS_FIX"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
     UNABLE_TO_CHECK = "UNABLE_TO_CHECK"
 
 

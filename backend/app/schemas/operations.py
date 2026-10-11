@@ -19,4 +19,10 @@ class OperationsOverview(BaseModel):
     active_exceptions: int
     active_documents: int
     pending_format_reviews: int
+    active_format_policy_profiles: int
+    courses_without_active_format_policy: int
+    format_checks_today: int
+    format_needs_fix_today: int
+    format_needs_review_today: int
+    format_unable_to_check_today: int
     recent_activity: list[OperationsActivity]

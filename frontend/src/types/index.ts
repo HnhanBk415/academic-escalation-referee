@@ -178,7 +178,8 @@ export interface AuditEvent {
 }
 
 export type FormatRuleType = "MEASUREMENT" | "PRESENCE" | "TEMPLATE";
-export type FormatResultStatus = "PASS" | "FAIL" | "UNMEASURABLE" | "AMBIGUOUS";
+export type FormatRuleHandling = "BLOCKING" | "ADVISORY" | "MANUAL_REVIEW";
+export type FormatResultStatus = "PASS" | "FAIL" | "UNMEASURABLE" | "AMBIGUOUS" | "MANUAL_REVIEW";
 
 export interface FormatCriterion {
   id: string;
@@ -186,6 +187,8 @@ export interface FormatCriterion {
   name: string;
   description: string;
   rule_type: FormatRuleType;
+  handling: FormatRuleHandling;
+  when_unable_to_check: "UNABLE_TO_CHECK" | "NEEDS_REVIEW";
   expected_value: Record<string, unknown>;
   source_citation: string | null;
   source_document_id: string | null;
@@ -196,7 +199,12 @@ export interface FormatCriterion {
 export interface FormatCriteriaSet {
   id: string;
   course_id: string;
+  semester: string;
+  report_type: string;
   version: number;
+  policy_id: string;
+  policy_version: string;
+  template_hash: string | null;
   title: string;
   status: "DRAFT" | "ACTIVE" | "SUPERSEDED";
   source_document_ids: string[];
@@ -211,6 +219,7 @@ export interface FormatCriterionResult {
   criterion_id: string;
   name: string;
   status: FormatResultStatus;
+  handling: FormatRuleHandling;
   message: string;
   expected_value: Record<string, unknown>;
   actual_value: Record<string, unknown> | null;
@@ -228,11 +237,17 @@ export interface ChecklistSummaryItem {
 }
 
 export interface FormatCheckResponse {
-  overall_status: "PASS" | "NEEDS_FIX" | "UNABLE_TO_CHECK";
+  overall_status: "PASS" | "NEEDS_FIX" | "NEEDS_REVIEW" | "UNABLE_TO_CHECK";
   message: string;
+  check_run_id?: string | null;
   criteria_set_id: string | null;
   criteria_version: number | null;
   criteria_approved_at: string | null;
+  semester?: string | null;
+  report_type?: string | null;
+  policy_id?: string | null;
+  policy_version?: string | null;
+  template_hash?: string | null;
   results: FormatCriterionResult[];
   review_case_id: string | null;
   checklist_summary?: ChecklistSummaryItem[];
@@ -260,6 +275,7 @@ export interface FormatMetric {
   total_checks: number;
   passed_checks: number;
   needs_fix_checks: number;
+  needs_review_checks: number;
   unable_to_check_checks: number;
 }
 
@@ -286,5 +302,11 @@ export interface OperationsOverview {
   active_exceptions: number;
   active_documents: number;
   pending_format_reviews: number;
+  active_format_policy_profiles: number;
+  courses_without_active_format_policy: number;
+  format_checks_today: number;
+  format_needs_fix_today: number;
+  format_needs_review_today: number;
+  format_unable_to_check_today: number;
   recent_activity: OperationsActivity[];
 }

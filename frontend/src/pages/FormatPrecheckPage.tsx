@@ -10,6 +10,7 @@ import type {
   FormatCriterionResult,
   FormatMetric,
   FormatReviewCase,
+  FormatRuleHandling,
   FormatRuleType,
 } from "../types";
 import {
@@ -44,9 +45,11 @@ export function ResultBadge({ status }: { status: string }) {
     ACCEPTED: { label: "ĐÃ CHẤP THUẬN", icon: "✅" },
     FAIL: { label: "SAI (Cần sửa lại)", icon: "❌" },
     NEEDS_FIX: { label: "CẦN SỬA LẠI", icon: "❌" },
+    NEEDS_REVIEW: { label: "CHỜ GIẢNG VIÊN XÁC NHẬN", icon: "⏳" },
     REQUIRES_FIX: { label: "YÊU CẦU SỬA", icon: "❌" },
     MISSING_STUDENT_INPUT: { label: "THIẾU (Cần bổ sung)", icon: "❌" },
     AMBIGUOUS: { label: "MƠ HỒ (Chờ GV duyệt)", icon: "⚠️" },
+    MANUAL_REVIEW: { label: "CẦN GIẢNG VIÊN XEM", icon: "⏳" },
     UNDER_REVIEW: { label: "CHỜ GIẢNG VIÊN DUYỆT", icon: "⏳" },
     UNABLE_TO_CHECK: { label: "CẦN THẨM ĐỊNH", icon: "⚠️" },
     UNMEASURABLE: { label: "KHÔNG ĐO ĐƯỢC", icon: "⚪" },
@@ -112,14 +115,14 @@ export function SubmittedReportFactsModal({
     if (filter === "ALL") return effectiveResults;
     if (filter === "PASS") return effectiveResults.filter((r) => r.status === "PASS");
     if (filter === "FAIL") return effectiveResults.filter((r) => r.status === "FAIL");
-    return effectiveResults.filter((r) => r.status === "AMBIGUOUS");
+    return effectiveResults.filter((r) => r.status === "AMBIGUOUS" || r.status === "MANUAL_REVIEW");
   }, [effectiveResults, filter]);
 
   const filteredSummary = useMemo(() => {
     if (filter === "ALL") return effectiveSummary;
     if (filter === "PASS") return effectiveSummary.filter((r) => r.status === "PASS");
     if (filter === "FAIL") return effectiveSummary.filter((r) => r.status === "FAIL" || r.status === "MISSING_STUDENT_INPUT");
-    return effectiveSummary.filter((r) => r.status === "AMBIGUOUS");
+    return effectiveSummary.filter((r) => r.status === "AMBIGUOUS" || r.status === "MANUAL_REVIEW");
   }, [effectiveSummary, filter]);
 
   return (
@@ -257,7 +260,7 @@ export function SubmittedReportFactsModal({
                   {filteredSummary.map((row) => {
                     const isPass = row.status === "PASS";
                     const isFail = row.status === "FAIL" || row.status === "MISSING_STUDENT_INPUT";
-                    const isAmbiguous = row.status === "AMBIGUOUS";
+                    const isAmbiguous = row.status === "AMBIGUOUS" || row.status === "MANUAL_REVIEW";
 
                     return (
                       <tr
@@ -341,7 +344,12 @@ export function SubmittedReportFactsModal({
 export function CriterionResult({ item }: { item: FormatCriterionResult }) {
   const isPass = item.status === "PASS";
   const isFail = item.status === "FAIL";
-  const isAmbiguous = item.status === "AMBIGUOUS";
+  const isAmbiguous = item.status === "AMBIGUOUS" || item.status === "MANUAL_REVIEW";
+  const handlingLabel = item.handling === "ADVISORY"
+    ? "Khuyến nghị"
+    : item.handling === "MANUAL_REVIEW"
+      ? "Giảng viên xác nhận"
+      : "Bắt buộc";
 
   return (
     <article
@@ -369,6 +377,12 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
             {isPass ? "✓" : isFail ? "✕" : isAmbiguous ? "!" : "•"}
           </span>
           <h3 className="font-bold text-sm text-slate-900">{item.name}</h3>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${item.handling === "BLOCKING"
+            ? "bg-rose-50 text-rose-800 border-rose-200"
+            : item.handling === "ADVISORY"
+              ? "bg-sky-50 text-sky-800 border-sky-200"
+              : "bg-amber-50 text-amber-900 border-amber-200"
+            }`}>{handlingLabel}</span>
         </div>
         <ResultBadge status={item.status} />
       </div>
@@ -469,9 +483,11 @@ export function CriterionResult({ item }: { item: FormatCriterionResult }) {
 export function CheckResult({
   result,
   onOpenFactsModal,
+  onResubmit,
 }: {
   result: FormatCheckResponse;
   onOpenFactsModal?: () => void;
+  onResubmit?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<"summary" | "criteria">("summary");
   const [filterStatus, setFilterStatus] = useState<"ALL" | "PASS" | "FAIL" | "AMBIGUOUS" | "NOT_SPECIFIED">("ALL");
@@ -488,7 +504,7 @@ export function CheckResult({
     summaryItems.forEach((row) => {
       if (row.status === "PASS") pass++;
       else if (row.status === "FAIL" || row.status === "MISSING_STUDENT_INPUT") fail++;
-      else if (row.status === "AMBIGUOUS") ambiguous++;
+      else if (row.status === "AMBIGUOUS" || row.status === "MANUAL_REVIEW") ambiguous++;
       else notSpecified++;
     });
 
@@ -500,7 +516,7 @@ export function CheckResult({
     if (filterStatus === "ALL") return summaryItems;
     if (filterStatus === "PASS") return summaryItems.filter((r) => r.status === "PASS");
     if (filterStatus === "FAIL") return summaryItems.filter((r) => r.status === "FAIL" || r.status === "MISSING_STUDENT_INPUT");
-    if (filterStatus === "AMBIGUOUS") return summaryItems.filter((r) => r.status === "AMBIGUOUS");
+    if (filterStatus === "AMBIGUOUS") return summaryItems.filter((r) => r.status === "AMBIGUOUS" || r.status === "MANUAL_REVIEW");
     return summaryItems.filter((r) => r.status === "NOT_SPECIFIED");
   }, [summaryItems, filterStatus]);
 
@@ -508,7 +524,7 @@ export function CheckResult({
     if (filterStatus === "ALL") return result.results;
     if (filterStatus === "PASS") return result.results.filter((r) => r.status === "PASS");
     if (filterStatus === "FAIL") return result.results.filter((r) => r.status === "FAIL");
-    if (filterStatus === "AMBIGUOUS") return result.results.filter((r) => r.status === "AMBIGUOUS");
+    if (filterStatus === "AMBIGUOUS") return result.results.filter((r) => r.status === "AMBIGUOUS" || r.status === "MANUAL_REVIEW");
     return result.results.filter((r) => r.status === "UNMEASURABLE");
   }, [result.results, filterStatus]);
 
@@ -523,7 +539,8 @@ export function CheckResult({
             <p className="text-sm text-slate-600 mt-1">{result.message}</p>
             {result.criteria_version && (
               <p className="text-xs text-slate-500 mt-1">
-                Bộ tiêu chí phiên bản v{result.criteria_version}
+                Policy {result.policy_id || "nội bộ"} · phiên bản {result.policy_version || `v${result.criteria_version}`}
+                {result.report_type ? ` · loại báo cáo ${result.report_type}` : ""}
                 {result.criteria_approved_at ? ` · duyệt ngày ${new Date(result.criteria_approved_at).toLocaleDateString("vi-VN")}` : ""}
               </p>
             )}
@@ -547,6 +564,22 @@ export function CheckResult({
           <div>
             <b>Có tiêu chí cần giảng viên thẩm định:</b> Một số điểm trình bày có sự khác biệt ngữ nghĩa hoặc tên gọi đã được tự động lưu snapshot và chuyển đến hàng chờ duyệt của giảng viên phụ trách môn học.
           </div>
+        </div>
+      )}
+
+      {result.overall_status === "NEEDS_FIX" && onResubmit && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/80 p-4">
+          <div>
+            <p className="text-sm font-bold text-rose-950">Bạn cần sửa các mục bắt buộc trước khi nộp chính thức.</p>
+            <p className="mt-0.5 text-xs text-rose-800">Xem các dòng “Sai / Thiếu” bên dưới, chỉnh file rồi kiểm tra lại. Lượt kiểm tra mới vẫn giữ nguyên lịch sử policy đã dùng ở lượt này.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onResubmit}
+            className="shrink-0 rounded-xl bg-rose-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-rose-800"
+          >
+            Chọn file đã sửa để kiểm tra lại
+          </button>
         </div>
       )}
 
@@ -680,7 +713,7 @@ export function CheckResult({
                   {filteredSummary.map((row) => {
                     const isPass = row.status === "PASS";
                     const isFail = row.status === "FAIL" || row.status === "MISSING_STUDENT_INPUT";
-                    const isAmbiguous = row.status === "AMBIGUOUS";
+                    const isAmbiguous = row.status === "AMBIGUOUS" || row.status === "MANUAL_REVIEW";
 
                     return (
                       <tr
@@ -765,6 +798,8 @@ export function CheckResult({
 // ── GIAO DIỆN SINH VIÊN ──────────────────────────────────────────────────────
 function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<Props, "role">) {
   const [file, setFile] = useState<File | null>(null);
+  const [activeProfiles, setActiveProfiles] = useState<FormatCriteriaSet[]>([]);
+  const [reportType, setReportType] = useState("default");
   const [result, setResult] = useState<FormatCheckResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -777,10 +812,27 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
     ambiguousResults?: Array<Record<string, unknown>>;
   } | null>(null);
 
+  const selectedProfile = useMemo(
+    () => activeProfiles.find((profile) => profile.report_type === reportType) || activeProfiles[0] || null,
+    [activeProfiles, reportType]
+  );
+
   async function loadReviews() {
     try {
       setReviews(await api<FormatReviewCase[]>(`/api/v1/format-checks/reviews/student?course_id=${encodeURIComponent(selectedCourseId)}&actor_id=demo-student`));
     } catch { setReviews([]); }
+  }
+
+  async function loadActiveProfiles() {
+    try {
+      const sets = await api<FormatCriteriaSet[]>(`/api/v1/format-checks/criteria?course_id=${encodeURIComponent(selectedCourseId)}`);
+      const profiles = sets.filter((item) => item.status === "ACTIVE");
+      setActiveProfiles(profiles);
+      setReportType((current) => profiles.some((item) => item.report_type === current) ? current : (profiles[0]?.report_type || "default"));
+    } catch {
+      setActiveProfiles([]);
+      setReportType("default");
+    }
   }
 
   useEffect(() => {
@@ -796,6 +848,7 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
       setResult(null);
     }
     void loadReviews();
+    void loadActiveProfiles();
   }, [selectedCourseId]);
 
   async function submit(event: FormEvent) {
@@ -806,6 +859,7 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
       const body = new FormData();
       body.append("course_id", selectedCourseId);
       body.append("actor_id", "demo-student");
+      body.append("report_type", reportType);
       body.append("file", file);
       const res = await api<FormatCheckResponse>("/api/v1/format-checks/checks", { method: "POST", body });
       setResult(res);
@@ -831,12 +885,26 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
           </p>
         </header>
 
-        <form onSubmit={submit} className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm">
+        <form id="format-upload" onSubmit={submit} className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm">
           <div className="flex flex-wrap gap-4 items-end">
             <label className="block text-sm font-semibold text-slate-700">
               Học phần
               <CriteriaSelect catalog={catalog} courseId={selectedCourseId} onChange={onSelectCourse} />
             </label>
+            {activeProfiles.length > 1 ? (
+              <label className="block text-sm font-semibold text-slate-700">
+                Loại báo cáo
+                <select
+                  value={reportType}
+                  onChange={(event) => setReportType(event.target.value)}
+                  className="block mt-1.5 w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-800"
+                >
+                  {activeProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.report_type}>{profile.title} · {profile.report_type}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="flex-1 min-w-64 block text-sm font-semibold text-slate-700">
               Báo cáo (.docx, .pdf)
               <input
@@ -847,8 +915,21 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
               />
             </label>
           </div>
+          {selectedProfile ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-950">
+              <p className="font-bold">Policy sẽ được áp dụng cho lượt kiểm tra này</p>
+              <p className="mt-1">
+                {selectedProfile.title} · loại <b>{selectedProfile.report_type}</b> · {selectedProfile.policy_id} / {selectedProfile.policy_version} · {selectedProfile.criteria.length} tiêu chí
+              </p>
+              <p className="mt-1 text-emerald-800">Kết quả sẽ lưu snapshot policy này, nên các lần kiểm tra trước không đổi khi giảng viên cập nhật quy định.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+              Chưa có policy đang kích hoạt cho học phần này. Hãy liên hệ giảng viên trước khi kiểm tra.
+            </div>
+          )}
           <div className="rounded-lg bg-sky-50 border border-sky-100 p-3 text-xs text-sky-800">
-            File chỉ được dùng trong lượt kiểm tra này. Chỉ khi có tiêu chí mơ hồ, hệ thống mới lưu snapshot cấu trúc cần thiết để giảng viên xem xét.
+            File chỉ được dùng trong lượt kiểm tra này. Kết quả sẽ lưu snapshot policy/version áp dụng để các lần kiểm tra cũ không bị thay đổi khi giảng viên cập nhật policy.
           </div>
           <div className="flex items-center justify-between gap-3">
             <button
@@ -888,6 +969,11 @@ function StudentFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit<
                 checklistSummary: result.checklist_summary,
               })
             }
+            onResubmit={() => {
+              setResult(null);
+              setFile(null);
+              document.getElementById("format-upload")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
           />
         )}
 
@@ -1042,6 +1128,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
   const [reviews, setReviews] = useState<FormatReviewCase[]>([]);
   const [metrics, setMetrics] = useState<FormatMetric[]>([]);
   const [title, setTitle] = useState("Bộ tiêu chí hình thức báo cáo");
+  const [reportType, setReportType] = useState("default");
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [extracting, setExtracting] = useState(false);
@@ -1066,12 +1153,48 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
       name: string;
       description: string;
       rule_type: FormatRuleType;
+      handling: FormatRuleHandling;
+      when_unable_to_check: "UNABLE_TO_CHECK" | "NEEDS_REVIEW";
       expected_value: Record<string, unknown>;
       source_citation?: string;
     }>
   >([]);
 
-  const active = useMemo(() => sets.find((item) => item.status === "ACTIVE"), [sets]);
+  const active = useMemo(
+    () => sets.find((item) => item.status === "ACTIVE" && item.report_type === reportType),
+    [sets, reportType]
+  );
+
+  const reportTypes = useMemo(
+    () => Array.from(new Set(sets.map((item) => item.report_type))).sort(),
+    [sets]
+  );
+
+  const versionHistory = useMemo(
+    () => sets
+      .filter((item) => item.report_type === reportType)
+      .sort((left, right) => right.version - left.version),
+    [sets, reportType]
+  );
+
+  function loadCriteriaSetIntoEditor(criteriaSet: FormatCriteriaSet) {
+    setReportType(criteriaSet.report_type);
+    setTitle(criteriaSet.title || "Bộ tiêu chí hình thức báo cáo");
+    setSelectedDocs(criteriaSet.source_document_ids);
+    setEditableCriteria(
+      criteriaSet.criteria.map((criterion) => ({
+        id: criterion.id,
+        name: criterion.name,
+        description: criterion.description || "",
+        rule_type: criterion.rule_type,
+        handling: criterion.handling,
+        when_unable_to_check: criterion.when_unable_to_check,
+        expected_value: criterion.expected_value,
+        source_citation: criterion.source_citation || undefined,
+      }))
+    );
+    setExpandedIndex(null);
+  }
 
   async function load() {
     try {
@@ -1086,26 +1209,15 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
       setReviews(reviewData);
       setMetrics(metricData);
 
+      const currentActive = criteriaData.find((item) => item.status === "ACTIVE" && item.report_type === reportType)
+        || criteriaData.find((item) => item.status === "ACTIVE");
+      if (currentActive) loadCriteriaSetIntoEditor(currentActive);
+
       // Tự động chọn tài liệu nếu chưa chọn
-      if (docs.length > 0 && selectedDocs.length === 0) {
+      if (!currentActive && docs.length > 0 && selectedDocs.length === 0) {
         setSelectedDocs(docs.map((d) => d.id));
       }
 
-      // Nạp tiêu chí của bộ tiêu chí ACTIVE nếu danh sách đang sửa trống
-      const currentActive = criteriaData.find((item) => item.status === "ACTIVE");
-      if (currentActive && currentActive.criteria.length > 0) {
-        setTitle(currentActive.title || "Bộ tiêu chí hình thức báo cáo");
-        setEditableCriteria(
-          currentActive.criteria.map((c) => ({
-            id: c.id,
-            name: c.name,
-            description: c.description || "",
-            rule_type: c.rule_type,
-            expected_value: c.expected_value,
-            source_citation: c.source_citation || undefined,
-          }))
-        );
-      }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không thể tải dữ liệu kiểm tra hình thức.");
     }
@@ -1130,6 +1242,7 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
       const draft = await postJson<FormatCriteriaSet>("/api/v1/format-checks/criteria/drafts/from-documents", {
         course_id: selectedCourseId,
         lecturer_id: "lecturer-01",
+        report_type: reportType,
         title: title || "Bộ tiêu chí trích xuất từ tài liệu",
         document_ids: selectedDocs,
         include_template_structure: true,
@@ -1143,6 +1256,8 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
             name: c.name,
             description: c.description || "",
             rule_type: c.rule_type,
+            handling: c.handling,
+            when_unable_to_check: c.when_unable_to_check,
             expected_value: c.expected_value,
             source_citation: c.source_citation || undefined,
           }))
@@ -1151,7 +1266,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
       } else {
         setMessage("Không tìm thấy quy định hình thức tự động nào trong tài liệu đã chọn.");
       }
-      await load();
+      // Draft vừa trích xuất là bản đang được giảng viên chỉnh sửa; không nạp lại
+      // active version vì sẽ làm mất các thay đổi chưa phê duyệt trên giao diện.
+      const criteriaData = await api<FormatCriteriaSet[]>(`/api/v1/format-checks/criteria?course_id=${encodeURIComponent(selectedCourseId)}`);
+      setSets(criteriaData);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Lỗi khi trích xuất tiêu chí.");
     } finally {
@@ -1167,6 +1285,8 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
         name: "Quy chuẩn định dạng",
         description: "Căn lề, phông chữ hoặc số trang theo quy chế",
         rule_type: "MEASUREMENT",
+        handling: "BLOCKING",
+        when_unable_to_check: "UNABLE_TO_CHECK",
         expected_value: { property: "margins_cm", value: { top: 2.5, bottom: 2.5, left: 3.0, right: 2.0 } },
       };
     } else if (type === "TEMPLATE") {
@@ -1174,6 +1294,8 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
         name: "Chương mới",
         description: "Chương trong khung đề cương",
         rule_type: "TEMPLATE",
+        handling: "BLOCKING",
+        when_unable_to_check: "UNABLE_TO_CHECK",
         expected_value: {
           kind: "template_chapter",
           chapter_number: editableCriteria.filter((c) => c.rule_type === "TEMPLATE").length + 1,
@@ -1185,6 +1307,8 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
         name: "Thành phần bắt buộc",
         description: "Trang bìa, tài liệu tham khảo hoặc bảng phân công",
         rule_type: "PRESENCE",
+        handling: "BLOCKING",
+        when_unable_to_check: "UNABLE_TO_CHECK",
         expected_value: {
           kind: "cover_page_fields",
           required_fields: ["Tên trường", "Tên đề tài", "Giảng viên hướng dẫn", "Sinh viên thực hiện"],
@@ -1224,11 +1348,14 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
       const draft = await postJson<FormatCriteriaSet>("/api/v1/format-checks/criteria/drafts", {
         course_id: selectedCourseId,
         lecturer_id: "lecturer-01",
+        report_type: reportType,
         title: title.trim() || "Bộ tiêu chí hình thức báo cáo",
         criteria: editableCriteria.map((c) => ({
           name: c.name.trim(),
           description: c.description.trim(),
           rule_type: c.rule_type,
+          handling: c.handling,
+          when_unable_to_check: c.when_unable_to_check,
           expected_value: c.expected_value,
           source_citation: c.source_citation?.trim() || undefined,
         })),
@@ -1298,9 +1425,10 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
       total: sum.total + item.total_checks,
       pass: sum.pass + item.passed_checks,
       fix: sum.fix + item.needs_fix_checks,
+      review: sum.review + item.needs_review_checks,
       unable: sum.unable + item.unable_to_check_checks,
     }),
-    { total: 0, pass: 0, fix: 0, unable: 0 }
+    { total: 0, pass: 0, fix: 0, review: 0, unable: 0 }
   );
 
   return (
@@ -1316,6 +1444,24 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
           <div className="flex items-center gap-3">
             <span className="text-sm font-semibold text-slate-600">Học phần:</span>
             <CriteriaSelect catalog={catalog} courseId={selectedCourseId} onChange={onSelectCourse} />
+            <label className="text-sm font-semibold text-slate-600">
+              Loại báo cáo:
+              <input
+                value={reportType}
+                list="known-report-types"
+                onChange={(event) => {
+                  const nextReportType = event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+                  setReportType(nextReportType);
+                  const matchingActive = sets.find((item) => item.report_type === nextReportType && item.status === "ACTIVE");
+                  if (matchingActive) loadCriteriaSetIntoEditor(matchingActive);
+                }}
+                className="ml-2 w-44 px-2.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-800"
+                aria-label="Loại báo cáo"
+              />
+              <datalist id="known-report-types">
+                {reportTypes.map((type) => <option key={type} value={type} />)}
+              </datalist>
+            </label>
           </div>
         </header>
 
@@ -1325,6 +1471,78 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
             <button type="button" onClick={() => setMessage("")} className="text-xs text-sky-600 hover:text-sky-900 font-bold ml-2">Đóng</button>
           </div>
         )}
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Profile policy &amp; lịch sử phiên bản</h2>
+              <p className="mt-1 text-xs text-slate-600">
+                Mỗi loại báo cáo có một lịch sử riêng. Khi lưu và phê duyệt, hệ thống tạo phiên bản mới; kết quả sinh viên đã kiểm tra vẫn giữ snapshot cũ.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setReportType("new_report");
+                setTitle("Bộ tiêu chí hình thức báo cáo");
+                setEditableCriteria([]);
+                setSelectedDocs(documents.map((document) => document.id));
+                setExpandedIndex(null);
+                setMessage("Đang tạo profile mới. Hãy đặt Loại báo cáo, thêm tiêu chí rồi Lưu & Phê duyệt.");
+              }}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-800 transition-colors hover:bg-slate-50"
+            >
+              + Tạo profile mới
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <label className="text-xs font-semibold text-slate-700">
+              Profile đang chỉnh sửa
+              <select
+                value={reportType}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  const activeSet = sets.find((item) => item.report_type === next && item.status === "ACTIVE");
+                  if (activeSet) loadCriteriaSetIntoEditor(activeSet);
+                  else setReportType(next);
+                }}
+                className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+              >
+                {!reportTypes.includes(reportType) && <option value={reportType}>{reportType} (profile mới)</option>}
+                {reportTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
+
+            <div>
+              <p className="text-xs font-semibold text-slate-700">Các version của {reportType}</p>
+              {versionHistory.length === 0 ? (
+                <p className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">Chưa có version nào. Profile này sẽ bắt đầu từ v1.</p>
+              ) : (
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {versionHistory.map((criteriaSet) => (
+                    <div key={criteriaSet.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs">
+                      <span className="font-bold text-slate-800">v{criteriaSet.version}</span>
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${criteriaSet.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : criteriaSet.status === "SUPERSEDED" ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-800"}`}>
+                        {criteriaSet.status === "ACTIVE" ? "Đang áp dụng" : criteriaSet.status === "SUPERSEDED" ? "Đã thay thế" : "Nháp"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          loadCriteriaSetIntoEditor(criteriaSet);
+                          setMessage(`Đã nạp v${criteriaSet.version} vào trình sửa. Khi lưu, hệ thống tạo một version mới và không sửa bản cũ.`);
+                        }}
+                        className="font-bold text-red-700 hover:text-red-900"
+                      >
+                        Nạp để chỉnh sửa
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* ── 1. KHU VỰC TRÍCH XUẤT TIÊU CHÍ TỪ TÀI LIỆU ────────────────────── */}
         <section className="bg-gradient-to-r from-red-900/10 via-slate-900/5 to-white border border-red-200/80 rounded-2xl p-6 shadow-sm space-y-4">
@@ -1834,8 +2052,44 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
 
                             <div className="space-y-1.5 pt-1">
                               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <span>🚦</span>
+                                <span>4. Cách xử lý khi tiêu chí không đạt:</span>
+                              </label>
+                              <div className="grid gap-2 sm:grid-cols-3">
+                                {([
+                                  ["BLOCKING", "Bắt buộc sửa", "Bài cần sửa trước khi nộp"],
+                                  ["ADVISORY", "Gợi ý", "Hiển thị khuyến nghị, không chặn"],
+                                  ["MANUAL_REVIEW", "Cần giảng viên", "Tạo ca chờ thẩm định"],
+                                ] as const).map(([value, label, description]) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => handleUpdateCriterion(originalIndex, { handling: value })}
+                                    className={`rounded-xl border p-2.5 text-left text-xs transition-all ${criterion.handling === value ? "border-red-400 bg-red-50 text-red-950 ring-2 ring-red-200" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                                  >
+                                    <span className="block font-bold">{label}</span>
+                                    <span className="mt-0.5 block text-[10px] text-slate-500">{description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <label className="block rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                              <span className="font-bold text-slate-900">Khi hệ thống không thể đọc / đo được:</span>
+                              <select
+                                value={criterion.when_unable_to_check}
+                                onChange={(event) => handleUpdateCriterion(originalIndex, { when_unable_to_check: event.target.value as "UNABLE_TO_CHECK" | "NEEDS_REVIEW" })}
+                                className="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs"
+                              >
+                                <option value="UNABLE_TO_CHECK">Báo “không thể kiểm tra” cho sinh viên</option>
+                                <option value="NEEDS_REVIEW">Chuyển sang giảng viên thẩm định</option>
+                              </select>
+                            </label>
+
+                            <div className="space-y-1.5 pt-1">
+                              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                                 <span>🎯</span>
-                                <span>4. Ô sửa nội dung quy chuẩn:</span>
+                                <span>5. Ô sửa nội dung quy chuẩn:</span>
                               </label>
                               <StructuredContentEditor
                                 ruleType={criterion.rule_type}
@@ -2105,12 +2359,13 @@ function LecturerFormatCheck({ catalog, selectedCourseId, onSelectCourse }: Omit
         </section>
 
         {/* ── 4. THỐNG KÊ LƯỢT KIỂM TRA ────────────────────────────────────── */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <section className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             ["Lượt kiểm tra", totals.total, "text-slate-800"],
             ["Đạt chuẩn", totals.pass, "text-emerald-700"],
             ["Cần sửa lại", totals.fix, "text-rose-700"],
-            ["Cần xem xét", totals.unable, "text-amber-700"],
+            ["Chờ giảng viên", totals.review, "text-amber-700"],
+            ["Không thể kiểm tra", totals.unable, "text-sky-700"],
           ].map(([label, value, colorClass]) => (
             <div key={String(label)} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
               <p className="text-xs text-slate-500 font-medium">{label}</p>

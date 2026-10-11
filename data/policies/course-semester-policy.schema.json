@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://academic-escalation-referee.local/schemas/course-semester-policy.schema.json",
+  "title": "Course semester format policy",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "policy_id",
+    "version",
+    "status",
+    "scope",
+    "owner",
+    "selection",
+    "report_profiles"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "kind": { "const": "course_semester_format_policy" },
+    "policy_id": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED"] },
+    "scope": {
+      "type": "object",
+      "required": ["course_id", "semester"],
+      "properties": {
+        "course_id": { "type": "string", "minLength": 1 },
+        "semester": { "type": "string", "minLength": 1 }
+      }
+    },
+    "owner": {
+      "type": "object",
+      "required": ["lecturer_id"],
+      "properties": {
+        "lecturer_id": { "type": "string", "minLength": 1 },
+        "activated_by": { "type": ["string", "null"] },
+        "activated_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["mode", "report_type_label"],
+      "properties": {
+        "mode": { "const": "AUTO_COURSE_SEMESTER_THEN_REPORT_TYPE" },
+        "report_type_label": { "type": "string", "minLength": 1 },
+        "prompt_when_active_profiles_greater_than": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "source_documents": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceDocument" }
+    },
+    "report_profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/reportProfile" }
+    },
+    "history": { "type": "array" }
+  },
+  "$defs": {
+    "sourceDocument": {
+      "type": "object",
+      "required": ["document_id", "path", "version", "sha256"],
+      "properties": {
+        "document_id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "reportProfile": {
+      "type": "object",
+      "required": ["report_type", "label", "status", "template", "rules"],
+      "properties": {
+        "report_type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "label": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED"] },
+        "template": { "type": "object" },
+        "rules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/rule" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "ACTIVE" } } },
+          "then": { "properties": { "rules": { "minItems": 1 } } }
+        }
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "required": [
+        "rule_id",
+        "title",
+        "description",
+        "rule_type",
+        "handling",
+        "automation",
+        "expected",
+        "source",
+        "when_unable_to_check"
+      ],
+      "properties": {
+        "rule_id": { "type": "string", "pattern": "^FMT-[A-Z0-9-]+$" },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "rule_type": { "enum": ["MEASUREMENT", "PRESENCE", "TEMPLATE"] },
+        "handling": { "enum": ["BLOCKING", "ADVISORY", "MANUAL_REVIEW"] },
+        "automation": { "enum": ["automatic", "manual"] },
+        "expected": { "type": "object" },
+        "source": {
+          "type": "object",
+          "required": ["document_id", "citation"],
+          "properties": {
+            "document_id": { "type": "string", "minLength": 1 },
+            "citation": { "type": "string", "minLength": 1 }
+          }
+        },
+        "when_unable_to_check": { "enum": ["UNABLE_TO_CHECK", "NEEDS_REVIEW"] }
+      }
+    }
+  }
+}

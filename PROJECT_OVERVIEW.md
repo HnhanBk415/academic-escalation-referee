@@ -441,6 +441,18 @@ erDiagram
 | `academic_report_checklist.py` | Trích xuất dữ kiện thể thức từ DOCX/PDF và đối chiếu checklist |
 | `ids.py` | Sinh ID có prefix (qs_, case_, exc_, …) |
 
+### `data/policies/` — Nguồn policy cho Flow 2
+
+Policy thể thức được tổ chức theo `course_id + semester`; mỗi file có thể chứa nhiều
+`report_profiles` để phân biệt loại báo cáo trong cùng môn/học kỳ. Quy ước, lifecycle,
+JSON Schema và ví dụ CO3001/HK261 nằm tại [`data/policies/README.md`](data/policies/README.md).
+
+Các file YAML là source-of-truth cấu hình. Khi seed demo, backend import mỗi tổ hợp
+`policy_id + policy_version + report_type` chưa có vào criteria store; không ghi đè
+version cũ. Pre-check lưu snapshot policy/version/template áp dụng tại thời điểm nộp.
+Trước khi import, validator kiểm tra contract policy, checksum tệp nguồn, Rule ID/profile
+trùng lặp và việc tài liệu nguồn thực sự thuộc học phần.
+
 ### `app/core/policy_topics.py` — Policy Topics
 
 ```
@@ -575,7 +587,7 @@ Base URL: `/api` hoặc `/api/v1`
 ### Operations (Academic Affairs)
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/operations/overview` | Chỉ số vận hành: case, SLA, ngoại lệ, tài liệu, format review và audit gần đây |
+| GET | `/operations/overview` | Chỉ số vận hành: case, SLA, ngoại lệ, tài liệu, format review; sức khỏe policy và kết quả pre-check trong ngày; audit gần đây |
 
 ### Cases (Escalation)
 | Method | Path | Mô tả |
@@ -615,11 +627,11 @@ Base URL: `/api` hoặc `/api/v1`
 ### Kiểm tra hình thức
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/format-checks/criteria?course_id=...` | Danh sách bộ tiêu chí của học phần |
+| GET | `/format-checks/criteria?course_id=...&report_type=...` | Danh sách bộ tiêu chí, có thể lọc theo loại báo cáo |
 | POST | `/format-checks/criteria/drafts` | Tạo bản nháp tiêu chí thủ công |
 | POST | `/format-checks/criteria/drafts/from-documents` | Trích xuất nháp tiêu chí từ tài liệu bằng AI |
 | POST | `/format-checks/criteria/{id}/approve` | Giảng viên duyệt bộ tiêu chí |
-| POST | `/format-checks/checks` | Upload DOCX/PDF để pre-check |
+| POST | `/format-checks/checks` | Upload DOCX/PDF để pre-check theo `report_type`; lưu snapshot policy/version/template |
 | GET | `/format-checks/reviews` | Case thể thức chờ giảng viên review |
 | GET | `/format-checks/reviews/student` | Case thể thức của sinh viên |
 | POST | `/format-checks/reviews/{id}/decision` | Ra quyết định cho một case thể thức |
@@ -690,6 +702,16 @@ ACTIVE | EXPIRED | REVOKED
 ```
 STUDENT | GROUP | COURSE
 ```
+
+### Flow 2 — Rule handling và kết quả pre-check
+```
+handling: BLOCKING | ADVISORY | MANUAL_REVIEW
+result:   PASS | NEEDS_FIX | NEEDS_REVIEW | UNABLE_TO_CHECK
+```
+
+- `BLOCKING` fail dẫn đến `NEEDS_FIX`; `ADVISORY` fail chỉ đưa khuyến nghị.
+- `MANUAL_REVIEW` hoặc bằng chứng mơ hồ tạo format-review case và `NEEDS_REVIEW`.
+- `UNABLE_TO_CHECK` chỉ dùng khi không có đủ dữ liệu tin cậy để đo; không kết luận bài sai.
 
 ---
 

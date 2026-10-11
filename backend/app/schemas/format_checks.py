@@ -9,6 +9,8 @@ from app.core.enums import (
     FormatCriterionResultStatus,
     FormatCriterionRuleType,
     FormatReviewStatus,
+    FormatRuleHandling,
+    FormatUnableAction,
 )
 
 
@@ -16,6 +18,8 @@ class FormatCriterionInput(BaseModel):
     name: str = Field(min_length=2, max_length=300)
     description: str = Field(min_length=2, max_length=4000)
     rule_type: FormatCriterionRuleType
+    handling: FormatRuleHandling = FormatRuleHandling.BLOCKING
+    when_unable_to_check: FormatUnableAction = FormatUnableAction.UNABLE_TO_CHECK
     expected_value: dict[str, Any] = Field(default_factory=dict)
     source_citation: str | None = Field(default=None, max_length=4000)
     source_document_id: str | None = None
@@ -25,6 +29,10 @@ class FormatCriterionInput(BaseModel):
 class FormatCriteriaDraftCreate(BaseModel):
     course_id: str
     lecturer_id: str
+    report_type: str = Field(default="default", min_length=1, max_length=80, pattern=r"^[a-z][a-z0-9_]*$")
+    policy_id: str | None = Field(default=None, max_length=160)
+    policy_version: str | None = Field(default=None, max_length=40)
+    template_hash: str | None = Field(default=None, min_length=64, max_length=64)
     title: str = Field(min_length=2, max_length=300)
     criteria: list[FormatCriterionInput] = Field(default_factory=list, max_length=100)
     source_document_ids: list[str] = Field(default_factory=list, max_length=30)
@@ -33,6 +41,10 @@ class FormatCriteriaDraftCreate(BaseModel):
 class FormatDraftFromDocumentsCreate(BaseModel):
     course_id: str
     lecturer_id: str
+    report_type: str = Field(default="default", min_length=1, max_length=80, pattern=r"^[a-z][a-z0-9_]*$")
+    policy_id: str | None = Field(default=None, max_length=160)
+    policy_version: str | None = Field(default=None, max_length=40)
+    template_hash: str | None = Field(default=None, min_length=64, max_length=64)
     title: str = Field(min_length=2, max_length=300)
     document_ids: list[str] = Field(min_length=1, max_length=30)
     include_template_structure: bool = False
@@ -48,7 +60,12 @@ class FormatCriterionResponse(FormatCriterionInput):
 class FormatCriteriaSetResponse(BaseModel):
     id: str
     course_id: str
+    semester: str
+    report_type: str
     version: int
+    policy_id: str
+    policy_version: str
+    template_hash: str | None
     title: str
     status: FormatCriteriaSetStatus
     source_document_ids: list[str]
@@ -63,6 +80,7 @@ class FormatCriterionResult(BaseModel):
     criterion_id: str
     name: str
     status: FormatCriterionResultStatus
+    handling: FormatRuleHandling = FormatRuleHandling.BLOCKING
     message: str
     expected_value: dict[str, Any]
     actual_value: dict[str, Any] | None = None
@@ -75,9 +93,15 @@ class FormatCriterionResult(BaseModel):
 class FormatCheckResponse(BaseModel):
     overall_status: FormatCheckOverallStatus
     message: str
+    check_run_id: str | None = None
     criteria_set_id: str | None = None
     criteria_version: int | None = None
     criteria_approved_at: datetime | None = None
+    semester: str | None = None
+    report_type: str | None = None
+    policy_id: str | None = None
+    policy_version: str | None = None
+    template_hash: str | None = None
     results: list[FormatCriterionResult] = Field(default_factory=list)
     review_case_id: str | None = None
     checklist_summary: list[dict[str, Any]] | None = None
@@ -117,6 +141,7 @@ class FormatMetricResponse(BaseModel):
     total_checks: int
     passed_checks: int
     needs_fix_checks: int
+    needs_review_checks: int
     unable_to_check_checks: int
 
 

@@ -22,6 +22,8 @@ from app.core.enums import (
     FormatCriteriaSetStatus,
     FormatCriterionResultStatus,
     FormatReviewStatus,
+    FormatRuleHandling,
+    FormatUnableAction,
 )
 from app.core.errors import AppError
 from app.ingestion.service import resolve_source_path
@@ -31,6 +33,7 @@ from app.models import (
     Document,
     DocumentChunk,
     FormatCheckMetric,
+    FormatCheckRun,
     FormatCriteriaSet,
     FormatCriterion,
     FormatReviewCase,
@@ -72,7 +75,7 @@ def _fold(value: str) -> str:
 
 
 def _criterion_is_automatable(item: FormatCriterionInput) -> bool:
-    if getattr(item, "review_only", False):
+    if getattr(item, "review_only", False) or item.handling == FormatRuleHandling.MANUAL_REVIEW:
         return False
     rule_type_str = item.rule_type.value if hasattr(item.rule_type, "value") else str(item.rule_type)
     exp = item.expected_value or {}
@@ -105,6 +108,8 @@ def _criterion_response(item: FormatCriterion) -> FormatCriterionResponse:
         name=item.name,
         description=item.description,
         rule_type=item.rule_type,
+        handling=item.handling,
+        when_unable_to_check=item.when_unable_to_check,
         expected_value=item.expected_value,
         source_citation=item.source_citation,
         source_document_id=item.source_document_id,
@@ -124,7 +129,12 @@ async def _criteria_response(session: AsyncSession, item: FormatCriteriaSet) -> 
     return FormatCriteriaSetResponse(
         id=item.id,
         course_id=item.course_id,
+        semester=item.semester,
+        report_type=item.report_type,
         version=item.version,
+        policy_id=item.policy_id,
+        policy_version=item.policy_version,
+        template_hash=item.template_hash,
         title=item.title,
         status=item.status,
         source_document_ids=item.source_document_ids or [],
@@ -140,10 +150,14 @@ async def create_draft(
     session: AsyncSession, payload: FormatCriteriaDraftCreate, request_id: str | None
 ) -> FormatCriteriaSetResponse:
     await _validate_course_lecturer(session, payload.course_id, payload.lecturer_id)
+    course = await session.get(Course, payload.course_id)
+    assert course is not None  # validated above
     next_version = int(
         await session.scalar(
             select(func.coalesce(func.max(FormatCriteriaSet.version), 0)).where(
-                FormatCriteriaSet.course_id == payload.course_id
+                FormatCriteriaSet.course_id == payload.course_id,
+                FormatCriteriaSet.semester == course.semester,
+                FormatCriteriaSet.report_type == payload.report_type,
             )
         )
         or 0
@@ -151,7 +165,12 @@ async def create_draft(
     criteria_set = FormatCriteriaSet(
         id=new_id("format_set"),
         course_id=payload.course_id,
+        semester=course.semester,
+        report_type=payload.report_type,
         version=next_version,
+        policy_id=payload.policy_id or f"format-policy/{course.code}/{course.semester}",
+        policy_version=payload.policy_version or f"1.0.{next_version - 1}",
+        template_hash=payload.template_hash,
         title=payload.title,
         status=FormatCriteriaSetStatus.DRAFT,
         source_document_ids=payload.source_document_ids,
@@ -167,11 +186,13 @@ async def create_draft(
                 name=criterion.name,
                 description=criterion.description,
                 rule_type=criterion.rule_type,
+                handling=criterion.handling,
+                when_unable_to_check=criterion.when_unable_to_check,
                 expected_value=criterion.expected_value,
                 source_citation=criterion.source_citation,
                 source_document_id=criterion.source_document_id,
                 automatable=_criterion_is_automatable(criterion),
-                review_only=criterion.review_only,
+                review_only=criterion.review_only or criterion.handling == FormatRuleHandling.MANUAL_REVIEW,
             )
         )
     add_audit_event(
@@ -247,6 +268,10 @@ async def draft_from_documents(
         FormatCriteriaDraftCreate(
             course_id=payload.course_id,
             lecturer_id=payload.lecturer_id,
+            report_type=payload.report_type,
+            policy_id=payload.policy_id,
+            policy_version=payload.policy_version,
+            template_hash=payload.template_hash,
             title=payload.title,
             criteria=criteria,
             source_document_ids=payload.document_ids,
@@ -256,9 +281,11 @@ async def draft_from_documents(
 
 
 async def list_criteria_sets(
-    session: AsyncSession, course_id: str, *, active_only: bool = False
+    session: AsyncSession, course_id: str, *, report_type: str | None = None, active_only: bool = False
 ) -> list[FormatCriteriaSetResponse]:
     statement = select(FormatCriteriaSet).where(FormatCriteriaSet.course_id == course_id)
+    if report_type:
+        statement = statement.where(FormatCriteriaSet.report_type == report_type)
     if active_only:
         statement = statement.where(FormatCriteriaSet.status == FormatCriteriaSetStatus.ACTIVE)
     items = (await session.scalars(statement.order_by(FormatCriteriaSet.version.desc()))).all()
@@ -278,6 +305,8 @@ async def approve_criteria_set(
         await session.scalars(
             select(FormatCriteriaSet).where(
                 FormatCriteriaSet.course_id == criteria_set.course_id,
+                FormatCriteriaSet.semester == criteria_set.semester,
+                FormatCriteriaSet.report_type == criteria_set.report_type,
                 FormatCriteriaSet.status == FormatCriteriaSetStatus.ACTIVE,
             )
         )
@@ -294,16 +323,25 @@ async def approve_criteria_set(
         entity_type="format_criteria_set",
         entity_id=criteria_set.id,
         request_id=request_id,
-        output_snapshot={"version": criteria_set.version, "superseded_ids": [item.id for item in previous]},
+        output_snapshot={
+            "report_type": criteria_set.report_type,
+            "policy_id": criteria_set.policy_id,
+            "policy_version": criteria_set.policy_version,
+            "version": criteria_set.version,
+            "superseded_ids": [item.id for item in previous],
+        },
     )
     await session.commit()
     return await _criteria_response(session, criteria_set)
 
 
-async def get_active_criteria(session: AsyncSession, course_id: str) -> FormatCriteriaSet | None:
+async def get_active_criteria(
+    session: AsyncSession, course_id: str, report_type: str = "default"
+) -> FormatCriteriaSet | None:
     return await session.scalar(
         select(FormatCriteriaSet).where(
             FormatCriteriaSet.course_id == course_id,
+            FormatCriteriaSet.report_type == report_type,
             FormatCriteriaSet.status == FormatCriteriaSetStatus.ACTIVE,
         )
     )
@@ -708,6 +746,7 @@ async def _record_metric(session: AsyncSession, course_id: str, status: FormatCh
             total_checks=0,
             passed_checks=0,
             needs_fix_checks=0,
+            needs_review_checks=0,
             unable_to_check_checks=0,
         )
         session.add(metric)
@@ -716,8 +755,113 @@ async def _record_metric(session: AsyncSession, course_id: str, status: FormatCh
         metric.passed_checks += 1
     elif status == FormatCheckOverallStatus.NEEDS_FIX:
         metric.needs_fix_checks += 1
+    elif status == FormatCheckOverallStatus.NEEDS_REVIEW:
+        metric.needs_review_checks += 1
     else:
         metric.unable_to_check_checks += 1
+
+
+def _rule_handling(criterion: FormatCriterion) -> FormatRuleHandling:
+    try:
+        return FormatRuleHandling(str(criterion.handling))
+    except ValueError:
+        return FormatRuleHandling.BLOCKING
+
+
+def _unavailable_action(criterion: FormatCriterion) -> FormatUnableAction:
+    try:
+        return FormatUnableAction(str(criterion.when_unable_to_check))
+    except ValueError:
+        return FormatUnableAction.UNABLE_TO_CHECK
+
+
+def _apply_rule_handling(
+    criteria: list[FormatCriterion], results: list[FormatCriterionResult]
+) -> None:
+    criteria_by_id = {item.id: item for item in criteria}
+    for result in results:
+        criterion = criteria_by_id.get(result.criterion_id)
+        if criterion is None:
+            continue
+        handling = _rule_handling(criterion)
+        result.handling = handling
+        if handling == FormatRuleHandling.MANUAL_REVIEW:
+            result.status = FormatCriterionResultStatus.MANUAL_REVIEW
+            result.message = "Tiêu chí này cần giảng viên xác nhận, không tự kết luận đạt hay không đạt."
+        elif (
+            result.status == FormatCriterionResultStatus.UNMEASURABLE
+            and _unavailable_action(criterion) == FormatUnableAction.NEEDS_REVIEW
+        ):
+            result.status = FormatCriterionResultStatus.MANUAL_REVIEW
+            result.message = f"{result.message} Cần giảng viên xem xét theo policy."
+
+
+def _summarize_overall(
+    criteria: list[FormatCriterion], results: list[FormatCriterionResult]
+) -> tuple[FormatCheckOverallStatus, str]:
+    criteria_by_id = {item.id: item for item in criteria}
+    has_unable = False
+    has_review = False
+    has_blocking_fail = False
+    advisory_fail_count = 0
+    for result in results:
+        criterion = criteria_by_id.get(result.criterion_id)
+        if criterion is None:
+            continue
+        handling = _rule_handling(criterion)
+        if result.status == FormatCriterionResultStatus.UNMEASURABLE:
+            if _unavailable_action(criterion) == FormatUnableAction.NEEDS_REVIEW:
+                has_review = True
+            else:
+                has_unable = True
+        elif result.status in {
+            FormatCriterionResultStatus.AMBIGUOUS,
+            FormatCriterionResultStatus.MANUAL_REVIEW,
+        }:
+            has_review = True
+        elif result.status == FormatCriterionResultStatus.FAIL:
+            if handling == FormatRuleHandling.BLOCKING:
+                has_blocking_fail = True
+            elif handling == FormatRuleHandling.ADVISORY:
+                advisory_fail_count += 1
+
+    if has_unable:
+        return (
+            FormatCheckOverallStatus.UNABLE_TO_CHECK,
+            "Không đủ dữ liệu đáng tin cậy để kiểm tra một hoặc nhiều tiêu chí; hãy nộp lại file hợp lệ.",
+        )
+    if has_review:
+        return (
+            FormatCheckOverallStatus.NEEDS_REVIEW,
+            "Có tiêu chí cần giảng viên xác nhận; hồ sơ đã được gửi để xem xét.",
+        )
+    if has_blocking_fail:
+        return (
+            FormatCheckOverallStatus.NEEDS_FIX,
+            "Có tiêu chí bắt buộc chưa đạt; hãy xem chi tiết để tự sửa trước khi nộp.",
+        )
+    if advisory_fail_count:
+        return (
+            FormatCheckOverallStatus.PASS,
+            "Các tiêu chí bắt buộc đều đạt; có khuyến nghị cải thiện trong chi tiết.",
+        )
+    return FormatCheckOverallStatus.PASS, "Các tiêu chí hình thức tự động đều đạt."
+
+
+def _refresh_summary_statuses(
+    summary: list[dict[str, Any]], results: list[FormatCriterionResult]
+) -> None:
+    results_by_id = {item.criterion_id: item for item in results}
+    for row in summary:
+        result = results_by_id.get(str(row.get("criterion_id", "")))
+        if result is None:
+            continue
+        row["status"] = result.status.value
+        if result.status == FormatCriterionResultStatus.MANUAL_REVIEW:
+            row["icon"] = "⏳"
+            row["action"] = "Chuyển giảng viên xem xét"
+            row["suggestion"] = "Chờ giảng viên xác nhận theo policy."
+            row["error_summary"] = result.message
 
 
 async def _purge_expired_reviews(session: AsyncSession) -> None:
@@ -731,6 +875,7 @@ async def check_format(
     *,
     course_id: str,
     actor_id: str,
+    report_type: str = "default",
     filename: str,
     payload: bytes,
     request_id: str | None,
@@ -743,13 +888,45 @@ async def check_format(
     actor = await session.get(Actor, actor_id)
     if actor is None or actor.role != ActorRole.STUDENT:
         raise AppError("FORMAT_CHECK_ACTOR_NOT_FOUND", "Không tìm thấy sinh viên.", status_code=404)
-    if await session.get(Course, course_id) is None:
+    course = await session.get(Course, course_id)
+    if course is None:
         raise AppError("COURSE_NOT_FOUND", "Không tìm thấy học phần.", status_code=404)
-    active = await get_active_criteria(session, course_id)
+    active = await get_active_criteria(session, course_id, report_type)
     if active is None:
+        message = f"Chưa có policy hình thức active cho loại báo cáo '{report_type}' của học phần này."
+        check_run = FormatCheckRun(
+            id=new_id("format_check"),
+            course_id=course_id,
+            criteria_set_id=None,
+            actor_id=actor_id,
+            semester=course.semester,
+            report_type=report_type,
+            policy_id=None,
+            policy_version=None,
+            template_hash=None,
+            filename=filename,
+            overall_status=FormatCheckOverallStatus.UNABLE_TO_CHECK,
+            policy_snapshot={"course_id": course_id, "semester": course.semester, "report_type": report_type},
+            result_snapshot={"overall_status": "UNABLE_TO_CHECK", "message": message},
+        )
+        session.add(check_run)
+        await _record_metric(session, course_id, FormatCheckOverallStatus.UNABLE_TO_CHECK)
+        add_audit_event(
+            session,
+            event_type="FORMAT_CHECK_COMPLETED",
+            actor_id=actor_id,
+            entity_type="format_check_run",
+            entity_id=check_run.id,
+            request_id=request_id,
+            output_snapshot={"overall_status": "UNABLE_TO_CHECK", "reason": "NO_ACTIVE_POLICY"},
+        )
+        await session.commit()
         return FormatCheckResponse(
             overall_status=FormatCheckOverallStatus.UNABLE_TO_CHECK,
-            message="Chưa có bộ tiêu chí hình thức được giảng viên duyệt cho học phần này.",
+            message=message,
+            check_run_id=check_run.id,
+            semester=course.semester,
+            report_type=report_type,
         )
     criteria = (
         await session.scalars(
@@ -758,15 +935,58 @@ async def check_format(
             .order_by(FormatCriterion.position)
         )
     ).all()
-    usable = [
-        item for item in criteria
-        if not item.review_only and (item.automatable or _criterion_is_automatable(item) or str(item.rule_type) in ("PRESENCE", "TEMPLATE"))
-    ]
-    if not usable:
+    if not criteria:
+        message = "Policy đang áp dụng chưa có rule nào để kiểm tra."
+        policy_snapshot = {
+            "policy_id": active.policy_id,
+            "policy_version": active.policy_version,
+            "course_id": active.course_id,
+            "semester": active.semester,
+            "report_type": active.report_type,
+            "criteria_set_id": active.id,
+            "criteria_set_version": active.version,
+            "template_hash": active.template_hash,
+            "criteria": [],
+        }
+        check_run = FormatCheckRun(
+            id=new_id("format_check"),
+            course_id=course_id,
+            criteria_set_id=active.id,
+            actor_id=actor_id,
+            semester=active.semester,
+            report_type=active.report_type,
+            policy_id=active.policy_id,
+            policy_version=active.policy_version,
+            template_hash=active.template_hash,
+            filename=filename,
+            overall_status=FormatCheckOverallStatus.UNABLE_TO_CHECK,
+            policy_snapshot=policy_snapshot,
+            result_snapshot={"overall_status": "UNABLE_TO_CHECK", "message": message},
+        )
+        session.add(check_run)
+        await _record_metric(session, course_id, FormatCheckOverallStatus.UNABLE_TO_CHECK)
+        add_audit_event(
+            session,
+            event_type="FORMAT_CHECK_COMPLETED",
+            actor_id=actor_id,
+            entity_type="format_check_run",
+            entity_id=check_run.id,
+            request_id=request_id,
+            output_snapshot={"overall_status": "UNABLE_TO_CHECK", "reason": "NO_POLICY_RULES"},
+        )
+        await session.commit()
         return FormatCheckResponse(
             overall_status=FormatCheckOverallStatus.UNABLE_TO_CHECK,
-            message="Bộ tiêu chí đang áp dụng chưa có tiêu chí nào hệ thống có thể kiểm tra tự động.",
-            criteria_set_id=active.id, criteria_version=active.version, criteria_approved_at=active.approved_at,
+            message=message,
+            check_run_id=check_run.id,
+            criteria_set_id=active.id,
+            criteria_version=active.version,
+            criteria_approved_at=active.approved_at,
+            semester=active.semester,
+            report_type=active.report_type,
+            policy_id=active.policy_id,
+            policy_version=active.policy_version,
+            template_hash=active.template_hash,
         )
     try:
         structure = await extract_report_facts(filename, payload, ai_provider=ai)
@@ -774,19 +994,17 @@ async def check_format(
         raise
     except Exception as error:
         raise AppError("FORMAT_FILE_INVALID", "Không thể đọc file; file có thể bị hỏng hoặc được bảo vệ.", status_code=422) from error
-    results, checklist_summary, overall = await evaluate_academic_checklist(criteria, structure, ai_provider=ai)
-    usable_ids = {item.id for item in usable}
-    statuses = {item.status for item in results if item.criterion_id in usable_ids}
-    if FormatCriterionResultStatus.FAIL in statuses:
-        overall, message = FormatCheckOverallStatus.NEEDS_FIX, "Có tiêu chí hình thức chưa đạt; hãy xem chi tiết để tự sửa trước khi nộp."
-    elif FormatCriterionResultStatus.AMBIGUOUS in statuses:
-        overall, message = FormatCheckOverallStatus.UNABLE_TO_CHECK, "Có tiêu chí cần giảng viên phán đoán; hồ sơ đã được gửi để xem xét."
-    elif FormatCriterionResultStatus.UNMEASURABLE in statuses:
-        overall, message = FormatCheckOverallStatus.UNABLE_TO_CHECK, "Một số tiêu chí không đo được một cách đáng tin cậy."
-    else:
-        overall, message = FormatCheckOverallStatus.PASS, "Các tiêu chí hình thức tự động đều đạt."
+    results, checklist_summary, _ = await evaluate_academic_checklist(criteria, structure, ai_provider=ai)
+    _apply_rule_handling(criteria, results)
+    _refresh_summary_statuses(checklist_summary, results)
+    overall, message = _summarize_overall(criteria, results)
     review_case_id: str | None = None
-    ambiguous = [item.model_dump(mode="json") for item in results if item.status == FormatCriterionResultStatus.AMBIGUOUS]
+    ambiguous = [
+        item.model_dump(mode="json")
+        for item in results
+        if item.status
+        in {FormatCriterionResultStatus.AMBIGUOUS, FormatCriterionResultStatus.MANUAL_REVIEW}
+    ]
     if ambiguous:
         full_snapshot = dict(structure)
         full_snapshot["results"] = [item.model_dump(mode="json") for item in results]
@@ -808,13 +1026,88 @@ async def check_format(
         session.add(review)
         review_case_id = review.id
         add_audit_event(session, event_type="FORMAT_REVIEW_CASE_CREATED", actor_id=actor_id, entity_type="format_review_case", entity_id=review.id, request_id=request_id, output_snapshot={"criteria_set_id": active.id})
+
+    policy_snapshot = {
+        "policy_id": active.policy_id,
+        "policy_version": active.policy_version,
+        "course_id": active.course_id,
+        "semester": active.semester,
+        "report_type": active.report_type,
+        "criteria_set_id": active.id,
+        "criteria_set_version": active.version,
+        "template_hash": active.template_hash,
+        "criteria": [
+            {
+                "id": item.id,
+                "position": item.position,
+                "name": item.name,
+                "description": item.description,
+                "rule_type": item.rule_type,
+                "handling": item.handling,
+                "when_unable_to_check": item.when_unable_to_check,
+                "expected_value": item.expected_value,
+                "source_citation": item.source_citation,
+                "source_document_id": item.source_document_id,
+                "automatable": item.automatable,
+                "review_only": item.review_only,
+            }
+            for item in criteria
+        ],
+    }
+    check_run = FormatCheckRun(
+        id=new_id("format_check"),
+        course_id=course_id,
+        criteria_set_id=active.id,
+        actor_id=actor_id,
+        semester=active.semester,
+        report_type=active.report_type,
+        policy_id=active.policy_id,
+        policy_version=active.policy_version,
+        template_hash=active.template_hash,
+        filename=filename,
+        overall_status=overall,
+        policy_snapshot=policy_snapshot,
+        result_snapshot={
+            "overall_status": overall,
+            "message": message,
+            "results": [item.model_dump(mode="json") for item in results],
+            "checklist_summary": checklist_summary,
+        },
+    )
+    session.add(check_run)
     await _record_metric(session, course_id, overall)
-    add_audit_event(session, event_type="FORMAT_CHECK_COMPLETED", actor_id=actor_id, entity_type="format_criteria_set", entity_id=active.id, request_id=request_id, output_snapshot={"overall_status": overall, "result_count": len(results)})
+    add_audit_event(
+        session,
+        event_type="FORMAT_CHECK_COMPLETED",
+        actor_id=actor_id,
+        entity_type="format_check_run",
+        entity_id=check_run.id,
+        request_id=request_id,
+        output_snapshot={
+            "criteria_set_id": active.id,
+            "policy_id": active.policy_id,
+            "policy_version": active.policy_version,
+            "report_type": active.report_type,
+            "overall_status": overall,
+            "result_count": len(results),
+        },
+    )
     await _purge_expired_reviews(session)
     await session.commit()
     return FormatCheckResponse(
-        overall_status=overall, message=message, criteria_set_id=active.id, criteria_version=active.version,
-        criteria_approved_at=active.approved_at, results=results, review_case_id=review_case_id,
+        overall_status=overall,
+        message=message,
+        check_run_id=check_run.id,
+        criteria_set_id=active.id,
+        criteria_version=active.version,
+        criteria_approved_at=active.approved_at,
+        semester=active.semester,
+        report_type=active.report_type,
+        policy_id=active.policy_id,
+        policy_version=active.policy_version,
+        template_hash=active.template_hash,
+        results=results,
+        review_case_id=review_case_id,
         checklist_summary=checklist_summary, report_facts=structure,
     )
 

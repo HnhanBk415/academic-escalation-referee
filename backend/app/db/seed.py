@@ -128,7 +128,16 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
     )
     await session.commit()
 
-    # 5. Seed configured groups and memberships.
+    # 5b. Import immutable course/semester policy versions after their source
+    # documents exist. Re-running seed does not overwrite an existing version.
+    from app.services.format_policies import sync_format_policies
+
+    imported_policies = await sync_format_policies(session)
+    if imported_policies:
+        print(f"[Seed] Imported {imported_policies} format policy profile(s).", flush=True)
+    await session.commit()
+
+    # 6. Seed configured groups and memberships.
     configured_groups = cfg.get("groups", [])
     configured_group_ids: set[str] = set()
     for g_item in configured_groups:
@@ -159,7 +168,7 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             if existing_mem is None:
                 session.add(GroupMembership(actor_id=m_id, group_id=grp_id))
 
-    # 6. For any auto-discovered groups not explicitly in config, ensure demo students are attached.
+    # 7. For any auto-discovered groups not explicitly in config, ensure demo students are attached.
     all_groups = (await session.scalars(select(Group))).all()
     for grp in all_groups:
         if grp.id not in configured_group_ids:

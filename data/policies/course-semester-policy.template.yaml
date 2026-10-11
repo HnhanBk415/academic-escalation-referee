@@ -1,0 +1,47 @@
+schema_version: "1.0"
+kind: course_semester_format_policy
+policy_id: "format-policy/<COURSE_ID>/<SEMESTER>"
+version: "1.0.0"
+status: DRAFT
+scope:
+  course_id: "<COURSE_ID>"
+  semester: "<SEMESTER>"
+owner:
+  lecturer_id: "<LECTURER_ID>"
+  activated_by: null
+  activated_at: null
+change_note: "Tạo policy ban đầu"
+
+selection:
+  # AUTO: tự chọn khi có đúng một ACTIVE profile; SELECT: bắt sinh viên chọn khi >1.
+  mode: AUTO_COURSE_SEMESTER_THEN_REPORT_TYPE
+  report_type_label: "Loại báo cáo"
+
+source_documents:
+  - document_id: "<DOCUMENT_ID>"
+    path: "data/sample-documents/<DIRECTORY>/<FILE>"
+    version: "<VERSION>"
+    sha256: "<SHA256>"
+
+report_profiles:
+  - report_type: "<stable_report_type_id>"
+    label: "<Tên loại báo cáo hiển thị cho sinh viên>"
+    status: DRAFT
+    template:
+      source_document_id: "<DOCUMENT_ID>"
+      path: null
+      sha256: null
+    rules:
+      - rule_id: "FMT-<COURSE>-001"
+        title: "<Tên yêu cầu>"
+        description: "<Yêu cầu thể thức rõ ràng, có thể đối chiếu>"
+        rule_type: MEASUREMENT
+        handling: BLOCKING
+        automation: automatic # automatic | manual
+        expected: {}
+        source:
+          document_id: "<DOCUMENT_ID>"
+          citation: "<Trích đoạn/quy chiếu mục tài liệu>"
+        when_unable_to_check: UNABLE_TO_CHECK
+
+history: []

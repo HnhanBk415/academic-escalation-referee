@@ -233,11 +233,16 @@ class AuditEvent(Base):
 
 class FormatCriteriaSet(Base):
     __tablename__ = "format_criteria_sets"
-    __table_args__ = (UniqueConstraint("course_id", "version"),)
+    __table_args__ = (UniqueConstraint("course_id", "semester", "report_type", "version"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
+    semester: Mapped[str] = mapped_column(String(32), index=True)
+    report_type: Mapped[str] = mapped_column(String(80), index=True, default="default")
     version: Mapped[int] = mapped_column(Integer)
+    policy_id: Mapped[str] = mapped_column(String(160), index=True)
+    policy_version: Mapped[str] = mapped_column(String(40))
+    template_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     title: Mapped[str] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(String(20), index=True)
     source_document_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -257,6 +262,8 @@ class FormatCriterion(Base):
     name: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text)
     rule_type: Mapped[str] = mapped_column(String(20), index=True)
+    handling: Mapped[str] = mapped_column(String(20), default="BLOCKING", index=True)
+    when_unable_to_check: Mapped[str] = mapped_column(String(30), default="UNABLE_TO_CHECK")
     expected_value: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     source_citation: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
@@ -295,4 +302,28 @@ class FormatCheckMetric(Base):
     total_checks: Mapped[int] = mapped_column(Integer, default=0)
     passed_checks: Mapped[int] = mapped_column(Integer, default=0)
     needs_fix_checks: Mapped[int] = mapped_column(Integer, default=0)
+    needs_review_checks: Mapped[int] = mapped_column(Integer, default=0)
     unable_to_check_checks: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class FormatCheckRun(Base):
+    """Immutable policy/result snapshot for one pre-check submission."""
+
+    __tablename__ = "format_check_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
+    criteria_set_id: Mapped[str | None] = mapped_column(
+        ForeignKey("format_criteria_sets.id"), nullable=True, index=True
+    )
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actors.id"), index=True)
+    semester: Mapped[str] = mapped_column(String(32), index=True)
+    report_type: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    policy_id: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    policy_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    template_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    filename: Mapped[str] = mapped_column(String(500))
+    overall_status: Mapped[str] = mapped_column(String(30), index=True)
+    policy_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    result_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
