@@ -19,3 +19,4 @@ harness/reports/*.json
 
 # Internal academic source documents are ingested locally and must not be committed.
 data/sample-documents/dadn-2026/*.pdf
+data/local-documents/

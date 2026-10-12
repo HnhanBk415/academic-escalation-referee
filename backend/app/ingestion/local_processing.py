@@ -21,10 +21,58 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.enums import DocumentStatus
 from app.core.errors import AppError
-from app.models import Course, Document, DocumentProcessing, DocumentReviewItem
+from app.models import Course, Document, DocumentChunk, DocumentProcessing, DocumentReviewItem
 from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewItemResponse
 
 SUPPORTED_SUFFIXES = {".pdf": "PDF", ".docx": "DOCX", ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE"}
+
+
+def _content_similarity(left: str, right: str) -> float:
+    """A local, explainable overlap score for deciding whether a rule was updated.
+
+    This intentionally does not use filenames or document titles.  A new file
+    may add unrelated regulations; only a strongly overlapping rule replaces
+    its prior chunk, leaving unrelated older rules searchable.
+    """
+    left_tokens = set(re.findall(r"\w+", left.casefold(), flags=re.UNICODE))
+    right_tokens = set(re.findall(r"\w+", right.casefold(), flags=re.UNICODE))
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+
+
+async def supersede_overlapping_rules(session: AsyncSession, document: Document) -> int:
+    """Retire only older chunks whose regulation content was actually updated."""
+    new_chunks = list((await session.scalars(
+        select(DocumentChunk).where(DocumentChunk.document_id == document.id)
+    )).all())
+    older_rows = (await session.execute(
+        select(DocumentChunk, Document)
+        .join(Document, Document.id == DocumentChunk.document_id)
+        .where(
+            DocumentChunk.course_id == document.course_id,
+            DocumentChunk.document_id != document.id,
+            Document.status == DocumentStatus.ACTIVE,
+        )
+    )).all()
+    superseded = 0
+    for newer in new_chunks:
+        for older, _ in older_rows:
+            metadata = older.chunk_metadata or {}
+            if metadata.get("superseded", False):
+                continue
+            similarity = _content_similarity(newer.content, older.content)
+            if similarity < 0.65:
+                continue
+            older.chunk_metadata = {
+                **metadata,
+                "superseded": True,
+                "superseded_by_document_id": document.id,
+                "superseded_reason": "NEWER_OVERLAPPING_CONTENT",
+                "content_overlap": round(similarity, 3),
+            }
+            superseded += 1
+    return superseded
 
 
 @dataclass
@@ -346,9 +394,6 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
     document.source_path = local_relative(clean_path)
     document.document_type = "TXT"
     document.content_hash = hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
-    # A document submitted through this workflow is a new regulation version.
-    # It retires any older version with the same course/title, including records
-    # imported before this module existed. Explicit lineage is preserved as well.
     processing.clean_text = clean_text
     processing.status = "INGESTING"
     await session.commit()
@@ -362,18 +407,10 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
         processing.error_message = exc.message if isinstance(exc, AppError) else "Không thể lập chỉ mục văn bản Local."
         await session.commit()
         raise
-    # Do not retire an older regulation until the newer one has been indexed
-    # successfully.  This preserves a usable answer source if indexing fails.
-    older_documents = list((await session.scalars(
-        select(Document).where(
-            Document.course_id == document.course_id,
-            Document.title == document.title,
-            Document.id != document.id,
-            Document.status == DocumentStatus.ACTIVE,
-        )
-    )).all())
-    for older in older_documents:
-        older.status = DocumentStatus.SUPERSEDED
+    # A filename/title is not reliable version lineage.  Keep older documents
+    # active for supplementary rules, but hide an older chunk only where the
+    # newly confirmed content substantially overlaps it.
+    await supersede_overlapping_rules(session, document)
     if document.supersedes_document_id:
         older = await session.get(Document, document.supersedes_document_id)
         if older:

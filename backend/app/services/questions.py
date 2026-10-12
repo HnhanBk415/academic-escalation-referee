@@ -308,6 +308,31 @@ def _safe_ai_failure(reason_code: str = "AI_UNAVAILABLE") -> RefereeDecision:
     )
 
 
+def _approved_exception_decision(
+    question: str, exceptions: list[dict], evidence: list[dict]
+) -> RefereeDecision | None:
+    """Enforce approved lecturer exceptions ahead of every document version."""
+    topic = canonical_policy_topic(infer_policy_topic(question))
+    applicable = [
+        item for item in exceptions
+        if canonical_policy_topic(str(item.get("policy_topic", "GENERAL"))) == topic
+    ]
+    if not applicable:
+        return None
+    exception = applicable[0]  # _load_exceptions already orders by scope.
+    return RefereeDecision(
+        route=Route.ANSWER,
+        policy_coverage=PolicyCoverage.APPLICABLE_EXCEPTION,
+        policy_topic=topic,
+        uncertainty_type=UncertaintyType.NONE,
+        reason_code="APPLICABLE_SCOPED_EXCEPTION",
+        answer=f"Theo ngoại lệ đang có hiệu lực cho phạm vi của bạn: {exception['content']}",
+        citation_labels=[evidence[0]["label"]] if evidence else [],
+        confidence=1,
+        applied_exception_id=str(exception["id"]),
+    )
+
+
 async def submit_question(
     session: AsyncSession,
     payload: QuestionCreate,
@@ -420,6 +445,11 @@ async def submit_question(
         has_group=group is not None,
         has_conflicting_evidence=has_conflicting_evidence,
     )
+    if decision is None:
+        # A lecturer-approved scoped exception is a hard precedence rule; the
+        # provider receives it too, but cannot accidentally answer from a
+        # newer/older document instead.
+        decision = _approved_exception_decision(payload.text, exceptions, evidence)
     started = perf_counter()
     used_provider = decision is None
     ai_failed = False

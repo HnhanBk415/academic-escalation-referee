@@ -96,7 +96,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
     setBusy(true); setError("");
     try {
       const result = await api<ProcessingResponse>(`/api/v1/documents/processing/${processing.id}/finalize`, { method: "POST" });
-      setProcessing(result); setNotice("Đã xuất bản phiên bản mới, lập chỉ mục Local và ưu tiên khi trả lời sinh viên.");
+      setProcessing(result); setNotice("Đã xuất bản, lập chỉ mục Local và ưu tiên phần quy định được cập nhật khi trả lời sinh viên.");
     } catch (e) { setError(e instanceof Error ? e.message : "Không thể xác nhận tài liệu."); }
     finally { setBusy(false); }
   };
