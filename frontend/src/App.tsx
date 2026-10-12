@@ -5,6 +5,7 @@ import { AuditPage } from "./pages/AuditPage";
 import { ExceptionsView } from "./pages/ExceptionsView";
 import { HomePage } from "./pages/HomePage";
 import { LecturerInboxView } from "./pages/LecturerInboxView";
+import { DocumentProcessingPage } from "./pages/DocumentProcessingPage";
 import { LoginPage, type AuthActor } from "./pages/LoginPage";
 import { OperationsPage } from "./pages/OperationsPage";
 import { StudentHistoryView } from "./pages/StudentHistoryView";
@@ -205,6 +206,11 @@ export function App() {
         )}
         {activeTab === "inbox" && (
           <LecturerInboxView onDecisionMade={refreshCounts} />
+        )}
+        {activeTab === "documents" && (
+          <div className="overflow-y-auto flex-1 p-8 bg-[#F8FAFC]">
+            <DocumentProcessingPage courseId={selectedCourseId} />
+          </div>
         )}
         {activeTab === "exceptions" && <ExceptionsView />}
         {activeTab === "operations" && <OperationsPage onOpenAudit={() => setActiveTab("audit")} />}

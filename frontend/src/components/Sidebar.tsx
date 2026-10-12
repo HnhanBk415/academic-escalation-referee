@@ -10,10 +10,11 @@ import {
   IconScale,
   IconScroll,
   IconShield,
+  IconBookOpen,
 } from "./Icons";
 
 export type Role = "student" | "lecturer" | "academic_affairs";
-export type ActiveTab = "home" | "submit" | "history" | "inbox" | "exceptions" | "operations" | "audit" | "verify";
+export type ActiveTab = "home" | "submit" | "history" | "inbox" | "documents" | "exceptions" | "operations" | "audit" | "verify";
 
 interface SidebarProps {
   role: Role;
@@ -163,6 +164,12 @@ export function Sidebar({
               label="Ngoại lệ quy chế"
               active={activeTab === "exceptions"}
               onClick={() => onSelectTab("exceptions")}
+            />
+            <NavItem
+              icon={<IconBookOpen size={16} />}
+              label="Tiếp nhận quy định"
+              active={activeTab === "documents"}
+              onClick={() => onSelectTab("documents")}
             />
           </>
         ) : (

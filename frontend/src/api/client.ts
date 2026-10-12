@@ -66,3 +66,12 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const postJson = <T>(path: string, payload: unknown, headers?: HeadersInit) =>
   api<T>(path, { method: "POST", body: JSON.stringify(payload), headers });
+
+export async function apiBlob(path: string): Promise<Blob> {
+  const headers = new Headers();
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  else if (demoActorId) headers.set("X-Demo-Actor-ID", demoActorId);
+  const response = await fetch(`${API_BASE}${path}`, { headers });
+  if (!response.ok) throw new Error("Không thể tải ảnh crop Local.");
+  return response.blob();
+}

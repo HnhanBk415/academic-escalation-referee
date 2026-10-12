@@ -53,6 +53,7 @@ async def document_response(
         effective_from=document.effective_from,
         effective_until=document.effective_until,
         content_hash=document.content_hash,
+        supersedes_document_id=document.supersedes_document_id,
         chunk_count=chunk_count or 0,
         created_at=document.created_at,
     )

@@ -194,3 +194,32 @@ export interface OperationsOverview {
   active_documents: number;
   recent_activity: OperationsActivity[];
 }
+
+export interface ReviewItem {
+  id: string;
+  item_index: number;
+  predicted_text: string;
+  confirmed_text: string | null;
+  confidence: number;
+  context_before: string;
+  context_after: string;
+  page_number: number | null;
+  crop_url: string | null;
+  status: string;
+}
+
+export interface ProcessingResponse {
+  id: string;
+  document: { id: string; title: string; version: string; status: string };
+  original_filename: string | null;
+  original_path: string | null;
+  extraction_method: string;
+  status: string;
+  confidence_threshold: number;
+  raw_text: string;
+  clean_text: string | null;
+  error_message: string | null;
+  review_items: ReviewItem[];
+  pending_review_count: number;
+  created_at: string;
+}

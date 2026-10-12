@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     rag_top_k: int = 8
     rag_context_chunks: int = 5
     rag_min_score: float = 0.15
+    # This root is deliberately local to the application.  No document bytes
+    # are sent to a cloud OCR or vision service by this subsystem.
+    local_document_storage_dir: str = "data/local-documents"
+    ocr_confidence_threshold: float = 0.80
+    ocr_languages: str = "vie+eng"
+    ocr_tesseract_cmd: str = "tesseract"
+    upload_max_bytes: int = 25 * 1024 * 1024
     prompt_version: str = "referee-v3-structured-exceptions"
     public_base_url: str = "http://localhost:8000"
     cors_origins_raw: str = Field(

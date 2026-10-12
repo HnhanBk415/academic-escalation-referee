@@ -27,6 +27,7 @@ def _find_repo_root() -> Path:
 
 REPOSITORY_ROOT = _find_repo_root()
 ALLOWED_DOCUMENT_ROOT = (REPOSITORY_ROOT / "data" / "sample-documents").resolve()
+LOCAL_DOCUMENT_ROOT = (REPOSITORY_ROOT / get_settings().local_document_storage_dir).resolve()
 
 
 def stable_chunk_id(document_id: str, chunk_index: int) -> str:
@@ -48,7 +49,7 @@ def resolve_source_path(source_path: str) -> Path:
             resolved = matches[0].resolve()
         else:
             raise AppError("DOCUMENT_FILE_NOT_FOUND", "Không tìm thấy file tài liệu.", status_code=404)
-    if not resolved.is_relative_to(ALLOWED_DOCUMENT_ROOT):
+    if not any(resolved.is_relative_to(root) for root in (ALLOWED_DOCUMENT_ROOT, LOCAL_DOCUMENT_ROOT)):
         raise AppError(
             "DOCUMENT_PATH_NOT_ALLOWED",
             "Tài liệu phải nằm trong data/sample-documents.",

@@ -85,11 +85,53 @@ class Document(Base):
     effective_from: Mapped[date | None] = mapped_column(Date, nullable=True)
     effective_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    supersedes_document_id: Mapped[str | None] = mapped_column(
+        ForeignKey("documents.id"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     chunks: Mapped[list["DocumentChunk"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )
+
+
+class DocumentProcessing(Base):
+    """Local extraction session and immutable source trace for one upload."""
+
+    __tablename__ = "document_processing"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), unique=True, index=True)
+    original_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    original_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    extraction_method: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    confidence_threshold: Mapped[float] = mapped_column(Float, default=0.80)
+    raw_text: Mapped[str] = mapped_column(Text, default="")
+    clean_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("actors.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class DocumentReviewItem(Base):
+    __tablename__ = "document_review_items"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    processing_id: Mapped[str] = mapped_column(ForeignKey("document_processing.id"), index=True)
+    item_index: Mapped[int] = mapped_column(Integer)
+    predicted_text: Mapped[str] = mapped_column(Text)
+    confirmed_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float)
+    context_before: Mapped[str] = mapped_column(Text, default="")
+    context_after: Mapped[str] = mapped_column(Text, default="")
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    crop_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class DocumentChunk(Base):
