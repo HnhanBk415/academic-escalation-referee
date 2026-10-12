@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # The OCR/Vision client is intentionally separate from the RAG answer
     # provider. It never falls back to GEMINI_API_KEY.
     gemini_vision_api_key: str = ""
-    gemini_vision_model: str = "gemini-2.5-flash"
+    gemini_vision_model: str = "gemini-3.8-flash"
     embedding_dimensions: int = 768
     ai_request_timeout_seconds: float = 30
     ai_max_concurrency: int = 1

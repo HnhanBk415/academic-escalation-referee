@@ -175,6 +175,12 @@ def _gemini_vision_ocr(path: Path, images: list[Any]) -> list[OCRToken]:
     except AppError:
         raise
     except Exception as exc:
+        if getattr(exc, "code", getattr(exc, "status_code", None)) == 404:
+            raise AppError(
+                "GEMINI_VISION_MODEL_UNAVAILABLE",
+                f"Model Gemini Vision '{settings.gemini_vision_model}' khong kha dung. Kiem tra GEMINI_VISION_MODEL.",
+                status_code=422,
+            ) from exc
         raise AppError(
             "GEMINI_VISION_OCR_FAILED",
             "Gemini Vision khong the trich xuat noi dung. Kiem tra key, model va ket noi mang.",
