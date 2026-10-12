@@ -132,6 +132,9 @@ async def ingest_document(
                 "embedding_dimensions": dimensions,
                 "source_path": document.source_path,
                 "superseded": False,
+                "retrieval_eligible": True,
+                "document_version": document.version,
+                "document_type": document.document_type,
             }
             stored_chunk = existing_by_index.get(index)
             if stored_chunk is None:

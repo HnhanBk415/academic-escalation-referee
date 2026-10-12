@@ -12,6 +12,7 @@ from app.models.entities import (
     HumanDecision,
     PolicyException,
     PolicyUpdate,
+    PolicyVersion,
     Question,
     RetrievalEvidence,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "HumanDecision",
     "PolicyException",
     "PolicyUpdate",
+    "PolicyVersion",
     "Question",
     "RetrievalEvidence",
 ]

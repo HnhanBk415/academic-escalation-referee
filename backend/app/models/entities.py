@@ -74,6 +74,15 @@ class GroupMembership(Base):
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        Index(
+            "ix_documents_course_status_effective",
+            "course_id",
+            "status",
+            "effective_from",
+            "effective_until",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
@@ -136,7 +145,10 @@ class DocumentReviewItem(Base):
 
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
-    __table_args__ = (UniqueConstraint("document_id", "chunk_index"),)
+    __table_args__ = (
+        UniqueConstraint("document_id", "chunk_index"),
+        Index("ix_document_chunks_course_document", "course_id", "document_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
@@ -273,6 +285,38 @@ class PolicyUpdate(Base):
     created_by: Mapped[str] = mapped_column(ForeignKey("actors.id"))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PolicyVersion(Base):
+    """Immutable temporal record for one lecturer-uploaded regulation version."""
+
+    __tablename__ = "policy_versions"
+    __table_args__ = (
+        UniqueConstraint("document_id"),
+        Index(
+            "ix_policy_versions_course_status_effective",
+            "course_id",
+            "status",
+            "effective_from",
+            "effective_until",
+        ),
+        Index("ix_policy_versions_supersedes", "supersedes_policy_version_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
+    version_label: Mapped[str] = mapped_column(String(64))
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    effective_from: Mapped[date | None] = mapped_column(Date, nullable=True)
+    effective_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    supersedes_policy_version_id: Mapped[str | None] = mapped_column(
+        ForeignKey("policy_versions.id"), nullable=True, index=True
+    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditEvent(Base):

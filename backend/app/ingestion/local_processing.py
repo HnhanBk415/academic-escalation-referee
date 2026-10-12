@@ -17,7 +17,15 @@ from app.core.config import get_settings
 from app.core.enums import DocumentStatus, PolicyUpdateStatus
 from app.core.errors import AppError
 from app.core.policy_topics import canonical_policy_topic, infer_policy_topic
-from app.models import Course, Document, DocumentChunk, DocumentProcessing, DocumentReviewItem, PolicyUpdate
+from app.models import (
+    Course,
+    Document,
+    DocumentChunk,
+    DocumentProcessing,
+    DocumentReviewItem,
+    PolicyUpdate,
+    PolicyVersion,
+)
 from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewItemResponse
 
 SUPPORTED_SUFFIXES = {".pdf": "PDF", ".docx": "DOCX", ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE"}
@@ -274,12 +282,28 @@ async def create_processing(
         content_hash=hashlib.sha256(source_path.read_bytes()).hexdigest(),
         supersedes_document_id=supersedes_document_id,
     )
+    superseded_version_id: str | None = None
+    if supersedes_document_id:
+        superseded_version_id = await session.scalar(
+            select(PolicyVersion.id).where(PolicyVersion.document_id == supersedes_document_id)
+        )
+    policy_version = PolicyVersion(
+        id=f"policy-version-{uuid.uuid4().hex[:18]}",
+        document_id=document_id,
+        course_id=course_id,
+        version_label=version,
+        content_hash=document.content_hash,
+        effective_from=effective_from,
+        effective_until=effective_until,
+        status=DocumentStatus.PENDING,
+        supersedes_policy_version_id=superseded_version_id,
+    )
     processing = DocumentProcessing(
         id=processing_id, document_id=document_id, original_filename=original_filename,
         original_path=local_relative(source_path), extraction_method="PENDING", status="PROCESSING",
         confidence_threshold=confidence_threshold, created_by=actor_id,
     )
-    session.add_all([document, processing])
+    session.add_all([document, processing, policy_version])
     # Persist the session before invoking a parser/OCR engine so failures stay
     # traceable instead of rolling the upload record back out of existence.
     await session.commit()
@@ -325,6 +349,11 @@ async def create_processing(
             document = await session.get(Document, document_id)
             if document:
                 document.status = DocumentStatus.FAILED
+            policy_version = await session.scalar(
+                select(PolicyVersion).where(PolicyVersion.document_id == document_id)
+            )
+            if policy_version:
+                policy_version.status = DocumentStatus.FAILED
             await session.commit()
         if isinstance(exc, AppError):
             exc.details.setdefault("processing_id", processing_id)
@@ -487,6 +516,11 @@ async def _publish_policy_update(
     published_at = datetime.now(UTC)
     updates: list[PolicyUpdate] = []
     for chunk in chunks:
+        chunk.chunk_metadata = {
+            **(chunk.chunk_metadata or {}),
+            "retrieval_eligible": False,
+            "source_kind": "POLICY_UPDATE",
+        }
         update = PolicyUpdate(
             id=f"policy-update-{uuid.uuid4().hex[:18]}",
             source_document_id=document.id,
@@ -572,13 +606,32 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
         processing = await get_processing(session, processing_id)
         processing.status = "FAILED"
         processing.error_message = exc.message if isinstance(exc, AppError) else "Không thể lập chỉ mục văn bản."
+        policy_version = await session.scalar(
+            select(PolicyVersion).where(PolicyVersion.document_id == document.id)
+        )
+        if policy_version:
+            policy_version.status = DocumentStatus.FAILED
         await session.commit()
         raise
     await _publish_policy_update(session, processing=processing, document=document)
+    policy_version = await session.scalar(
+        select(PolicyVersion).where(PolicyVersion.document_id == document.id)
+    )
+    now = datetime.now(UTC)
+    if policy_version:
+        policy_version.status = DocumentStatus.ACTIVE
+        policy_version.content_hash = document.content_hash
+        policy_version.activated_at = now
     if document.supersedes_document_id:
         older = await session.get(Document, document.supersedes_document_id)
         if older:
             older.status = DocumentStatus.SUPERSEDED
+        older_version = await session.scalar(
+            select(PolicyVersion).where(PolicyVersion.document_id == document.supersedes_document_id)
+        )
+        if older_version:
+            older_version.status = DocumentStatus.SUPERSEDED
+            older_version.superseded_at = now
     processing = await get_processing(session, processing_id)
     processing.status = "COMPLETED"
     await session.commit()

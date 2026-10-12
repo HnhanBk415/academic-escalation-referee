@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     rag_top_k: int = 8
     rag_context_chunks: int = 5
     rag_min_score: float = 0.15
+    rag_dense_candidates: int = 32
+    rag_keyword_candidates: int = 32
+    rag_rrf_k: int = 60
+    rag_hnsw_ef_search: int = 80
     # Uploaded originals and review crops remain in this local root. Image/PDF
     # bytes are additionally sent to Gemini only with the vision provider.
     local_document_storage_dir: str = "data/local-documents"

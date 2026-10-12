@@ -68,6 +68,34 @@ def _deduplicate(items: list[dict], limit: int) -> list[dict]:
     return selected
 
 
+def _reciprocal_rank_fusion(
+    dense_items: list[dict],
+    keyword_items: list[dict],
+    *,
+    rrf_k: int,
+) -> list[dict]:
+    """Fuse semantic and exact-match rankings without comparing raw scores."""
+    combined: dict[str, dict] = {}
+    for source, items in (("dense", dense_items), ("keyword", keyword_items)):
+        for rank, item in enumerate(items, start=1):
+            key = str(item["chunk_id"])
+            merged = combined.setdefault(
+                key,
+                {
+                    **item,
+                    "dense_rank": None,
+                    "keyword_rank": None,
+                    "dense_score": None,
+                    "keyword_score": None,
+                    "score": 0.0,
+                },
+            )
+            merged[f"{source}_rank"] = rank
+            merged[f"{source}_score"] = float(item["score"])
+            merged["score"] += 1.0 / (rrf_k + rank)
+    return sorted(combined.values(), key=lambda item: item["score"], reverse=True)
+
+
 async def _candidate_chunks(session: AsyncSession, course_id: str) -> list[tuple]:
     today = date.today()
     candidates = list(
@@ -88,6 +116,7 @@ async def _candidate_chunks(session: AsyncSession, course_id: str) -> list[tuple
         (chunk, document)
         for chunk, document in candidates
         if not (chunk.chunk_metadata or {}).get("superseded", False)
+        and (chunk.chunk_metadata or {}).get("retrieval_eligible", True) is not False
     ]
 
 
@@ -98,6 +127,11 @@ async def _postgres_vector_search(
     limit: int,
     embedding_model: str,
 ) -> list[dict]:
+    settings = get_settings()
+    # HNSW applies metadata predicates after its approximate candidate walk.
+    # A higher ef_search prevents sparse course/version filters from returning
+    # too few candidates while still avoiding a sequential vector scan.
+    await session.execute(text(f"SET LOCAL hnsw.ef_search = {settings.rag_hnsw_ef_search}"))
     vector_literal = "[" + ",".join(str(value) for value in vector) + "]"
     statement = text(
         """
@@ -113,6 +147,7 @@ async def _postgres_vector_search(
           AND dc.embedding IS NOT NULL
           AND dc.metadata->>'embedding_model' = :embedding_model
           AND COALESCE((dc.metadata->>'superseded')::boolean, false) = false
+          AND COALESCE(dc.metadata->>'retrieval_eligible', 'true') = 'true'
         ORDER BY dc.embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
         """
@@ -122,6 +157,48 @@ async def _postgres_vector_search(
             statement,
             {
                 "embedding": vector_literal,
+                "course_id": course_id,
+                "limit": limit,
+                "embedding_model": embedding_model,
+            },
+        )
+    ).mappings()
+    return [dict(row) for row in rows]
+
+
+async def _postgres_full_text_search(
+    session: AsyncSession,
+    course_id: str,
+    question: str,
+    limit: int,
+    embedding_model: str,
+) -> list[dict]:
+    """Exact lexical retrieval with the same mandatory metadata filter as vectors."""
+    statement = text(
+        """
+        SELECT dc.id AS chunk_id, dc.content, dc.content_hash, dc.heading, dc.page_number,
+               d.id AS document_id, d.title AS document_title,
+               ts_rank_cd(dc.search_vector, query) AS score
+        FROM document_chunks dc
+        JOIN documents d ON d.id = dc.document_id
+        CROSS JOIN websearch_to_tsquery('simple', unaccent(:question)) AS query
+        WHERE dc.course_id = :course_id
+          AND d.status = 'ACTIVE'
+          AND (d.effective_from IS NULL OR d.effective_from <= CURRENT_DATE)
+          AND (d.effective_until IS NULL OR d.effective_until >= CURRENT_DATE)
+          AND dc.metadata->>'embedding_model' = :embedding_model
+          AND COALESCE((dc.metadata->>'superseded')::boolean, false) = false
+          AND COALESCE(dc.metadata->>'retrieval_eligible', 'true') = 'true'
+          AND dc.search_vector @@ query
+        ORDER BY ts_rank_cd(dc.search_vector, query) DESC, dc.id
+        LIMIT :limit
+        """
+    )
+    rows = (
+        await session.execute(
+            statement,
+            {
+                "question": question,
                 "course_id": course_id,
                 "limit": limit,
                 "embedding_model": embedding_model,
@@ -144,6 +221,8 @@ async def _portable_vector_search(
             not chunk.embedding
             or len(chunk.embedding) != len(vector)
             or metadata.get("embedding_model") != get_settings().gemini_embed_model
+            or metadata.get("retrieval_eligible", True) is False
+            or metadata.get("superseded", False)
         ):
             continue
         items.append(
@@ -161,7 +240,7 @@ async def _portable_vector_search(
     return sorted(items, key=lambda item: item["score"], reverse=True)[:limit]
 
 
-async def _keyword_fallback(
+async def _keyword_search(
     session: AsyncSession,
     course_id: str,
     question: str,
@@ -197,11 +276,12 @@ async def retrieve_evidence(
 ) -> list[dict]:
     settings = get_settings()
     if settings.ai_mode == "fake":
-        items = await _keyword_fallback(
+        items = await _keyword_search(
             session, course_id, question, settings.rag_top_k
         )
         relevant = [item for item in items if float(item["score"]) >= settings.rag_min_score]
         return _deduplicate(relevant, settings.rag_context_chunks)
+    dense_items: list[dict] = []
     try:
         vector = (
             await provider.embed([question], task_type="RETRIEVAL_QUERY")
@@ -210,16 +290,16 @@ async def retrieve_evidence(
             raise ValueError("Query embedding dimension mismatch")
         bind = session.get_bind()
         if bind.dialect.name == "postgresql":
-            items = await _postgres_vector_search(
+            dense_items = await _postgres_vector_search(
                 session,
                 course_id,
                 vector,
-                settings.rag_top_k,
+                settings.rag_dense_candidates,
                 settings.gemini_embed_model,
             )
         else:
-            items = await _portable_vector_search(
-                session, course_id, vector, settings.rag_top_k
+            dense_items = await _portable_vector_search(
+                session, course_id, vector, settings.rag_dense_candidates
             )
     except Exception as exc:
         print(
@@ -227,22 +307,32 @@ async def retrieve_evidence(
             "falling back to keyword search",
             flush=True,
         )
-        items = await _keyword_fallback(
-            session, course_id, question, settings.rag_top_k
-        )
-    relevant = [item for item in items if float(item["score"]) >= settings.rag_min_score]
-    if not relevant:
-        keyword_items = await _keyword_fallback(
-            session, course_id, question, settings.rag_top_k
-        )
-        keyword_relevant = [
-            item for item in keyword_items if float(item["score"]) >= settings.rag_min_score
-        ]
-        if keyword_relevant:
-            print(
-                f"[RAG Fallback] Keyword fallback retrieved "
-                f"{len(keyword_relevant)} chunks.",
-                flush=True,
+        dense_items = []
+    dense_relevant = [
+        item for item in dense_items if float(item["score"]) >= settings.rag_min_score
+    ]
+    try:
+        bind = session.get_bind()
+        if bind.dialect.name == "postgresql":
+            keyword_items = await _postgres_full_text_search(
+                session,
+                course_id,
+                question,
+                settings.rag_keyword_candidates,
+                settings.gemini_embed_model,
             )
-            return _deduplicate(keyword_relevant, settings.rag_context_chunks)
-    return _deduplicate(relevant, settings.rag_context_chunks)
+        else:
+            keyword_items = await _keyword_search(
+                session, course_id, question, settings.rag_keyword_candidates
+            )
+    except Exception as exc:
+        print(f"[RAG Error] Full-text search failed ({exc}), using portable keyword search", flush=True)
+        keyword_items = await _keyword_search(
+            session, course_id, question, settings.rag_keyword_candidates
+        )
+    fused = _reciprocal_rank_fusion(
+        dense_relevant,
+        keyword_items,
+        rrf_k=settings.rag_rrf_k,
+    )
+    return _deduplicate(fused, settings.rag_context_chunks)
