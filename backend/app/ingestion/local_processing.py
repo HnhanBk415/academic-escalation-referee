@@ -167,6 +167,15 @@ def _vietocr_predictor() -> Any:
     if not weights.is_file():
         _download_vietocr_weights(weights)
     try:
+        import torch  # noqa: F401
+        import torchvision  # noqa: F401
+    except (ImportError, OSError) as exc:
+        raise AppError(
+            "LOCAL_VIETOCR_DEPENDENCY_MISSING",
+            "Thiếu runtime PyTorch cho VietOCR. Cài torch và torchvision bản CPU hoặc CUDA tương ứng.",
+            status_code=422,
+        ) from exc
+    try:
         from vietocr.tool.config import Cfg
         from vietocr.tool.predictor import Predictor
 
