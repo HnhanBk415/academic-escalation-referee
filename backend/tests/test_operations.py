@@ -13,11 +13,13 @@ async def test_operations_overview_returns_operational_metrics(client):
     assert body["total_questions"] == 0
     assert body["open_cases"] == 0
     assert body["active_documents"] >= 1
-    assert body["pending_format_reviews"] == 0
-    assert body["active_format_policy_profiles"] >= 1
-    assert body["courses_without_active_format_policy"] >= 0
-    assert body["format_checks_today"] == 0
-    assert body["format_needs_fix_today"] == 0
-    assert body["format_needs_review_today"] == 0
-    assert body["format_unable_to_check_today"] == 0
     assert isinstance(body["recent_activity"], list)
+    assert set(body) == {
+        "total_questions",
+        "open_cases",
+        "overdue_cases",
+        "active_exceptions",
+        "active_documents",
+        "recent_activity",
+    }
+

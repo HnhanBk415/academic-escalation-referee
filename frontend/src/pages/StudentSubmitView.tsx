@@ -6,7 +6,9 @@ import {
   IconCheck,
   IconChevronRight,
   IconClock,
+  IconHelp,
   IconInfo,
+  IconMessageSquare,
   IconRotateCcw,
   IconScale,
   IconSearch,
@@ -750,13 +752,15 @@ export function StudentSubmitView({
                                 )}
                               </div>
                               {turn.clarifyingQuestion && (
-                                <div className="text-sky-900 font-medium bg-sky-50/80 p-2 rounded-lg border border-sky-100">
-                                  ❓ AI: {turn.clarifyingQuestion}
+                                <div className="text-sky-900 font-medium bg-sky-50/80 p-2 rounded-lg border border-sky-100 flex items-start gap-1.5">
+                                  <IconHelp size={14} className="text-sky-600 flex-shrink-0 mt-0.5" />
+                                  <span><b>AI:</b> {turn.clarifyingQuestion}</span>
                                 </div>
                               )}
                               {turn.studentResponse && (
-                                <div className="text-slate-800 font-medium bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                  💬 Sinh viên: {turn.studentResponse}
+                                <div className="text-slate-800 font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-start gap-1.5">
+                                  <IconMessageSquare size={14} className="text-slate-600 flex-shrink-0 mt-0.5" />
+                                  <span><b>Sinh viên:</b> {turn.studentResponse}</span>
                                 </div>
                               )}
                             </div>
@@ -995,9 +999,10 @@ export function StudentSubmitView({
               <button
                 type="button"
                 onClick={() => setSelectedCitation(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100"
+                aria-label="Đóng"
               >
-                ✕
+                <IconX size={18} />
               </button>
             </div>
 

@@ -1,199 +1,119 @@
 import React from "react";
+import {
+  Home,
+  MessageSquare,
+  ClipboardList,
+  Inbox,
+  Scale,
+  Scroll,
+  Shield,
+  Clock,
+  ChevronRight,
+  Check,
+  X,
+  Info,
+  ArrowUpRight,
+  BookOpen,
+  AlertTriangle,
+  Sparkles,
+  RotateCcw,
+  Search,
+  User,
+  GraduationCap,
+  ThumbsUp,
+  ThumbsDown,
+  Zap,
+  Bot,
+  Globe,
+  Ban,
+  HelpCircle,
+  Target,
+  Hourglass,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Copy,
+  type LucideProps,
+} from "lucide-react";
 
 export type IconProps = { size?: number; className?: string };
 
-export function IconHome({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
-      <path d="M9 21v-7h6v7" />
-    </svg>
-  );
+// Helper to wrap Lucide icon with default size and className
+function createIcon(Component: React.ComponentType<LucideProps>, defaultSize: number) {
+  return function WrappedIcon({ size = defaultSize, className = "" }: IconProps) {
+    return <Component size={size} className={className} />;
+  };
 }
 
-export function IconMessageSquare({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
+// Existing icons re-mapped to Lucide components
+export const IconHome = createIcon(Home, 15);
+export const IconMessageSquare = createIcon(MessageSquare, 15);
+export const IconClipboard = createIcon(ClipboardList, 15);
+export const IconInbox = createIcon(Inbox, 15);
+export const IconScale = createIcon(Scale, 15);
+export const IconScroll = createIcon(Scroll, 15);
+export const IconShield = createIcon(Shield, 15);
+export const IconClock = createIcon(Clock, 14);
+export const IconChevronRight = createIcon(ChevronRight, 12);
+export const IconCheck = createIcon(Check, 14);
+export const IconX = createIcon(X, 14);
+export const IconInfo = createIcon(Info, 14);
+export const IconArrowUpRight = createIcon(ArrowUpRight, 14);
+export const IconBookOpen = createIcon(BookOpen, 12);
+export const IconWarning = createIcon(AlertTriangle, 14);
+export const IconSparkle = createIcon(Sparkles, 12);
+export const IconRotateCcw = createIcon(RotateCcw, 15);
+export const IconSearch = createIcon(Search, 16);
+export const IconUser = createIcon(User, 16);
+export const IconTeacher = createIcon(GraduationCap, 16);
+export const IconThumbUp = createIcon(ThumbsUp, 14);
+export const IconThumbDown = createIcon(ThumbsDown, 14);
 
-export function IconClipboard({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-    </svg>
-  );
-}
+// Additional standardized icons for the app
+export const IconZap = createIcon(Zap, 14);
+export const IconBot = createIcon(Bot, 14);
+export const IconGlobe = createIcon(Globe, 14);
+export const IconBan = createIcon(Ban, 14);
+export const IconHelp = createIcon(HelpCircle, 14);
+export const IconTarget = createIcon(Target, 14);
+export const IconHourglass = createIcon(Hourglass, 14);
+export const IconCheckCircle = createIcon(CheckCircle2, 14);
+export const IconAlertCircle = createIcon(AlertCircle, 14);
+export const IconLoader = createIcon(Loader2, 14);
+export const IconCopy = createIcon(Copy, 14);
 
-export function IconInbox({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-    </svg>
-  );
-}
-
-export function IconScale({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="12" y1="3" x2="12" y2="21" />
-      <path d="M3 9l9-7 9 7" />
-      <path d="M6 12l-3 6h6l-3-6z" />
-      <path d="M18 12l-3 6h6l-3-6z" />
-    </svg>
-  );
-}
-
-export function IconScroll({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polyline points="4 7 4 4 20 4 20 7" />
-      <line x1="9" y1="20" x2="15" y2="20" />
-      <line x1="12" y1="4" x2="12" y2="20" />
-    </svg>
-  );
-}
-
-export function IconShield({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  );
-}
-
-export function IconClock({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
-
-export function IconChevronRight({ size = 12, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-
-export function IconCheck({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-export function IconX({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
-
-export function IconInfo({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="12" />
-      <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-  );
-}
-
-export function IconArrowUpRight({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="7" y1="17" x2="17" y2="7" />
-      <polyline points="7 7 17 7 17 17" />
-    </svg>
-  );
-}
-
-export function IconBookOpen({ size = 12, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-    </svg>
-  );
-}
-
-export function IconWarning({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  );
-}
-
-export function IconSparkle({ size = 12, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z" />
-    </svg>
-  );
-}
-
-export function IconRotateCcw({ size = 15, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polyline points="1 4 1 10 7 10" />
-      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-    </svg>
-  );
-}
-
-export function IconSearch({ size = 16, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-
-export function IconUser({ size = 16, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-
-export function IconTeacher({ size = 16, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-      <path d="M6 12v5c3 3 9 3 12 0v-5" />
-    </svg>
-  );
-}
-
-export function IconThumbUp({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-    </svg>
-  );
-}
-
-export function IconThumbDown({ size = 14, className = "" }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3" />
-    </svg>
-  );
-}
+// Also re-export raw Lucide icons for flexible usage
+export {
+  Home,
+  MessageSquare,
+  ClipboardList,
+  Inbox,
+  Scale,
+  Scroll,
+  Shield,
+  Clock,
+  ChevronRight,
+  Check,
+  X,
+  Info,
+  ArrowUpRight,
+  BookOpen,
+  AlertTriangle,
+  Sparkles,
+  RotateCcw,
+  Search,
+  User,
+  GraduationCap,
+  ThumbsUp,
+  ThumbsDown,
+  Zap,
+  Bot,
+  Globe,
+  Ban,
+  HelpCircle,
+  Target,
+  Hourglass,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+};

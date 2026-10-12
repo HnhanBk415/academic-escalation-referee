@@ -5,6 +5,7 @@ import { CitationList }  from "../components/CitationList";
 import { PageHeader }    from "../components/PageHeader";
 import { RouteBadge }    from "../components/RouteBadge";
 import { StepTracker }   from "../components/StepTracker";
+import { IconCheckCircle, IconHelp, IconLoader, IconTeacher } from "../components/Icons";
 import type { AIHealth, QuestionResponse } from "../types";
 
 /* ── Demo data ── */
@@ -30,9 +31,9 @@ type DemoActorId = keyof typeof demoActors;
 
 /* ── Route helper ── */
 function routeConfig(route: string | null) {
-  if (route === "ANSWER")  return { cls: "answer",  icon: "✅", title: "AI đã tìm thấy câu trả lời dựa trên quy chế", sub: "Trích xuất từ tài liệu được kiểm duyệt" };
-  if (route === "CLARIFY") return { cls: "clarify", icon: "❓", title: "Cần bổ sung thêm thông tin", sub: "AI chưa đủ dữ kiện để phán quyết" };
-  if (route === "ESCALATE")return { cls: "escalate",icon: "🔺", title: "Chuyển tiếp lên giảng viên để phê duyệt", sub: "Vượt thẩm quyền AI – con người sẽ quyết định" };
+  if (route === "ANSWER")  return { cls: "answer",  icon: <IconCheckCircle size={18} className="text-emerald-600" />, title: "AI đã tìm thấy câu trả lời dựa trên quy chế", sub: "Trích xuất từ tài liệu được kiểm duyệt" };
+  if (route === "CLARIFY") return { cls: "clarify", icon: <IconHelp size={18} className="text-sky-600" />, title: "Cần bổ sung thêm thông tin", sub: "AI chưa đủ dữ kiện để phán quyết" };
+  if (route === "ESCALATE")return { cls: "escalate",icon: <IconTeacher size={18} className="text-amber-600" />, title: "Chuyển tiếp lên giảng viên để phê duyệt", sub: "Vượt thẩm quyền AI – con người sẽ quyết định" };
   return null;
 }
 
@@ -181,10 +182,7 @@ export function StudentPage() {
             >
               {busy ? (
                 <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
-                    style={{ animation: "spin 1s linear infinite" }}>
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
+                  <IconLoader size={14} className="animate-spin" />
                   Đang xử lý…
                 </>
               ) : (
@@ -200,7 +198,9 @@ export function StudentPage() {
         <section className={`panel result-panel ${result ? "has-result" : "empty-result"}`}>
           {!result && (
             <div className="empty-state">
-              <div className="empty-orbit">?</div>
+              <div className="empty-orbit">
+                <IconHelp size={28} />
+              </div>
               <h2>Chưa có kết quả</h2>
               <p>Câu trả lời, route phân luồng và trích dẫn quy chế sẽ xuất hiện tại đây.</p>
             </div>

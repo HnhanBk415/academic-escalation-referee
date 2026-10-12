@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { IconClock } from "./Icons";
+import { IconClock, IconWarning } from "./Icons";
 
 interface SlaTimerProps {
   remaining?: string;
@@ -72,8 +72,8 @@ export function SlaTimer({
             <IconClock size={18} />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-rose-800">
-              ⚠️ Đã quá hạn SLA 48 giờ
+            <p className="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+              <IconWarning size={14} className="text-rose-600 inline" /> Đã quá hạn SLA 48 giờ
             </p>
             <p className="text-[11px] text-rose-700 mt-0.5">
               SLA chỉ là thông tin theo dõi, hệ thống không tự chuyển hồ sơ.

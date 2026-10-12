@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { IconCheck } from "./Icons";
 
 interface StepTrackerProps {
   steps: {
@@ -25,10 +26,7 @@ export function StepTracker({ steps, currentStep }: StepTrackerProps) {
           <div key={i} className={`step-item ${state}`} role="listitem">
             <div className="step-circle">
               {state === "done" ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}
-                  style={{ width: 16, height: 16 }}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <IconCheck size={16} />
               ) : (
                 step.icon ?? <span>{i + 1}</span>
               )}

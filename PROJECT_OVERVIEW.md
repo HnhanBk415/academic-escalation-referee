@@ -2,6 +2,9 @@
 
 > Hệ thống AI tự động phân loại và phân luồng câu hỏi học thuật của sinh viên dựa trên chính sách khoá học, tích hợp Gemini AI + RAG.
 
+Phạm vi hiện tại tập trung hoàn toàn vào **Flow 1**: hỏi đáp quy chế, yêu cầu làm rõ,
+chuyển người có thẩm quyền, quản lý quyết định/ngoại lệ và truy vết audit.
+
 ---
 
 ## 📌 Mục lục
@@ -109,7 +112,6 @@ project/
 │   │   │       ├── documents.py # Document upload & ingestion
 │   │   │       ├── audit.py     # Audit event log
 │   │   │       ├── demo.py      # Demo catalog + reset endpoint
-│   │   │       └── format_checks.py # Tiêu chí, pre-check và review thể thức
 │   │   ├── core/                # Cross-cutting concerns
 │   │   │   ├── config.py        # Settings (pydantic-settings)
 │   │   │   ├── enums.py         # All domain enumerations
@@ -129,7 +131,6 @@ project/
 │   │   │   ├── audit.py         # AuditEvent schemas
 │   │   │   ├── referee.py       # AI RefereeDecision schema
 │   │   │   ├── demo.py          # Demo seed schema
-│   │   │   ├── format_checks.py # DTO cho kiểm tra hình thức
 │   │   │   └── common.py        # Shared base schemas
 │   │   ├── services/            # Business logic layer
 │   │   │   ├── questions.py     # Question submission + AI routing
@@ -137,8 +138,6 @@ project/
 │   │   │   ├── exceptions.py    # Exception CRUD + revocation
 │   │   │   ├── documents.py     # Document management
 │   │   │   ├── audit.py         # Audit logging service
-│   │   │   ├── format_checks.py # Pre-check + lecturer review thể thức
-│   │   │   ├── academic_report_checklist.py # Bóc tách và đối chiếu DOCX/PDF
 │   │   │   └── ids.py           # ID generation helpers
 │   │   ├── ingestion/           # Document ingestion pipeline
 │   │   │   ├── service.py       # Main ingestion orchestration
@@ -180,7 +179,6 @@ project/
 │   │       ├── OperationsPage.tsx
 │   │       ├── AuditPage.tsx
 │   │       ├── VerifyPage.tsx
-│   │       └── FormatPrecheckPage.tsx
 │   ├── package.json
 │   ├── vite.config.ts
 │   ├── nginx.conf
@@ -437,21 +435,7 @@ erDiagram
 | `exceptions.py` | Xem và thu hồi policy exception |
 | `documents.py` | Upload, status tracking |
 | `audit.py` | Ghi audit event |
-| `format_checks.py` | Quản lý bộ tiêu chí, pre-check bài nộp và case cần giảng viên review |
-| `academic_report_checklist.py` | Trích xuất dữ kiện thể thức từ DOCX/PDF và đối chiếu checklist |
 | `ids.py` | Sinh ID có prefix (qs_, case_, exc_, …) |
-
-### `data/policies/` — Nguồn policy cho Flow 2
-
-Policy thể thức được tổ chức theo `course_id + semester`; mỗi file có thể chứa nhiều
-`report_profiles` để phân biệt loại báo cáo trong cùng môn/học kỳ. Quy ước, lifecycle,
-JSON Schema và ví dụ CO3001/HK261 nằm tại [`data/policies/README.md`](data/policies/README.md).
-
-Các file YAML là source-of-truth cấu hình. Khi seed demo, backend import mỗi tổ hợp
-`policy_id + policy_version + report_type` chưa có vào criteria store; không ghi đè
-version cũ. Pre-check lưu snapshot policy/version/template áp dụng tại thời điểm nộp.
-Trước khi import, validator kiểm tra contract policy, checksum tệp nguồn, Rule ID/profile
-trùng lặp và việc tài liệu nguồn thực sự thuộc học phần.
 
 ### `app/core/policy_topics.py` — Policy Topics
 
@@ -474,10 +458,9 @@ Frontend hiện là **một SPA theo tab sidebar**, không có URL route riêng 
 | `HomePage` | Trang hướng dẫn | Sinh viên, giảng viên, Phòng Đào tạo | Homepage giới thiệu phạm vi, 3 bước sử dụng, các kết quả có thể nhận và điều hướng nhanh |
 | `StudentSubmitView` | Hỏi đáp quy chế | Sinh viên | Gửi câu hỏi, chọn course/nhóm và xem quyết định AI |
 | `StudentHistoryView` | Hồ sơ của tôi | Sinh viên | Lịch sử câu hỏi + workflow tracker |
-| `FormatPrecheckPage` | Kiểm tra hình thức / Tiêu chí hình thức | Sinh viên, giảng viên | Nộp bài, quản lý bộ tiêu chí và xử lý các điểm mơ hồ |
 | `LecturerInboxView` | Hàng chờ thẩm định | Giảng viên | Danh sách escalation case, ra quyết định |
 | `ExceptionsView` | Ngoại lệ quy chế | Giảng viên | Xem và thu hồi policy exception |
-| `OperationsPage` | Trung tâm vận hành | Phòng Đào tạo | Theo dõi volume yêu cầu, case/SLA, ngoại lệ, tài liệu, format review và audit gần đây |
+| `OperationsPage` | Trung tâm vận hành | Phòng Đào tạo | Theo dõi yêu cầu, case/SLA, ngoại lệ, tài liệu và audit gần đây |
 | `AuditPage` | Audit Log | Chung | Toàn bộ audit event log |
 | `VerifyPage` | Verify Harness | Chung | Kiểm tra hệ thống và scenario demo |
 
@@ -587,7 +570,7 @@ Base URL: `/api` hoặc `/api/v1`
 ### Operations (Academic Affairs)
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/operations/overview` | Chỉ số vận hành: case, SLA, ngoại lệ, tài liệu, format review; sức khỏe policy và kết quả pre-check trong ngày; audit gần đây |
+| GET | `/operations/overview` | Chỉ số vận hành: câu hỏi, case, SLA, ngoại lệ, tài liệu và audit gần đây |
 
 ### Cases (Escalation)
 | Method | Path | Mô tả |
@@ -623,19 +606,6 @@ Base URL: `/api` hoặc `/api/v1`
 |--------|------|-------|
 | GET | `/demo/catalog` | Danh sách course/nhóm/giảng viên demo |
 | POST | `/demo/reset` | Xóa dữ liệu nghiệp vụ rồi seed lại demo và tài liệu |
-
-### Kiểm tra hình thức
-| Method | Path | Mô tả |
-|--------|------|-------|
-| GET | `/format-checks/criteria?course_id=...&report_type=...` | Danh sách bộ tiêu chí, có thể lọc theo loại báo cáo |
-| POST | `/format-checks/criteria/drafts` | Tạo bản nháp tiêu chí thủ công |
-| POST | `/format-checks/criteria/drafts/from-documents` | Trích xuất nháp tiêu chí từ tài liệu bằng AI |
-| POST | `/format-checks/criteria/{id}/approve` | Giảng viên duyệt bộ tiêu chí |
-| POST | `/format-checks/checks` | Upload DOCX/PDF để pre-check theo `report_type`; lưu snapshot policy/version/template |
-| GET | `/format-checks/reviews` | Case thể thức chờ giảng viên review |
-| GET | `/format-checks/reviews/student` | Case thể thức của sinh viên |
-| POST | `/format-checks/reviews/{id}/decision` | Ra quyết định cho một case thể thức |
-| GET | `/format-checks/metrics` | Chỉ số kiểm tra theo học phần |
 
 ---
 
@@ -703,16 +673,6 @@ ACTIVE | EXPIRED | REVOKED
 STUDENT | GROUP | COURSE
 ```
 
-### Flow 2 — Rule handling và kết quả pre-check
-```
-handling: BLOCKING | ADVISORY | MANUAL_REVIEW
-result:   PASS | NEEDS_FIX | NEEDS_REVIEW | UNABLE_TO_CHECK
-```
-
-- `BLOCKING` fail dẫn đến `NEEDS_FIX`; `ADVISORY` fail chỉ đưa khuyến nghị.
-- `MANUAL_REVIEW` hoặc bằng chứng mơ hồ tạo format-review case và `NEEDS_REVIEW`.
-- `UNABLE_TO_CHECK` chỉ dùng khi không có đủ dữ liệu tin cậy để đo; không kết luận bài sai.
-
 ---
 
 ## 11. Harness – Evaluation
@@ -770,8 +730,6 @@ GEMINI_EMBED_MODEL=gemini-embedding-001
 EMBEDDING_DIMENSIONS=768
 AI_REQUEST_TIMEOUT_SECONDS=30
 AI_MAX_CONCURRENCY=1
-FORMAT_CHECK_MAX_UPLOAD_BYTES=15728640
-FORMAT_REVIEW_RETENTION_DAYS=30
 
 # RAG
 RAG_TOP_K=8                           # Số chunks lấy ra từ vector search

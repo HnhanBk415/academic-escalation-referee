@@ -3,6 +3,7 @@ import { useState } from "react";
 import { postJson }    from "../api/client";
 import { PageHeader }  from "../components/PageHeader";
 import { RouteBadge }  from "../components/RouteBadge";
+import { IconCheck, IconLoader, IconX } from "../components/Icons";
 import type { QuestionResponse, Route } from "../types";
 
 /* ── Semantic routing verification cases ── */
@@ -412,15 +413,19 @@ export function VerifyPage() {
                     </td>
                     <td>
                       {!res && running && progress >= CASES.indexOf(item) && (
-                        <span className="muted" style={{ fontSize: 10 }}>⏳ Đang chạy…</span>
+                        <span className="muted" style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <IconLoader size={11} className="animate-spin" /> Đang chạy…
+                        </span>
                       )}
                       {res && (
                         res.passed ? (
-                          <span className="badge badge-pass">✓ PASS</span>
+                          <span className="badge badge-pass" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                            <IconCheck size={11} /> PASS
+                          </span>
                         ) : (
                           <details>
-                            <summary className="badge badge-fail" style={{ display: "inline-flex", cursor: "pointer" }}>
-                              ✗ FAIL
+                            <summary className="badge badge-fail" style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+                              <IconX size={11} /> FAIL
                             </summary>
                             <div style={{ marginTop: 6, fontSize: 10, color: "var(--muted)" }}>
                               {res.error && <div>Lỗi: {res.error}</div>}

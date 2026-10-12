@@ -1,12 +1,5 @@
-from typing import Any, Protocol
+from typing import Protocol
 
-from app.schemas.format_checks import (
-    CoverPageJudgment,
-    FormatCriterionInput,
-    FormatSemanticJudgment,
-    LLMBatchCriterionJudgment,
-    LLMSubmissionContentFacts,
-)
 from app.schemas.referee import AIHealth, RefereeDecision
 
 
@@ -25,51 +18,6 @@ class AIProvider(Protocol):
         evidence: list[dict],
         applicable_exceptions: list[dict],
     ) -> RefereeDecision: ...
-
-    async def judge_format_ambiguity(
-        self,
-        rule_type: str,
-        expected_items: list[str],
-        actual_items: list[str],
-        criterion_name: str,
-        source_citation: str,
-    ) -> FormatSemanticJudgment: ...
-
-    async def judge_cover_page(
-        self,
-        first_page_text: str,
-        required_elements: list[str],
-    ) -> CoverPageJudgment: ...
-
-    async def extract_regulation_criteria(
-        self,
-        regulation_text: str,
-        allow_semantic_equivalent: bool = True,
-    ) -> list[FormatCriterionInput]: ...
-
-    async def extract_submission_content_facts(
-        self,
-        full_text: str,
-        cover_text: str,
-    ) -> LLMSubmissionContentFacts: ...
-
-    async def judge_single_criterion(
-        self,
-        criterion_item: dict[str, Any],
-        submission_facts: dict[str, Any],
-    ) -> LLMBatchCriterionJudgment: ...
-
-    async def judge_multiple_criteria_individually(
-        self,
-        criteria_items: list[dict[str, Any]],
-        submission_facts: dict[str, Any],
-    ) -> dict[str, LLMBatchCriterionJudgment]: ...
-
-    async def batch_judge_submission_criteria(
-        self,
-        criteria_items: list[dict[str, Any]],
-        submission_facts: dict[str, Any],
-    ) -> dict[str, LLMBatchCriterionJudgment]: ...
 
     async def health(self) -> AIHealth: ...
 

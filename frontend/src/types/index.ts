@@ -177,115 +177,6 @@ export interface AuditEvent {
   created_at: string;
 }
 
-export type FormatRuleType = "MEASUREMENT" | "PRESENCE" | "TEMPLATE";
-export type FormatRuleHandling = "BLOCKING" | "ADVISORY" | "MANUAL_REVIEW";
-export type FormatResultStatus = "PASS" | "FAIL" | "UNMEASURABLE" | "AMBIGUOUS" | "MANUAL_REVIEW";
-
-export interface FormatCriterion {
-  id: string;
-  position: number;
-  name: string;
-  description: string;
-  rule_type: FormatRuleType;
-  handling: FormatRuleHandling;
-  when_unable_to_check: "UNABLE_TO_CHECK" | "NEEDS_REVIEW";
-  expected_value: Record<string, unknown>;
-  source_citation: string | null;
-  source_document_id: string | null;
-  review_only: boolean;
-  automatable: boolean;
-}
-
-export interface FormatCriteriaSet {
-  id: string;
-  course_id: string;
-  semester: string;
-  report_type: string;
-  version: number;
-  policy_id: string;
-  policy_version: string;
-  template_hash: string | null;
-  title: string;
-  status: "DRAFT" | "ACTIVE" | "SUPERSEDED";
-  source_document_ids: string[];
-  created_by: string;
-  approved_by: string | null;
-  approved_at: string | null;
-  created_at: string;
-  criteria: FormatCriterion[];
-}
-
-export interface FormatCriterionResult {
-  criterion_id: string;
-  name: string;
-  status: FormatResultStatus;
-  handling: FormatRuleHandling;
-  message: string;
-  expected_value: Record<string, unknown>;
-  actual_value: Record<string, unknown> | null;
-  source_citation: string | null;
-}
-
-export interface ChecklistSummaryItem {
-  index: number;
-  category: string;
-  status: string;
-  icon: string;
-  error_summary: string;
-  evidence: string;
-  suggestion: string;
-}
-
-export interface FormatCheckResponse {
-  overall_status: "PASS" | "NEEDS_FIX" | "NEEDS_REVIEW" | "UNABLE_TO_CHECK";
-  message: string;
-  check_run_id?: string | null;
-  criteria_set_id: string | null;
-  criteria_version: number | null;
-  criteria_approved_at: string | null;
-  semester?: string | null;
-  report_type?: string | null;
-  policy_id?: string | null;
-  policy_version?: string | null;
-  template_hash?: string | null;
-  results: FormatCriterionResult[];
-  review_case_id: string | null;
-  checklist_summary?: ChecklistSummaryItem[];
-  report_facts?: Record<string, unknown>;
-}
-
-export interface FormatReviewCase {
-  id: string;
-  course_id: string;
-  criteria_set_id: string;
-  actor_id: string;
-  filename: string;
-  extracted_snapshot: Record<string, unknown>;
-  ambiguous_results: Array<Record<string, unknown>>;
-  status: "UNDER_REVIEW" | "ACCEPTED" | "REQUIRES_FIX";
-  decision_reason: string | null;
-  decided_at: string | null;
-  expires_at: string;
-  created_at: string;
-}
-
-export interface FormatMetric {
-  course_id: string;
-  metric_date: string;
-  total_checks: number;
-  passed_checks: number;
-  needs_fix_checks: number;
-  needs_review_checks: number;
-  unable_to_check_checks: number;
-}
-
-export interface DocumentSummary {
-  id: string;
-  title: string;
-  status: string;
-  course_id: string;
-}
-
 export interface OperationsActivity {
   id: string;
   event_type: string;
@@ -301,12 +192,5 @@ export interface OperationsOverview {
   overdue_cases: number;
   active_exceptions: number;
   active_documents: number;
-  pending_format_reviews: number;
-  active_format_policy_profiles: number;
-  courses_without_active_format_policy: number;
-  format_checks_today: number;
-  format_needs_fix_today: number;
-  format_needs_review_today: number;
-  format_unable_to_check_today: number;
   recent_activity: OperationsActivity[];
 }

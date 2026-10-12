@@ -3,7 +3,6 @@ import { api, hasAccessToken, setAccessToken, setDemoActorId } from "./api/clien
 import { Sidebar, type ActiveTab, type Role } from "./components/Sidebar";
 import { AuditPage } from "./pages/AuditPage";
 import { ExceptionsView } from "./pages/ExceptionsView";
-import { FormatPrecheckPage } from "./pages/FormatPrecheckPage";
 import { HomePage } from "./pages/HomePage";
 import { LecturerInboxView } from "./pages/LecturerInboxView";
 import { LoginPage, type AuthActor } from "./pages/LoginPage";
@@ -202,14 +201,6 @@ export function App() {
             catalog={catalog}
             selectedCourseId={selectedCourseId}
             selectedGroupId={selectedGroupId}
-          />
-        )}
-        {activeTab === "format" && (
-          <FormatPrecheckPage
-            role={role === "student" ? "student" : "lecturer"}
-            catalog={catalog}
-            selectedCourseId={selectedCourseId}
-            onSelectCourse={handleSelectCourse}
           />
         )}
         {activeTab === "inbox" && (

@@ -10,14 +10,15 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "lucide-react": "^1.55.0",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
     "typescript": "latest",
     "vite": "latest",
     "vitest": "latest"

@@ -26,7 +26,7 @@ Set these secret/environment values in Render; do not commit them to the reposit
 | `AUTH_USERS_JSON` | JSON map of provisioned `actor_id` to PBKDF2 password record |
 
 The Blueprint supplies non-secret values such as `AI_MODE=gemini`, the Gemini models, RAG
-defaults, format-review limits, `PROMPT_VERSION=referee-v3-structured-exceptions` and
+defaults, `PROMPT_VERSION=referee-v3-structured-exceptions` and
 `AUTH_MODE=password`.
 
 In production, the browser first calls `POST /api/v1/auth/login`; the API stores neither the
@@ -51,6 +51,10 @@ For example, the final secret is shaped like:
 On boot, the container runs migrations and the idempotent demo seed before starting Uvicorn.
 This is deliberately fail-fast: a failed migration or seed leaves the deploy unhealthy instead of
 serving without policy documents.
+
+The application serves the academic question and escalation workflow (Flow 1).
+Questions, decisions, exceptions, source documents and the append-only audit trail are fully tracked.
+Database schema migrations are managed via Alembic under `migrations/`.
 
 Validate the API after Render reports the deploy healthy:
 
@@ -87,7 +91,8 @@ the production origin remains recommended.
 2. Confirm `/health` reports `database: ok` and `/health/ai` reports the intended provider.
 3. Sign in with a provisioned account, then submit one query and verify its citations. Use **Reset
    Data Demo** only with an Academic Affairs account when migrating an existing demo volume.
-4. Upload one small DOCX or PDF on **Kiểm tra hình thức** to validate cross-origin upload/CORS.
+4. Submit a request requiring approval, decide it from the reviewer inbox, then verify the
+   student history and Audit Trail reflect the decision.
 5. Check the Render logs for migrations, seed completion and request errors before sharing the URL.
 
 ## Local production-like verification

@@ -6,6 +6,7 @@ import { PageHeader }     from "../components/PageHeader";
 import { RouteBadge }     from "../components/RouteBadge";
 import { SLATimer }       from "../components/SLATimer";
 import { StepTracker }    from "../components/StepTracker";
+import { IconAlertCircle, IconCheckCircle, IconClipboard } from "../components/Icons";
 import type { CaseDetail, CaseSummary, PolicyException } from "../types";
 
 type Decision = "APPROVED" | "REJECTED" | "NEED_MORE_INFO" | "FORWARDED";
@@ -86,7 +87,7 @@ export function LecturerPage() {
         },
         { "Idempotency-Key": `${selected.id}-${decision}-${Date.now()}` },
       );
-      setNotice("✅ Đã lưu quyết định và cập nhật kết quả cho sinh viên.");
+      setNotice("Đã lưu quyết định và cập nhật kết quả cho sinh viên.");
       await loadData();
       setSelected(await api<CaseDetail>(`/api/v1/cases/${selected.id}`));
     } catch (e) {
@@ -121,7 +122,7 @@ export function LecturerPage() {
         actor_id: "lecturer-01",
         reason: revokeReason,
       });
-      setNotice("✅ Đã revoke exception. Câu hỏi sau sẽ áp dụng policy chung.");
+      setNotice("Đã revoke exception. Câu hỏi sau sẽ áp dụng policy chung.");
       await loadData();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể revoke.");
@@ -151,8 +152,18 @@ export function LecturerPage() {
         }
       />
 
-      {error  && <div className="error-banner"   role="alert">{error}</div>}
-      {notice && <div className="success-banner" role="status">{notice}</div>}
+      {error && (
+        <div className="error-banner flex items-center gap-2" role="alert">
+          <IconAlertCircle size={16} className="shrink-0 text-red-600" />
+          <span>{error}</span>
+        </div>
+      )}
+      {notice && (
+        <div className="success-banner flex items-center gap-2" role="status">
+          <IconCheckCircle size={16} className="shrink-0 text-emerald-600" />
+          <span>{notice}</span>
+        </div>
+      )}
 
       {/* Step tracker – shows current case status */}
       {selected && <StepTracker steps={CASE_STEPS} currentStep={caseStep} />}
@@ -190,7 +201,9 @@ export function LecturerPage() {
         <section className="panel case-detail">
           {!selected && (
             <div className="empty-state" style={{ minHeight: 440, display: "grid", placeContent: "center" }}>
-              <div className="empty-orbit">📋</div>
+              <div className="empty-orbit">
+                <IconClipboard size={28} />
+              </div>
               <h2>Chọn một hồ sơ</h2>
               <p>Evidence packet và phần quyết định sẽ xuất hiện tại đây.</p>
             </div>

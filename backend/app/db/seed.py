@@ -128,15 +128,6 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
     )
     await session.commit()
 
-    # 5b. Import immutable course/semester policy versions after their source
-    # documents exist. Re-running seed does not overwrite an existing version.
-    from app.services.format_policies import sync_format_policies
-
-    imported_policies = await sync_format_policies(session)
-    if imported_policies:
-        print(f"[Seed] Imported {imported_policies} format policy profile(s).", flush=True)
-    await session.commit()
-
     # 6. Seed configured groups and memberships.
     configured_groups = cfg.get("groups", [])
     configured_group_ids: set[str] = set()

@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api/client";
-import { IconBookOpen, IconCheck, IconRotateCcw, IconWarning, IconX } from "../components/Icons";
+import {
+  IconBookOpen,
+  IconCheck,
+  IconClock,
+  IconRotateCcw,
+  IconScroll,
+  IconSearch,
+  IconSparkle,
+  IconWarning,
+  IconX,
+} from "../components/Icons";
 import { StatusBadge, type CaseStatus } from "../components/StatusBadge";
 import { Stepper } from "../components/Stepper";
 import type { DemoCatalog, QuestionResponse } from "../types";
@@ -303,18 +313,10 @@ export function StudentHistoryView({
         {/* Search & Filter bar */}
         <div className="mt-4 flex items-center gap-3">
           <div className="relative flex-shrink-0">
-            <svg
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            <IconSearch
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              size={14}
+            />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -376,8 +378,9 @@ export function StudentHistoryView({
                 </span>
                 <span>{c.timestamp}</span>
                 {c.appliedExceptionId && (
-                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold rounded border border-indigo-200">
-                    ✨ Ngoại lệ #{c.appliedExceptionId}
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold rounded border border-indigo-200 inline-flex items-center gap-1">
+                    <IconSparkle size={11} />
+                    <span>Ngoại lệ #{c.appliedExceptionId}</span>
                   </span>
                 )}
               </div>
@@ -416,7 +419,7 @@ export function StudentHistoryView({
               {selected.appliedExceptionId && (
                 <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between text-xs shadow-xs">
                   <div className="flex items-center gap-2.5 text-indigo-900">
-                    <span className="text-lg">✨</span>
+                    <IconSparkle size={18} className="text-indigo-600 flex-shrink-0" />
                     <div>
                       <p className="font-bold text-indigo-900">
                         Đã áp dụng ngoại lệ: <span className="font-mono text-indigo-700">#{selected.appliedExceptionId}</span>
@@ -432,7 +435,7 @@ export function StudentHistoryView({
               {/* Exception Created Banner */}
               {selected.exceptionId && (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs shadow-xs">
-                  <span className="text-lg">📜</span>
+                  <IconScroll size={18} className="text-emerald-700 shrink-0" />
                   <div>
                     <p className="font-bold text-emerald-900">
                       Đã lưu ngoại lệ mới: <span className="font-mono text-emerald-700">#{selected.exceptionId}</span>
@@ -547,8 +550,9 @@ export function StudentHistoryView({
                           {selected.escalationNote ||
                             "Yêu cầu vượt thẩm quyền AI. Hồ sơ đã được chuyển tiếp lên Giảng viên phụ trách xem xét."}
                         </p>
-                        <p className="mt-2.5 text-xs text-amber-700 font-medium">
-                          ⏱️ Thời gian phản hồi dự kiến: Trong vòng 48 giờ làm việc. (Bấm "Làm mới kết quả" ở góc trên để cập nhật khi giảng viên xử lý xong)
+                        <p className="mt-2.5 text-xs text-amber-700 font-medium flex items-center gap-1.5">
+                          <IconClock size={13} className="flex-shrink-0" />
+                          <span>Thời gian phản hồi dự kiến: Trong vòng 48 giờ làm việc. (Bấm "Làm mới kết quả" ở góc trên để cập nhật khi giảng viên xử lý xong)</span>
                         </p>
                       </div>
                     </div>

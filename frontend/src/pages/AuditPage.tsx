@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { PageHeader } from "../components/PageHeader";
 import { RouteBadge } from "../components/RouteBadge";
+import { IconRotateCcw } from "../components/Icons";
 import type { AuditEvent } from "../types";
 
 export function AuditPage() {
@@ -38,9 +39,7 @@ export function AuditPage() {
         description="Mọi quyết định, routing AI, trích xuất căn cứ và can thiệp thủ công đều được ghi nhận bất biến (append-only)."
         actions={
           <button className="secondary-button" onClick={load}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-            </svg>
+            <IconRotateCcw size={14} />
             Làm mới nhật ký
           </button>
         }

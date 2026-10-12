@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { api, postJson } from "../api/client";
 import {
+  IconAlertCircle,
   IconArrowUpRight,
   IconBookOpen,
   IconCheck,
+  IconCheckCircle,
   IconClock,
   IconInfo,
   IconSparkle,
@@ -183,12 +185,12 @@ export function LecturerInboxView({
 
       if (res?.exception_id) {
         setMessage(
-          `✓ Đã phê duyệt và lưu ngoại lệ thành công! Mã ngoại lệ: #${res.exception_id}`
+          `Đã phê duyệt và lưu ngoại lệ thành công! Mã ngoại lệ: #${res.exception_id}`
         );
       } else if (decision === "APPROVED") {
-        setMessage("✓ Đã phê duyệt một lần thành công (không lưu ngoại lệ).");
+        setMessage("Đã phê duyệt một lần thành công (không lưu ngoại lệ).");
       } else {
-        setMessage("✓ Đã gửi thông báo từ chối yêu cầu.");
+        setMessage("Đã gửi thông báo từ chối yêu cầu.");
       }
 
       // Remove from active queue
@@ -676,13 +678,18 @@ export function LecturerInboxView({
                 {/* Feedback message */}
                 {message && (
                   <div
-                    className={`p-3 rounded-lg text-xs font-semibold ${
-                      message.startsWith("✓")
-                        ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-                        : "bg-rose-50 border border-rose-200 text-rose-800"
+                    className={`p-3 rounded-lg text-xs font-semibold flex items-center gap-2 ${
+                      message.startsWith("Lỗi")
+                        ? "bg-rose-50 border border-rose-200 text-rose-800"
+                        : "bg-emerald-50 border border-emerald-200 text-emerald-800"
                     }`}
                   >
-                    {message}
+                    {message.startsWith("Lỗi") ? (
+                      <IconAlertCircle size={15} className="shrink-0 text-rose-600" />
+                    ) : (
+                      <IconCheckCircle size={15} className="shrink-0 text-emerald-600" />
+                    )}
+                    <span>{message}</span>
                   </div>
                 )}
 

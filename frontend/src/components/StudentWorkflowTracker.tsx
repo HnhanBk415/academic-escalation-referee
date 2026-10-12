@@ -1,5 +1,17 @@
 import React from "react";
-import { IconCheck, IconInfo, IconSparkle, IconTeacher, IconX } from "./Icons";
+import {
+  IconBan,
+  IconBot,
+  IconCheck,
+  IconGlobe,
+  IconHelp,
+  IconHourglass,
+  IconInfo,
+  IconSparkle,
+  IconTeacher,
+  IconX,
+  IconZap,
+} from "./Icons";
 import type { QuestionResponse } from "../types";
 
 interface StudentWorkflowTrackerProps {
@@ -56,38 +68,38 @@ export function StudentWorkflowTracker({
             </span>
           ) : result?.applied_exception_id ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              ⚡ Đã áp dụng ngoại lệ #{result.applied_exception_id}
+              <IconZap size={13} className="text-emerald-600" />
+              Đã áp dụng ngoại lệ #{result.applied_exception_id}
             </span>
           ) : isAnswer ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              🤖 Trả lời tự động bởi AI Referee
+              <IconBot size={13} className="text-emerald-600" />
+              Trả lời tự động bởi AI Referee
             </span>
           ) : isApproved ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200">
-              <span className="w-2 h-2 rounded-full bg-purple-600"></span>
-              ✓ Giảng viên đã phê duyệt / phản hồi
+              <IconCheck size={13} className="text-purple-600" />
+              Giảng viên đã phê duyệt / phản hồi
             </span>
           ) : isEscalate ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-[#DC2626] border border-red-200">
-              <span className="w-2 h-2 rounded-full bg-[#DC2626] animate-ping"></span>
-              👨‍🏫 Chuyển Giảng viên
+              <IconTeacher size={13} className="text-[#DC2626]" />
+              Chuyển Giảng viên
             </span>
           ) : isOutOfScope ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-              <span className="w-2 h-2 rounded-full bg-purple-600"></span>
-              🌐 Ngoài phạm vi — liên hệ đơn vị phụ trách
+              <IconGlobe size={13} className="text-purple-600" />
+              Ngoài phạm vi — liên hệ đơn vị phụ trách
             </span>
           ) : isRejected ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-300">
-              <span className="w-2 h-2 rounded-full bg-rose-600"></span>
-              🛑 Yêu cầu bị từ chối
+              <IconBan size={13} className="text-rose-600" />
+              Yêu cầu bị từ chối
             </span>
           ) : isClarify ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
-              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-              ❓ AI yêu cầu làm rõ dữ kiện
+              <IconHelp size={13} className="text-sky-600" />
+              AI yêu cầu làm rõ dữ kiện
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
@@ -238,7 +250,7 @@ export function StudentWorkflowTracker({
               ) : isRejected ? (
                 <IconX size={18} />
               ) : isClarify ? (
-                <span className="text-sm font-bold">?</span>
+                <IconHelp size={18} />
               ) : (
                 <span className="text-xs font-bold text-slate-500">3</span>
               )}
@@ -278,8 +290,8 @@ export function StudentWorkflowTracker({
                 ? citationSnippet
                 : isEscalate
                 ? result?.case_id
-                  ? `Hồ sơ #${result.case_id} chuyển tiếp Thầy/Cô`
-                  : "Chuyển tiếp Giảng viên phụ trách"
+                ? `Hồ sơ #${result.case_id} chuyển tiếp Thầy/Cô`
+                : "Chuyển tiếp Giảng viên phụ trách"
                 : isOutOfScope
                 ? "Liên hệ đơn vị phụ trách theo hướng dẫn"
                 : isRejected
@@ -289,23 +301,35 @@ export function StudentWorkflowTracker({
                 : "Phản hồi chính thức"}
             </p>
 
-            <p className="text-[11px] mt-0.5 font-semibold">
+            <div className="text-[11px] mt-1 font-semibold">
               {isApproved ? (
-                <span className="text-purple-700">✓ Đã được phê duyệt & ghi nhận ngoại lệ</span>
+                <span className="text-purple-700 inline-flex items-center gap-1">
+                  <IconCheck size={12} /> Đã được phê duyệt & ghi nhận ngoại lệ
+                </span>
               ) : isAnswer ? (
-                <span className="text-emerald-700">✓ Đầy đủ căn cứ pháp lý · Trả lời tự động</span>
+                <span className="text-emerald-700 inline-flex items-center gap-1">
+                  <IconCheck size={12} /> Đầy đủ căn cứ pháp lý · Trả lời tự động
+                </span>
               ) : isEscalate ? (
-                <span className="text-red-700">⏳ Giảng viên phụ trách xem xét & quyết định</span>
+                <span className="text-red-700 inline-flex items-center gap-1">
+                  <IconHourglass size={12} /> Giảng viên phụ trách xem xét & quyết định
+                </span>
               ) : isOutOfScope ? (
-                <span className="text-purple-700">🌐 Ngoài phạm vi — liên hệ đơn vị phụ trách</span>
+                <span className="text-purple-700 inline-flex items-center gap-1">
+                  <IconGlobe size={12} /> Ngoài phạm vi — liên hệ đơn vị phụ trách
+                </span>
               ) : isRejected ? (
-                <span className="text-rose-700">🛑 Yêu cầu bị từ chối</span>
+                <span className="text-rose-700 inline-flex items-center gap-1">
+                  <IconBan size={12} /> Yêu cầu bị từ chối
+                </span>
               ) : isClarify ? (
-                <span className="text-sky-700">❓ Chờ sinh viên bổ sung tình huống cụ thể</span>
+                <span className="text-sky-700 inline-flex items-center gap-1">
+                  <IconHelp size={12} /> Chờ sinh viên bổ sung tình huống cụ thể
+                </span>
               ) : (
                 <span className="text-slate-400">Tự động đối soát bởi AI hoặc Giảng viên</span>
               )}
-            </p>
+            </div>
           </div>
         </div>
       </div>
