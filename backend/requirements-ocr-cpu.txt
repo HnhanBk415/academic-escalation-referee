@@ -1,0 +1,4 @@
+# VietOCR imports these at runtime but does not declare them in its package
+# metadata. Keep the CPU wheels explicit and reproducible for Docker builds.
+torch==2.5.1
+torchvision==0.20.1
