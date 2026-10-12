@@ -1108,7 +1108,7 @@ tr:hover td { background: var(--slate-50); }
 .doc-panel-heading > strong { border-radius: 6px; background: #fef2f2; color: var(--crimson); padding: 4px 7px; font-size: 11px; }
 .doc-fields { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 12px; margin-bottom: 14px; }
 .doc-panel label { display: grid; gap: 6px; color: var(--slate-700); font-size: 12px; font-weight: 700; }
-.doc-panel input, .doc-panel textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--slate-300); border-radius: 7px; padding: 9px 10px; font: inherit; color: var(--navy); background: #fff; }
+.doc-panel input, .doc-panel textarea, .doc-panel select { width: 100%; box-sizing: border-box; border: 1px solid var(--slate-300); border-radius: 7px; padding: 9px 10px; font: inherit; color: var(--navy); background: #fff; }
 .doc-panel textarea { resize: vertical; line-height: 1.55; }
 .upload-drop { display: grid; place-items: center; text-align: center; min-height: 92px; padding: 16px; border: 1px dashed #94a3b8; border-radius: 9px; background: #f8fafc; cursor: pointer; }
 .upload-drop input { position: absolute; width: 1px; opacity: 0; }

@@ -250,6 +250,31 @@ class PolicyException(Base):
     revocation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class PolicyUpdate(Base):
+    """A lecturer-published policy layer sourced from an uploaded document."""
+
+    __tablename__ = "policy_updates"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source_document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
+    source_chunk_id: Mapped[str | None] = mapped_column(ForeignKey("document_chunks.id"), nullable=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
+    scope_type: Mapped[str] = mapped_column(String(20), index=True)
+    scope_id: Mapped[str] = mapped_column(String(64), index=True)
+    policy_topic: Mapped[str] = mapped_column(String(100), index=True)
+    operation: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    valid_from: Mapped[date] = mapped_column(Date)
+    valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    supersedes_policy_update_id: Mapped[str | None] = mapped_column(
+        ForeignKey("policy_updates.id"), nullable=True, index=True
+    )
+    created_by: Mapped[str] = mapped_column(ForeignKey("actors.id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (

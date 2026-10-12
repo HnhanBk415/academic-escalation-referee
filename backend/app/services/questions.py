@@ -13,6 +13,7 @@ from app.core.enums import (
     EscalationTarget,
     ExceptionStatus,
     PolicyCoverage,
+    PolicyUpdateStatus,
     QuestionStatus,
     Route,
     ScopeType,
@@ -34,6 +35,7 @@ from app.models import (
     GroupMembership,
     HumanDecision,
     PolicyException,
+    PolicyUpdate,
     Question,
     RetrievalEvidence,
 )
@@ -193,6 +195,108 @@ async def _load_exceptions(
         }
         for item in records
     ]
+
+
+async def _load_policy_updates(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    group_id: str | None,
+    course_id: str,
+) -> list[dict]:
+    """Load the active policy-update layer using the same scope precedence as exceptions."""
+    today = date.today()
+    scopes = [
+        and_(PolicyUpdate.scope_type == ScopeType.STUDENT, PolicyUpdate.scope_id == actor_id),
+        and_(PolicyUpdate.scope_type == ScopeType.COURSE, PolicyUpdate.scope_id == course_id),
+    ]
+    if group_id:
+        scopes.append(and_(PolicyUpdate.scope_type == ScopeType.GROUP, PolicyUpdate.scope_id == group_id))
+    records = (await session.scalars(
+        select(PolicyUpdate)
+        .where(
+            PolicyUpdate.course_id == course_id,
+            PolicyUpdate.status == PolicyUpdateStatus.ACTIVE,
+            PolicyUpdate.valid_from <= today,
+            or_(PolicyUpdate.valid_until.is_(None), PolicyUpdate.valid_until >= today),
+            or_(*scopes),
+        )
+        .order_by(
+            sql_case(
+                (PolicyUpdate.scope_type == ScopeType.STUDENT, 0),
+                (PolicyUpdate.scope_type == ScopeType.GROUP, 1),
+                else_=2,
+            ),
+            PolicyUpdate.published_at.desc(),
+        )
+    )).all()
+    return [
+        {
+            "id": item.id,
+            "source_document_id": item.source_document_id,
+            "source_chunk_id": item.source_chunk_id,
+            "scope_type": item.scope_type,
+            "scope_id": item.scope_id,
+            "policy_topic": item.policy_topic,
+            "operation": item.operation,
+            "content": item.content,
+        }
+        for item in records
+    ]
+
+
+def _applicable_policy_update(question: str, updates: list[dict]) -> dict | None:
+    topic = canonical_policy_topic(infer_policy_topic(question))
+    return next(
+        (
+            update for update in updates
+            if update["operation"] != "REVOKE"
+            and canonical_policy_topic(str(update["policy_topic"])) == topic
+        ),
+        None,
+    )
+
+
+async def _prepend_policy_update_evidence(
+    session: AsyncSession, update: dict, evidence: list[dict]
+) -> list[dict]:
+    chunk_id = update.get("source_chunk_id")
+    if not chunk_id:
+        return evidence
+    row = await session.execute(
+        select(DocumentChunk, Document)
+        .join(Document, Document.id == DocumentChunk.document_id)
+        .where(DocumentChunk.id == chunk_id)
+    )
+    item = row.first()
+    if item is None:
+        return evidence
+    chunk, document = item
+    preferred = {
+        "label": "PU1",
+        "chunk_id": chunk.id,
+        "document_id": document.id,
+        "document_title": document.title,
+        "page_number": chunk.page_number,
+        "heading": chunk.heading,
+        "content": chunk.content,
+        "score": 1.0,
+    }
+    return [preferred, *[entry for entry in evidence if entry["chunk_id"] != chunk.id]]
+
+
+def _policy_update_decision(update: dict, evidence: list[dict]) -> RefereeDecision:
+    excerpt = " ".join(str(update["content"]).split())[:1000]
+    return RefereeDecision(
+        route=Route.ANSWER,
+        policy_coverage=PolicyCoverage.DIRECT,
+        policy_topic=canonical_policy_topic(str(update["policy_topic"])),
+        uncertainty_type=UncertaintyType.NONE,
+        reason_code="ACTIVE_POLICY_UPDATE",
+        answer=f"Theo cập nhật quy định đang có hiệu lực: {excerpt}",
+        citation_labels=[evidence[0]["label"]] if evidence else [],
+        confidence=1,
+    )
 
 
 async def _has_conflicting_documents(session: AsyncSession, course_id: str) -> bool:
@@ -414,6 +518,17 @@ async def submit_question(
         group_id=group.id if group else None,
         course_id=course.id,
     )
+    policy_updates = await _load_policy_updates(
+        session,
+        actor_id=actor.id,
+        group_id=group.id if group else None,
+        course_id=course.id,
+    )
+    selected_policy_update = _applicable_policy_update(payload.text, policy_updates)
+    if selected_policy_update:
+        evidence = await _prepend_policy_update_evidence(
+            session, selected_policy_update, evidence
+        )
     has_conflicting_evidence = await _has_conflicting_documents(session, course.id)
     for rank, item in enumerate(evidence, start=1):
         session.add(
@@ -434,7 +549,11 @@ async def submit_question(
         entity_id=question.id,
         request_id=request_id,
         evidence_ids=[item["chunk_id"] for item in evidence],
-        output_snapshot={"count": len(evidence), "exception_ids": [e["id"] for e in exceptions]},
+        output_snapshot={
+            "count": len(evidence),
+            "exception_ids": [e["id"] for e in exceptions],
+            "policy_update_id": selected_policy_update["id"] if selected_policy_update else None,
+        },
     )
     # Retrieval and scope data are now durable; release the connection before
     # the model decision call. A provider failure is recorded in a new transaction.
@@ -443,13 +562,21 @@ async def submit_question(
     decision = _guardrail_decision(
         payload.text,
         has_group=group is not None,
-        has_conflicting_evidence=has_conflicting_evidence,
+        has_conflicting_evidence=False,
     )
     if decision is None:
         # A lecturer-approved scoped exception is a hard precedence rule; the
         # provider receives it too, but cannot accidentally answer from a
         # newer/older document instead.
         decision = _approved_exception_decision(payload.text, exceptions, evidence)
+    if decision is None and selected_policy_update:
+        decision = _policy_update_decision(selected_policy_update, evidence)
+    if decision is None and has_conflicting_evidence:
+        decision = _guardrail_decision(
+            payload.text,
+            has_group=group is not None,
+            has_conflicting_evidence=True,
+        )
     started = perf_counter()
     used_provider = decision is None
     ai_failed = False

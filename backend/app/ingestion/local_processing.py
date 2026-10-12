@@ -11,7 +11,7 @@ import re
 import shutil
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,60 +19,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.enums import DocumentStatus
+from app.core.enums import DocumentStatus, PolicyUpdateStatus
 from app.core.errors import AppError
-from app.models import Course, Document, DocumentChunk, DocumentProcessing, DocumentReviewItem
+from app.core.policy_topics import canonical_policy_topic
+from app.models import Course, Document, DocumentChunk, DocumentProcessing, DocumentReviewItem, PolicyUpdate
 from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewItemResponse
 
 SUPPORTED_SUFFIXES = {".pdf": "PDF", ".docx": "DOCX", ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE"}
-
-
-def _content_similarity(left: str, right: str) -> float:
-    """A local, explainable overlap score for deciding whether a rule was updated.
-
-    This intentionally does not use filenames or document titles.  A new file
-    may add unrelated regulations; only a strongly overlapping rule replaces
-    its prior chunk, leaving unrelated older rules searchable.
-    """
-    left_tokens = set(re.findall(r"\w+", left.casefold(), flags=re.UNICODE))
-    right_tokens = set(re.findall(r"\w+", right.casefold(), flags=re.UNICODE))
-    if not left_tokens or not right_tokens:
-        return 0.0
-    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
-
-
-async def supersede_overlapping_rules(session: AsyncSession, document: Document) -> int:
-    """Retire only older chunks whose regulation content was actually updated."""
-    new_chunks = list((await session.scalars(
-        select(DocumentChunk).where(DocumentChunk.document_id == document.id)
-    )).all())
-    older_rows = (await session.execute(
-        select(DocumentChunk, Document)
-        .join(Document, Document.id == DocumentChunk.document_id)
-        .where(
-            DocumentChunk.course_id == document.course_id,
-            DocumentChunk.document_id != document.id,
-            Document.status == DocumentStatus.ACTIVE,
-        )
-    )).all()
-    superseded = 0
-    for newer in new_chunks:
-        for older, _ in older_rows:
-            metadata = older.chunk_metadata or {}
-            if metadata.get("superseded", False):
-                continue
-            similarity = _content_similarity(newer.content, older.content)
-            if similarity < 0.65:
-                continue
-            older.chunk_metadata = {
-                **metadata,
-                "superseded": True,
-                "superseded_by_document_id": document.id,
-                "superseded_reason": "NEWER_OVERLAPPING_CONTENT",
-                "content_overlap": round(similarity, 3),
-            }
-            superseded += 1
-    return superseded
 
 
 @dataclass
@@ -358,7 +311,81 @@ async def update_review_item(
     return processing
 
 
-async def finalize_processing(session: AsyncSession, processing_id: str, provider) -> ProcessingResponse:
+async def _publish_policy_update(
+    session: AsyncSession, *, processing: DocumentProcessing, document: Document, publication: dict,
+) -> PolicyUpdate:
+    operation = publication["operation"]
+    scope_type = publication["scope_type"]
+    scope_id = publication.get("scope_id") or (document.course_id if scope_type == "COURSE" else None)
+    if not scope_id:
+        raise AppError("UPDATE_SCOPE_REQUIRED", "Cần chọn đối tượng áp dụng cho cập nhật quy định.", status_code=422)
+    if scope_type == "COURSE" and scope_id != document.course_id:
+        raise AppError("UPDATE_SCOPE_INVALID", "Phạm vi COURSE phải trùng với học phần của tài liệu.", status_code=422)
+    target_id = publication.get("supersedes_policy_update_id")
+    target = await session.get(PolicyUpdate, target_id) if target_id else None
+    if target and target.course_id != document.course_id:
+        raise AppError("UPDATE_TARGET_INVALID", "Bản cập nhật được chọn không thuộc học phần này.", status_code=422)
+    if operation == "REVOKE" and target is None:
+        raise AppError("UPDATE_TARGET_REQUIRED", "Thu hồi cần chọn bản cập nhật cần thu hồi.", status_code=422)
+    source_chunk = await session.scalar(
+        select(DocumentChunk)
+        .where(DocumentChunk.document_id == document.id)
+        .order_by(DocumentChunk.chunk_index)
+    )
+    if operation == "REPLACE":
+        targets = [target] if target else list((await session.scalars(
+            select(PolicyUpdate).where(
+                PolicyUpdate.course_id == document.course_id,
+                PolicyUpdate.scope_type == scope_type,
+                PolicyUpdate.scope_id == scope_id,
+                PolicyUpdate.policy_topic == canonical_policy_topic(publication["policy_topic"]),
+                PolicyUpdate.status == PolicyUpdateStatus.ACTIVE,
+            )
+        )).all())
+        for item in targets:
+            if item:
+                item.status = PolicyUpdateStatus.SUPERSEDED
+    elif operation == "REVOKE" and target:
+        target.status = PolicyUpdateStatus.REVOKED
+
+    update = PolicyUpdate(
+        id=f"policy-update-{uuid.uuid4().hex[:18]}",
+        source_document_id=document.id,
+        source_chunk_id=source_chunk.id if source_chunk else None,
+        course_id=document.course_id,
+        scope_type=scope_type,
+        scope_id=scope_id,
+        policy_topic=canonical_policy_topic(publication["policy_topic"]),
+        operation=operation,
+        content=processing.clean_text or processing.raw_text,
+        valid_from=publication.get("valid_from") or date.today(),
+        valid_until=publication.get("valid_until"),
+        status=PolicyUpdateStatus.REVOKED if operation == "REVOKE" else PolicyUpdateStatus.ACTIVE,
+        supersedes_policy_update_id=target.id if target else None,
+        created_by=processing.created_by,
+        published_at=datetime.now(UTC),
+    )
+    session.add(update)
+    from app.services.audit import add_audit_event
+    add_audit_event(
+        session,
+        event_type="POLICY_UPDATE_PUBLISHED",
+        actor_id=processing.created_by,
+        entity_type="policy_update",
+        entity_id=update.id,
+        input_snapshot={
+            "operation": operation,
+            "policy_topic": update.policy_topic,
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "supersedes_policy_update_id": update.supersedes_policy_update_id,
+        },
+        output_snapshot={"status": update.status, "source_document_id": document.id},
+    )
+    return update
+
+
+async def finalize_processing(session: AsyncSession, processing_id: str, provider, publication: dict) -> ProcessingResponse:
     processing = await get_processing(session, processing_id)
     if processing.status == "COMPLETED":
         return await processing_response(session, processing)
@@ -407,10 +434,9 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
         processing.error_message = exc.message if isinstance(exc, AppError) else "Không thể lập chỉ mục văn bản Local."
         await session.commit()
         raise
-    # A filename/title is not reliable version lineage.  Keep older documents
-    # active for supplementary rules, but hide an older chunk only where the
-    # newly confirmed content substantially overlaps it.
-    await supersede_overlapping_rules(session, document)
+    await _publish_policy_update(
+        session, processing=processing, document=document, publication=publication
+    )
     if document.supersedes_document_id:
         older = await session.get(Document, document.supersedes_document_id)
         if older:

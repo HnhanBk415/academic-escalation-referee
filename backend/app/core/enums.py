@@ -88,3 +88,10 @@ class ExceptionStatus(StrEnum):
     ACTIVE = "ACTIVE"
     EXPIRED = "EXPIRED"
     REVOKED = "REVOKED"
+
+
+class PolicyUpdateStatus(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+    REVOKED = "REVOKED"

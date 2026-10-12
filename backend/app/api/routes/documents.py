@@ -27,7 +27,7 @@ from app.ingestion.local_processing import (
 from app.ingestion.service import ingest_document
 from app.schemas.documents import (
     DocumentCreate, DocumentResponse, IngestResponse, ProcessingCreate,
-    ProcessingResponse, ReviewItemUpdate,
+    ProcessingFinalize, ProcessingResponse, ReviewItemUpdate,
 )
 from app.services.documents import (
     get_document_response,
@@ -177,10 +177,13 @@ async def confirm_review_item(
 @router.post("/processing/{processing_id}/finalize", response_model=ProcessingResponse)
 async def finalize_document_processing(
     processing_id: str, session: SessionDependency, provider: ProviderDependency,
+    payload: ProcessingFinalize | None = None,
     current: CurrentActor = Depends(get_current_actor),
 ) -> ProcessingResponse:
     require_role(current, ActorRole.LECTURER, ActorRole.ACADEMIC_AFFAIRS)
-    return await finalize_processing(session, processing_id, provider)
+    return await finalize_processing(
+        session, processing_id, provider, (payload or ProcessingFinalize()).model_dump()
+    )
 
 
 @router.get("/processing/{processing_id}/review-items/{review_id}/crop")

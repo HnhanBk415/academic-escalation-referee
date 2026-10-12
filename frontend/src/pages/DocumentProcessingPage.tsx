@@ -15,6 +15,11 @@ export function DocumentProcessingPage({ courseId }: Props) {
   const [selected, setSelected] = useState<ReviewItem | null>(null);
   const [draft, setDraft] = useState("");
   const [cropUrl, setCropUrl] = useState<string | null>(null);
+  const [operation, setOperation] = useState<"ADD" | "REPLACE" | "REVOKE" | "CLARIFY">("ADD");
+  const [policyTopic, setPolicyTopic] = useState("GENERAL");
+  const [scopeType, setScopeType] = useState<"COURSE" | "GROUP" | "STUDENT">("COURSE");
+  const [scopeId, setScopeId] = useState("");
+  const [targetUpdateId, setTargetUpdateId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -95,8 +100,11 @@ export function DocumentProcessingPage({ courseId }: Props) {
     if (!processing) return;
     setBusy(true); setError("");
     try {
-      const result = await api<ProcessingResponse>(`/api/v1/documents/processing/${processing.id}/finalize`, { method: "POST" });
-      setProcessing(result); setNotice("Đã xuất bản, lập chỉ mục Local và ưu tiên phần quy định được cập nhật khi trả lời sinh viên.");
+      const result = await api<ProcessingResponse>(`/api/v1/documents/processing/${processing.id}/finalize`, {
+        method: "POST",
+        body: JSON.stringify({ operation, policy_topic: policyTopic, scope_type: scopeType, scope_id: scopeType === "COURSE" ? courseId : scopeId || null, supersedes_policy_update_id: targetUpdateId || null }),
+      });
+      setProcessing(result); setNotice("Đã xuất bản thành lớp cập nhật quy định; ngoại lệ đã duyệt vẫn được ưu tiên cao hơn.");
     } catch (e) { setError(e instanceof Error ? e.message : "Không thể xác nhận tài liệu."); }
     finally { setBusy(false); }
   };
@@ -136,7 +144,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
         <section className="doc-panel review-list"><div className="doc-panel-heading"><div><h2>Cần rà soát</h2><p>Độ tin cậy thấp hơn ngưỡng 0.80.</p></div><strong>{pending.length}</strong></div>{pending.length ? pending.map((item) => <button key={item.id} className={`review-row ${selected?.id === item.id ? "selected" : ""}`} onClick={() => chooseReview(item)}><span>Cần rà soát</span><strong>{item.predicted_text}</strong><small>{Math.round(item.confidence * 100)}% · trang {item.page_number ?? "–"}</small></button>) : <div className="review-empty">Không còn vùng nào cần xác nhận.</div>}</section>
         <section className="doc-panel review-detail">{selected ? <><div className="doc-panel-heading"><div><h2>Xác nhận nhận diện</h2><p>Giữ nguyên dự đoán hoặc sửa trực tiếp.</p></div><strong>{Math.round(selected.confidence * 100)}%</strong></div>{cropUrl && <img className="ocr-crop" src={cropUrl} alt="Vùng ảnh cần rà soát" />}<div className="ocr-context"><span>{selected.context_before || "…"}</span><mark>{selected.predicted_text}</mark><span>{selected.context_after || "…"}</span></div><label>Nội dung xác nhận<textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} /></label><div className="review-actions"><button className="secondary-button" disabled={busy} onClick={() => saveReview(true)}>Giữ dự đoán</button><button className="primary-button" disabled={busy} onClick={() => saveReview(false)}>Lưu chỉnh sửa</button></div></> : <div className="review-empty">Chọn một vùng nghi vấn để xem crop và ngữ cảnh ba từ trước/sau.</div>}</section>
       </div>}
-      <section className="doc-panel clean-preview"><div className="doc-panel-heading"><div><h2>Văn bản sạch</h2><p>Chỉ có thể xuất bản sau khi hoàn tất rà soát.</p></div></div><pre>{processing.clean_text ?? processing.raw_text}</pre>{processing.status !== "COMPLETED" ? <button className="primary-button" disabled={busy || processing.pending_review_count > 0} onClick={finalize}>{busy ? "Đang lập chỉ mục…" : "Xác nhận & xuất bản phiên bản"}</button> : <div className="export-actions"><button className="secondary-button" onClick={() => void download("txt")}>Tải TXT</button><button className="primary-button" onClick={() => void download("json")}>Tải JSON</button></div>}</section>
+      <section className="doc-panel clean-preview"><div className="doc-panel-heading"><div><h2>Văn bản sạch</h2><p>Chỉ có thể xuất bản sau khi hoàn tất rà soát.</p></div></div><pre>{processing.clean_text ?? processing.raw_text}</pre>{processing.status !== "COMPLETED" ? <><div className="doc-fields policy-update-fields"><label>Thao tác cập nhật<select value={operation} onChange={(e) => setOperation(e.target.value as typeof operation)}><option value="ADD">Bổ sung quy định</option><option value="REPLACE">Thay thế quy định</option><option value="REVOKE">Thu hồi cập nhật</option><option value="CLARIFY">Làm rõ quy định</option></select></label><label>Chủ đề<select value={policyTopic} onChange={(e) => setPolicyTopic(e.target.value)}><option value="GENERAL">Chung</option><option value="SUBMISSION_DEADLINE">Hạn nộp</option><option value="GROUP_MEMBERSHIP">Thành viên nhóm</option><option value="AI_USAGE">Sử dụng AI</option><option value="GRADING_RUBRIC">Rubric</option></select></label><label>Phạm vi<select value={scopeType} onChange={(e) => setScopeType(e.target.value as typeof scopeType)}><option value="COURSE">Học phần</option><option value="GROUP">Nhóm</option><option value="STUDENT">Sinh viên</option></select></label>{scopeType !== "COURSE" && <label>Mã đối tượng<input value={scopeId} onChange={(e) => setScopeId(e.target.value)} placeholder={scopeType === "GROUP" ? "VD: group-a" : "VD: student-a1"} /></label>}{operation === "REVOKE" && <label>Mã cập nhật cần thu hồi<input value={targetUpdateId} onChange={(e) => setTargetUpdateId(e.target.value)} placeholder="policy-update-..." /></label>}</div><button className="primary-button" disabled={busy || processing.pending_review_count > 0 || (scopeType !== "COURSE" && !scopeId.trim()) || (operation === "REVOKE" && !targetUpdateId.trim())} onClick={finalize}>{busy ? "Đang lập chỉ mục…" : "Xác nhận & xuất bản cập nhật"}</button></> : <div className="export-actions"><button className="secondary-button" onClick={() => void download("txt")}>Tải TXT</button><button className="primary-button" onClick={() => void download("json")}>Tải JSON</button></div>}</section>
     </>}
   </div>;
 }
