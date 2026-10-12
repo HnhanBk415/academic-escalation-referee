@@ -7,15 +7,6 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 
-# Install the CPU-only PyTorch runtime before application source.  VietOCR
-# imports torch/torchvision but does not declare them as package dependencies.
-# Keeping this layer separate lets Docker reuse the large wheels for code-only
-# changes.
-COPY backend/requirements-ocr-cpu.txt ./requirements-ocr-cpu.txt
-RUN pip install --no-cache-dir --prefix=/install \
-    --index-url https://download.pytorch.org/whl/cpu \
-    -r requirements-ocr-cpu.txt
-
 # Copy backend source and install into a local prefix
 COPY backend/ ./backend/
 RUN pip install --no-cache-dir --prefix=/install ./backend
@@ -40,8 +31,8 @@ COPY --from=builder /build/backend/scripts ./scripts
 # Copy sample data for RAG ingestion/seeding
 COPY data ./data
 
-# VietOCR downloads its approved pretrained weights once on first use when the
-# mounted local path is empty, then reuses that local copy.
+# Gemini Vision is the default document OCR provider. VietOCR remains an
+# optional local fallback and needs PyTorch/torchvision installed separately.
 
 # Non-root user
 RUN adduser --disabled-password --gecos "" aer && chown -R aer:aer /app

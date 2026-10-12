@@ -71,7 +71,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
       setProcessing(result);
       const first = result.review_items.find((item) => item.status === "PENDING") ?? null;
       if (first) chooseReview(first);
-      setNotice(first ? "Đã trích xuất Local. Hãy rà soát các vùng được đánh dấu." : "Đã trích xuất Local. Nội dung sẵn sàng xác nhận.");
+      setNotice(first ? "Đã trích xuất. Hãy rà soát các vùng được đánh dấu." : "Đã trích xuất. Nội dung sẵn sàng xác nhận.");
     } catch (e) { setError(e instanceof Error ? e.message : "Không thể xử lý tài liệu."); }
     finally { setBusy(false); }
   };
@@ -119,13 +119,13 @@ export function DocumentProcessingPage({ courseId }: Props) {
 
   return <div className="doc-workspace">
     <section className="doc-intro">
-      <div><p className="eyebrow">LOCAL / OFFLINE · VIETOCR REVIEW</p><h1>Tiếp nhận quy định</h1><p>File chỉ được lưu và xử lý trên máy chủ Local. VietOCR nhận dạng tiếng Việt; các dòng dưới 80% sẽ cần giảng viên xác nhận.</p></div>
-      <div className="offline-pill"><span /> Local only</div>
+      <div><p className="eyebrow">GEMINI VISION · OCR REVIEW</p><h1>Tiếp nhận quy định</h1><p>Ảnh và PDF quét được gửi tới Gemini Vision để nhận dạng tiếng Việt; file Word và văn bản nhập tay được trích xuất tại chỗ. Các dòng dưới 80% sẽ cần giảng viên xác nhận.</p></div>
+      <div className="offline-pill"><span /> Gemini Vision</div>
     </section>
     {error && <div className="error-banner" role="alert">{error}</div>}
     {notice && <div className="success-banner" role="status">{notice}</div>}
     {!processing && <section className="doc-panel upload-panel">
-      <div className="doc-panel-heading"><div><h2>Nguồn quy định</h2><p>PDF, Word (.docx), PNG, JPG/JPEG hoặc nhập trực tiếp.</p></div><strong>Ngưỡng: 80%</strong></div>
+      <div className="doc-panel-heading"><div><h2>Nguồn quy định</h2><p>PDF, Word (.docx), PNG, JPG/JPEG hoặc nhập trực tiếp. Ảnh/PDF quét sẽ được gửi tới Gemini Vision.</p></div><strong>Ngưỡng: 80%</strong></div>
       <div className="doc-fields"><label>Học phần<input value={courseId} disabled /></label><label>Tiêu đề<input value={title} onChange={(e) => setTitle(e.target.value)} /></label><label>Phiên bản<input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="VD: 2026.2" /></label></div>
       <label className="upload-drop"><input type="file" accept=".pdf,.docx,.png,.jpg,.jpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /><strong>{file ? file.name : "Chọn file quy định"}</strong><small>PDF, DOCX, PNG, JPG/JPEG · tối đa theo cấu hình Local</small></label>
       <div className="or-divider"><span>hoặc</span></div>

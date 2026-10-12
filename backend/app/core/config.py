@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_chat_model: str = "gemini-3.1-flash-lite"
     gemini_embed_model: str = "gemini-embedding-001"
+    # The OCR/Vision client is intentionally separate from the RAG answer
+    # provider. It never falls back to GEMINI_API_KEY.
+    document_ocr_provider: Literal["gemini_vision", "vietocr_local"] = "gemini_vision"
+    gemini_vision_api_key: str = ""
+    gemini_vision_model: str = "gemini-2.5-flash"
     embedding_dimensions: int = 768
     ai_request_timeout_seconds: float = 30
     ai_max_concurrency: int = 1
@@ -35,13 +40,13 @@ class Settings(BaseSettings):
     rag_top_k: int = 8
     rag_context_chunks: int = 5
     rag_min_score: float = 0.15
-    # This root is deliberately local to the application.  No document bytes
-    # are sent to a cloud OCR or vision service by this subsystem.
+    # Uploaded originals and review crops remain in this local root. Image/PDF
+    # bytes are additionally sent to Gemini only with the vision provider.
     local_document_storage_dir: str = "data/local-documents"
     ocr_confidence_threshold: float = 0.80
     # Tesseract is retained only for local page/line segmentation. Text
     # recognition itself is performed by VietOCR with locally provisioned
-    # weights, so no page image is sent off the machine.
+    # weights when DOCUMENT_OCR_PROVIDER=vietocr_local.
     ocr_tesseract_cmd: str = "tesseract"
     vietocr_model_name: str = "vgg_transformer"
     vietocr_weights_path: str = "data/models/vietocr/vgg_transformer.pth"

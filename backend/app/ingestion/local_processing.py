@@ -6,6 +6,7 @@ only to segment a page into line crops for VietOCR.
 
 import hashlib
 import json
+import mimetypes
 import re
 import shutil
 import threading
@@ -30,6 +31,13 @@ from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewIt
 
 SUPPORTED_SUFFIXES = {".pdf": "PDF", ".docx": "DOCX", ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE"}
 _VIETOCR_DOWNLOAD_LOCK = threading.Lock()
+_GEMINI_VISION_PROMPT = """You are an OCR engine for Vietnamese academic regulations.
+Extract every visible text line exactly as written, including printed and handwritten Vietnamese.
+Return JSON only in this shape:
+{"pages":[{"page_number":1,"lines":[{"text":"...","confidence":0.0,"box":[ymin,xmin,ymax,xmax]}]}]}
+`confidence` is your estimated reading confidence from 0.0 to 1.0. Use a value below 0.80
+for blurry, ambiguous, or hard-to-read handwriting. `box` is optional and uses a 0..1000
+coordinate system relative to the page/image. Do not add commentary or infer missing text."""
 
 
 @dataclass
@@ -267,6 +275,126 @@ def _pdf_images(path: Path) -> list[Any]:
         raise AppError("INVALID_DOCUMENT_FILE", "Không thể mở hoặc render PDF đã tải lên.", status_code=422) from exc
 
 
+def _vision_mime_type(path: Path) -> str:
+    return {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }.get(path.suffix.lower(), mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+
+
+def _gemini_box(raw_box: Any, image: Any | None) -> tuple[int, int, int, int] | None:
+    """Convert Gemini's optional [ymin, xmin, ymax, xmax] box to image pixels."""
+    if image is None or not isinstance(raw_box, list) or len(raw_box) != 4:
+        return None
+    try:
+        ymin, xmin, ymax, xmax = [float(value) for value in raw_box]
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= ymin < ymax <= 1000 and 0 <= xmin < xmax <= 1000):
+        return None
+    x = int(image.width * xmin / 1000)
+    y = int(image.height * ymin / 1000)
+    width = max(1, int(image.width * xmax / 1000) - x)
+    height = max(1, int(image.height * ymax / 1000) - y)
+    return x, y, width, height
+
+
+def _gemini_tokens(payload: Any, images: list[Any]) -> list[OCRToken]:
+    """Validate a Gemini Vision OCR response without trusting its structure."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("pages"), list):
+        raise AppError("GEMINI_VISION_INVALID_RESPONSE", "Gemini Vision tra ve ket qua OCR khong hop le.", status_code=422)
+    tokens: list[OCRToken] = []
+    for page_index, page in enumerate(payload["pages"], start=1):
+        if not isinstance(page, dict):
+            continue
+        page_number = page.get("page_number", page_index)
+        if not isinstance(page_number, int) or page_number < 1:
+            page_number = page_index
+        lines = page.get("lines")
+        if not isinstance(lines, list):
+            continue
+        image = images[page_number - 1] if page_number <= len(images) else None
+        for line in lines:
+            if not isinstance(line, dict):
+                continue
+            text = str(line.get("text") or "").strip()
+            if not text:
+                continue
+            try:
+                confidence = float(line.get("confidence"))
+            except (TypeError, ValueError):
+                # Missing confidence must be reviewed instead of being treated as accurate.
+                confidence = 0.5
+            tokens.append(OCRToken(
+                text=text,
+                confidence=max(0.0, min(1.0, confidence)),
+                page_number=page_number,
+                box=_gemini_box(line.get("box"), image),
+            ))
+    return tokens
+
+
+def _gemini_vision_ocr(path: Path, images: list[Any]) -> list[OCRToken]:
+    settings = get_settings()
+    if not settings.gemini_vision_api_key:
+        raise AppError(
+            "GEMINI_VISION_KEY_MISSING",
+            "Chua cau hinh GEMINI_VISION_API_KEY rieng cho trich xuat anh/PDF.",
+            status_code=422,
+        )
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as exc:
+        raise AppError("GEMINI_VISION_UNAVAILABLE", "Thieu thu vien Google GenAI cho Gemini Vision.", status_code=422) from exc
+    try:
+        client = genai.Client(api_key=settings.gemini_vision_api_key)
+        response = client.models.generate_content(
+            model=settings.gemini_vision_model,
+            contents=[
+                _GEMINI_VISION_PROMPT,
+                types.Part.from_bytes(data=path.read_bytes(), mime_type=_vision_mime_type(path)),
+            ],
+            config=types.GenerateContentConfig(
+                temperature=0,
+                response_mime_type="application/json",
+                max_output_tokens=16_000,
+            ),
+        )
+        raw_text = (response.text or "").strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        tokens = _gemini_tokens(json.loads(raw_text), images)
+    except AppError:
+        raise
+    except Exception as exc:
+        raise AppError(
+            "GEMINI_VISION_OCR_FAILED",
+            "Gemini Vision khong the trich xuat noi dung. Kiem tra key, model va ket noi mang.",
+            status_code=422,
+        ) from exc
+    if not tokens:
+        raise AppError("OCR_EMPTY_RESULT", "Gemini Vision khong nhan dien duoc van ban trong tai lieu.", status_code=422)
+    return tokens
+
+
+def _extract_with_gemini_vision(path: Path, document_type: str) -> tuple[str, str, list[OCRToken], list[Any]]:
+    if document_type == "PDF":
+        images = _pdf_images(path)
+    elif document_type == "IMAGE":
+        try:
+            from PIL import Image
+            images = [Image.open(path).convert("RGB")]
+        except Exception as exc:
+            raise AppError("INVALID_DOCUMENT_FILE", "Khong the mo anh da tai len.", status_code=422) from exc
+    else:
+        raise AppError("UNSUPPORTED_DOCUMENT_TYPE", "Gemini Vision chi nhan anh hoac PDF.", status_code=422)
+    tokens = _gemini_vision_ocr(path, images)
+    return "\n".join(token.text for token in tokens).strip(), "GEMINI_VISION_OCR", tokens, images
+
+
 def extract_locally(path: Path, document_type: str) -> tuple[str, str, list[OCRToken], list[Any]]:
     """Return raw text, extractor label, OCR tokens and OCR page images."""
     if document_type == "TXT":
@@ -314,6 +442,13 @@ def extract_locally(path: Path, document_type: str) -> tuple[str, str, list[OCRT
     return text, "LOCAL_VIETOCR_OCR", tokens, images
 
 
+def extract_document(path: Path, document_type: str) -> tuple[str, str, list[OCRToken], list[Any]]:
+    """Extract native files locally and visual files with the selected OCR provider."""
+    if document_type in {"PDF", "IMAGE"} and get_settings().document_ocr_provider == "gemini_vision":
+        return _extract_with_gemini_vision(path, document_type)
+    return extract_locally(path, document_type)
+
+
 async def create_processing(
     session: AsyncSession, *, course_id: str, title: str, version: str, actor_id: str,
     source_path: Path, original_filename: str | None, document_type: str,
@@ -346,7 +481,7 @@ async def create_processing(
     await session.commit()
     await session.refresh(processing)
     try:
-        raw_text, method, tokens, images = extract_locally(source_path, document_type)
+        raw_text, method, tokens, images = extract_document(source_path, document_type)
         processing.raw_text = raw_text
         processing.extraction_method = method
         processing.status = "REVIEW_REQUIRED" if tokens else "READY_TO_CONFIRM"
