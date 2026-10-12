@@ -1,4 +1,6 @@
 from datetime import UTC, date, datetime, timedelta
+import re
+import unicodedata
 from time import perf_counter
 
 from sqlalchemy import and_, func, or_, select
@@ -240,21 +242,57 @@ async def _load_policy_updates(
             "policy_topic": item.policy_topic,
             "operation": item.operation,
             "content": item.content,
+            "published_at": item.published_at or item.created_at,
+            "precedence": {"STUDENT": 0, "GROUP": 1, "COURSE": 2}[item.scope_type],
         }
         for item in records
     ]
 
 
+_POLICY_MATCH_STOPWORDS = {
+    "bao", "ban", "cac", "cho", "co", "cua", "duoc", "hay", "khi", "la", "mot", "nhung",
+    "nguoi", "phai", "sinh", "theo", "toi", "trong", "va", "voi", "vien", "vui", "xin",
+}
+
+
+def _policy_match_tokens(value: str) -> set[str]:
+    normalized = unicodedata.normalize("NFD", value.casefold())
+    normalized = "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+    normalized = normalized.replace("đ", "d")
+    return {
+        token for token in re.findall(r"[a-z0-9]+", normalized)
+        if len(token) > 1 and token not in _POLICY_MATCH_STOPWORDS
+    }
+
+
+def _policy_update_relevance(question: str, content: str) -> float:
+    question_tokens = _policy_match_tokens(question)
+    if not question_tokens:
+        return 0.0
+    content_tokens = _policy_match_tokens(content)
+    return len(question_tokens & content_tokens) / len(question_tokens)
+
+
 def _applicable_policy_update(question: str, updates: list[dict]) -> dict | None:
     topic = canonical_policy_topic(infer_policy_topic(question))
-    return next(
-        (
-            update for update in updates
-            if update["operation"] != "REVOKE"
-            and canonical_policy_topic(str(update["policy_topic"])) == topic
-        ),
-        None,
-    )
+    relevant: list[dict] = []
+    for update in updates:
+        update_topic = canonical_policy_topic(str(update["policy_topic"]))
+        if update["operation"] == "REVOKE":
+            continue
+        if topic != "GENERAL" and update_topic not in {topic, "GENERAL"}:
+            continue
+        relevance = _policy_update_relevance(question, str(update["content"]))
+        if relevance < max(0.20, get_settings().rag_min_score):
+            continue
+        relevant.append({**update, "relevance": relevance})
+    if not relevant:
+        return None
+    closest_scope = min(int(item["precedence"]) for item in relevant)
+    candidates = [item for item in relevant if int(item["precedence"]) == closest_scope]
+    # A newer saved update wins only among updates that actually match the
+    # student's question. This is independent of file title or file name.
+    return max(candidates, key=lambda item: (item["published_at"], item["relevance"]))
 
 
 async def _prepend_policy_update_evidence(
@@ -525,6 +563,17 @@ async def submit_question(
         course_id=course.id,
     )
     selected_policy_update = _applicable_policy_update(payload.text, policy_updates)
+    update_document_ids = {
+        str(update["source_document_id"])
+        for update in policy_updates
+        if update.get("source_document_id")
+    }
+    # Update-source chunks must not leak into ordinary RAG retrieval. They are
+    # considered only through the relevance/recency resolver above; otherwise
+    # an unrelated supplement could shadow base policy by coincidence.
+    evidence = [
+        item for item in evidence if str(item["document_id"]) not in update_document_ids
+    ]
     if selected_policy_update:
         evidence = await _prepend_policy_update_evidence(
             session, selected_policy_update, evidence

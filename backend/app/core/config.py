@@ -39,8 +39,13 @@ class Settings(BaseSettings):
     # are sent to a cloud OCR or vision service by this subsystem.
     local_document_storage_dir: str = "data/local-documents"
     ocr_confidence_threshold: float = 0.80
-    ocr_languages: str = "vie+eng"
+    # Tesseract is retained only for local page/line segmentation. Text
+    # recognition itself is performed by VietOCR with locally provisioned
+    # weights, so no page image is sent off the machine.
     ocr_tesseract_cmd: str = "tesseract"
+    vietocr_model_name: str = "vgg_transformer"
+    vietocr_weights_path: str = "data/models/vietocr/vgg_transformer.pth"
+    vietocr_device: Literal["cpu", "cuda"] = "cpu"
     upload_max_bytes: int = 25 * 1024 * 1024
     prompt_version: str = "referee-v3-structured-exceptions"
     public_base_url: str = "http://localhost:8000"

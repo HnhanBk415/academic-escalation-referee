@@ -87,13 +87,3 @@ class ProcessingCreate(BaseModel):
     effective_until: date | None = None
     supersedes_document_id: str | None = None
     confidence_threshold: float = Field(default=0.80, ge=0.0, le=1.0)
-
-
-class ProcessingFinalize(BaseModel):
-    operation: Literal["ADD", "REPLACE", "REVOKE", "CLARIFY"] = "ADD"
-    policy_topic: str = Field(default="GENERAL", min_length=1, max_length=100)
-    scope_type: Literal["COURSE", "GROUP", "STUDENT"] = "COURSE"
-    scope_id: str | None = Field(default=None, max_length=64)
-    valid_from: date | None = None
-    valid_until: date | None = None
-    supersedes_policy_update_id: str | None = None

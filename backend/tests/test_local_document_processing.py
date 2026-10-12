@@ -32,28 +32,28 @@ async def test_direct_text_processing_can_be_confirmed_exported_and_indexed(clie
 
 
 @pytest.mark.asyncio
-async def test_replace_policy_update_wins_even_when_filename_and_title_differ(client):
-    payload = {
-        "course_id": "CO3001",
-        "text_content": "Sinh viên nộp báo cáo trước ngày 20 tháng 12 theo định dạng PDF.",
-    }
+async def test_latest_relevant_policy_update_wins_even_when_title_differs(client):
+    payload = {"course_id": "CO3001"}
     first = await client.post(
-        "/api/v1/documents/processing/text", json={**payload, "title": "Thông báo cũ", "version": "1.0"}
+        "/api/v1/documents/processing/text", json={
+            **payload, "title": "Thông báo cũ", "version": "1.0",
+            "text_content": "Sinh viên nộp báo cáo đồ án trước ngày 20 tháng 12.",
+        }
     )
     assert first.status_code == 201, first.text
     assert (await client.post(
-        f"/api/v1/documents/processing/{first.json()['id']}/finalize",
-        json={"operation": "ADD", "policy_topic": "SUBMISSION_DEADLINE", "scope_type": "COURSE"},
+        f"/api/v1/documents/processing/{first.json()['id']}/finalize"
     )).status_code == 200
 
     second = await client.post(
-        "/api/v1/documents/processing/text",
-        json={**payload, "title": "Phụ lục cập nhật", "version": "2.0"},
+        "/api/v1/documents/processing/text", json={
+            **payload, "title": "Phụ lục tuần tám", "version": "2.0",
+            "text_content": "Hạn nộp báo cáo đồ án được cập nhật thành ngày 27 tháng 12.",
+        }
     )
     assert second.status_code == 201, second.text
     assert (await client.post(
-        f"/api/v1/documents/processing/{second.json()['id']}/finalize",
-        json={"operation": "REPLACE", "policy_topic": "SUBMISSION_DEADLINE", "scope_type": "COURSE"},
+        f"/api/v1/documents/processing/{second.json()['id']}/finalize"
     )).status_code == 200
 
     old_document = await client.get(f"/api/v1/documents/{first.json()['document']['id']}")
@@ -66,7 +66,7 @@ async def test_replace_policy_update_wins_even_when_filename_and_title_differ(cl
         json={
             "actor_id": "student-a1",
             "course_id": "CO3001",
-            "text": "Sinh viên phải nộp báo cáo trước ngày nào?",
+            "text": "Hạn nộp báo cáo đồ án là ngày nào?",
         },
     )
     assert answer.status_code == 201, answer.text
@@ -85,8 +85,7 @@ async def test_supplement_does_not_hide_unrelated_older_rule(client):
     )
     assert old.status_code == 201, old.text
     assert (await client.post(
-        f"/api/v1/documents/processing/{old.json()['id']}/finalize",
-        json={"operation": "ADD", "policy_topic": "GROUP_MEMBERSHIP", "scope_type": "COURSE"},
+        f"/api/v1/documents/processing/{old.json()['id']}/finalize"
     )).status_code == 200
     supplement = await client.post(
         "/api/v1/documents/processing/text",
@@ -97,8 +96,7 @@ async def test_supplement_does_not_hide_unrelated_older_rule(client):
     )
     assert supplement.status_code == 201, supplement.text
     assert (await client.post(
-        f"/api/v1/documents/processing/{supplement.json()['id']}/finalize",
-        json={"operation": "ADD", "policy_topic": "SUBMISSION_DEADLINE", "scope_type": "COURSE"},
+        f"/api/v1/documents/processing/{supplement.json()['id']}/finalize"
     )).status_code == 200
 
     answer = await client.post(

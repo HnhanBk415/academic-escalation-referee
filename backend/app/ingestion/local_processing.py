@@ -1,8 +1,7 @@
 """Offline document extraction and human-review workflow.
 
-All adapters in this module execute on the host.  OCR uses a locally installed
-Tesseract binary with Vietnamese language data; imports are intentionally lazy
-so a deployment that only accepts DOCX/TXT does not require OCR packages.
+VietOCR recognises Vietnamese text from local weights. Tesseract is retained
+only to segment a page into line crops for VietOCR.
 """
 
 import hashlib
@@ -10,6 +9,7 @@ import json
 import re
 import shutil
 import uuid
+from functools import lru_cache
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.enums import DocumentStatus, PolicyUpdateStatus
 from app.core.errors import AppError
-from app.core.policy_topics import canonical_policy_topic
+from app.core.policy_topics import canonical_policy_topic, infer_policy_topic
 from app.models import Course, Document, DocumentChunk, DocumentProcessing, DocumentReviewItem, PolicyUpdate
 from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewItemResponse
 
@@ -72,7 +72,7 @@ def _require_tesseract() -> None:
         )
 
 
-def _ocr_image(image: Any, page_number: int) -> list[OCRToken]:
+def _legacy_tesseract_ocr_image(image: Any, page_number: int) -> list[OCRToken]:
     _require_tesseract()
     try:
         import pytesseract
@@ -108,6 +108,101 @@ def _ocr_image(image: Any, page_number: int) -> list[OCRToken]:
                 ),
             )
         )
+    return tokens
+
+
+def _vietocr_weights_path() -> Path:
+    configured = Path(get_settings().vietocr_weights_path)
+    if configured.is_absolute():
+        return configured
+    from app.ingestion.service import REPOSITORY_ROOT
+    return (REPOSITORY_ROOT / configured).resolve()
+
+
+@lru_cache(maxsize=1)
+def _vietocr_predictor() -> Any:
+    """Create the recogniser from a local checkpoint without network fallback."""
+    weights = _vietocr_weights_path()
+    if not weights.is_file():
+        raise AppError(
+            "LOCAL_VIETOCR_WEIGHTS_MISSING",
+            "Không có trọng số VietOCR Local. Hãy cung cấp file model tại "
+            f"{weights} trước khi OCR PDF scan hoặc ảnh.",
+            status_code=422,
+        )
+    try:
+        from vietocr.tool.config import Cfg
+        from vietocr.tool.predictor import Predictor
+
+        config = Cfg.load_config_from_name(get_settings().vietocr_model_name)
+        config["weights"] = str(weights)
+        config["device"] = get_settings().vietocr_device
+        config["cnn"]["pretrained"] = False
+        config["predictor"]["beamsearch"] = False
+        return Predictor(config)
+    except AppError:
+        raise
+    except Exception as exc:
+        raise AppError(
+            "LOCAL_VIETOCR_UNAVAILABLE",
+            "Không thể khởi tạo VietOCR Local. Kiểm tra thư viện, trọng số và cấu hình thiết bị.",
+            status_code=422,
+        ) from exc
+
+
+def _line_boxes(image: Any) -> list[tuple[int, int, int, int]]:
+    """Detect line crops locally; recognition is deliberately left to VietOCR."""
+    _require_tesseract()
+    try:
+        import pytesseract
+        from pytesseract import Output
+
+        pytesseract.pytesseract.tesseract_cmd = get_settings().ocr_tesseract_cmd
+        data = pytesseract.image_to_data(image, config="--psm 6", output_type=Output.DICT)
+    except Exception as exc:
+        raise AppError(
+            "LOCAL_OCR_FAILED",
+            "Không thể tách dòng tài liệu Local. Hãy kiểm tra Tesseract và chất lượng ảnh.",
+            status_code=422,
+        ) from exc
+    grouped: dict[tuple[int, int, int], list[int]] = {}
+    for index, raw_text in enumerate(data["text"]):
+        if not (raw_text or "").strip():
+            continue
+        key = (int(data["block_num"][index]), int(data["par_num"][index]), int(data["line_num"][index]))
+        grouped.setdefault(key, []).append(index)
+    boxes: list[tuple[int, int, int, int]] = []
+    for indexes in grouped.values():
+        left = min(int(data["left"][index]) for index in indexes)
+        top = min(int(data["top"][index]) for index in indexes)
+        right = max(int(data["left"][index]) + int(data["width"][index]) for index in indexes)
+        bottom = max(int(data["top"][index]) + int(data["height"][index]) for index in indexes)
+        boxes.append((left, top, right - left, bottom - top))
+    return boxes
+
+
+def _ocr_image(image: Any, page_number: int) -> list[OCRToken]:
+    """Recognise local line crops with VietOCR and retain calibrated confidence."""
+    predictor = _vietocr_predictor()
+    tokens: list[OCRToken] = []
+    for x, y, width, height in _line_boxes(image):
+        margin = 12
+        crop = image.crop((
+            max(0, x - margin), max(0, y - margin),
+            min(image.width, x + width + margin), min(image.height, y + height + margin),
+        ))
+        try:
+            text, probability = predictor.predict(crop, return_prob=True)
+            text = str(text).strip()
+            confidence = max(0.0, min(1.0, float(probability)))
+        except Exception as exc:
+            raise AppError(
+                "LOCAL_OCR_FAILED",
+                "VietOCR Local không thể nhận diện tài liệu. Hãy kiểm tra trọng số và chất lượng ảnh.",
+                status_code=422,
+            ) from exc
+        if text:
+            tokens.append(OCRToken(text=text, confidence=confidence, page_number=page_number, box=(x, y, width, height)))
     return tokens
 
 
@@ -168,10 +263,10 @@ def extract_locally(path: Path, document_type: str) -> tuple[str, str, list[OCRT
     else:
         raise AppError("UNSUPPORTED_DOCUMENT_TYPE", "Định dạng tài liệu không được hỗ trợ.", status_code=422)
     tokens = [token for page, image in enumerate(images, start=1) for token in _ocr_image(image, page)]
-    text = " ".join(token.text for token in tokens).strip()
+    text = "\n".join(token.text for token in tokens).strip()
     if not text:
         raise AppError("OCR_EMPTY_RESULT", "OCR không nhận diện được văn bản. Vui lòng dùng ảnh rõ hơn hoặc nhập thủ công.", status_code=422)
-    return text, "LOCAL_TESSERACT_OCR", tokens, images
+    return text, "LOCAL_VIETOCR_OCR", tokens, images
 
 
 async def create_processing(
@@ -211,8 +306,11 @@ async def create_processing(
         processing.extraction_method = method
         processing.status = "REVIEW_REQUIRED" if tokens else "READY_TO_CONFIRM"
         words = raw_text.split()
+        word_index = 0
         for item_index, token in enumerate(tokens):
+            token_word_count = len(token.text.split())
             if token.confidence >= confidence_threshold:
+                word_index += token_word_count
                 continue
             crop_path: str | None = None
             if token.box and 0 < token.page_number <= len(images):
@@ -223,17 +321,14 @@ async def create_processing(
                 crop_file = source_path.parent / f"review-{item_index}.png"
                 crop.save(crop_file)
                 crop_path = local_relative(crop_file)
-            # `raw_text` is assembled from this token stream, so the token
-            # ordinal is the stable context/replacement position even when a
-            # word appears more than once.
-            word_index = item_index
             session.add(DocumentReviewItem(
                 id=f"review-{uuid.uuid4().hex[:20]}", processing_id=processing.id,
                 item_index=item_index, predicted_text=token.text, confidence=token.confidence,
                 context_before=" ".join(words[max(0, word_index - 3):word_index]),
-                context_after=" ".join(words[word_index + 1:word_index + 4]),
+                context_after=" ".join(words[word_index + token_word_count:word_index + token_word_count + 3]),
                 page_number=token.page_number, crop_path=crop_path, status="PENDING",
             ))
+            word_index += token_word_count
         await session.commit()
         await session.refresh(processing)
         return processing
@@ -311,7 +406,7 @@ async def update_review_item(
     return processing
 
 
-async def _publish_policy_update(
+async def _legacy_publish_policy_update(
     session: AsyncSession, *, processing: DocumentProcessing, document: Document, publication: dict,
 ) -> PolicyUpdate:
     operation = publication["operation"]
@@ -385,7 +480,62 @@ async def _publish_policy_update(
     return update
 
 
-async def finalize_processing(session: AsyncSession, processing_id: str, provider, publication: dict) -> ProcessingResponse:
+async def _publish_policy_update(
+    session: AsyncSession, *, processing: DocumentProcessing, document: Document,
+) -> list[PolicyUpdate]:
+    """Save each indexed chunk as a course-level update layer.
+
+    The lecturer's confirmation is the only publication action. Topic and
+    relevance are inferred from each chunk later while answering, so a file
+    name neither grants nor removes priority.
+    """
+    chunks = list((await session.scalars(
+        select(DocumentChunk)
+        .where(DocumentChunk.document_id == document.id)
+        .order_by(DocumentChunk.chunk_index)
+    )).all())
+    if not chunks:
+        raise AppError(
+            "POLICY_UPDATE_CHUNKS_MISSING",
+            "Không thể tạo lớp cập nhật vì tài liệu chưa có đoạn chỉ mục.",
+            status_code=422,
+        )
+    published_at = datetime.now(UTC)
+    updates: list[PolicyUpdate] = []
+    for chunk in chunks:
+        update = PolicyUpdate(
+            id=f"policy-update-{uuid.uuid4().hex[:18]}",
+            source_document_id=document.id,
+            source_chunk_id=chunk.id,
+            course_id=document.course_id,
+            scope_type="COURSE",
+            scope_id=document.course_id,
+            policy_topic=infer_policy_topic(chunk.content),
+            operation="ADD",
+            content=chunk.content,
+            valid_from=date.today(),
+            valid_until=None,
+            status=PolicyUpdateStatus.ACTIVE,
+            supersedes_policy_update_id=None,
+            created_by=processing.created_by,
+            published_at=published_at,
+        )
+        session.add(update)
+        updates.append(update)
+    from app.services.audit import add_audit_event
+    add_audit_event(
+        session,
+        event_type="POLICY_UPDATE_SAVED",
+        actor_id=processing.created_by,
+        entity_type="document_processing",
+        entity_id=processing.id,
+        input_snapshot={"document_id": document.id, "mode": "AUTOMATIC_CHUNK_LAYER"},
+        output_snapshot={"policy_update_count": len(updates), "status": "ACTIVE"},
+    )
+    return updates
+
+
+async def finalize_processing(session: AsyncSession, processing_id: str, provider) -> ProcessingResponse:
     processing = await get_processing(session, processing_id)
     if processing.status == "COMPLETED":
         return await processing_response(session, processing)
@@ -399,12 +549,18 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
     if any(item.status == "PENDING" for item in items):
         raise AppError("REVIEW_REQUIRED", "Hãy xác nhận tất cả nội dung được đánh dấu Cần rà soát trước khi xuất bản.", status_code=422)
 
-    words = processing.raw_text.split()
     replacements = {
         item.item_index: item.confirmed_text if item.confirmed_text is not None else item.predicted_text
         for item in items
     }
-    clean_text = " ".join(replacements.get(index, word) for index, word in enumerate(words)).strip()
+    lines = processing.raw_text.splitlines()
+    if lines and any(item.item_index < len(lines) for item in items):
+        clean_text = "\n".join(replacements.get(index, line) for index, line in enumerate(lines)).strip()
+    else:
+        # Direct text and DOCX have no OCR review items, but retain this
+        # fallback for processing records created by older app versions.
+        words = processing.raw_text.split()
+        clean_text = " ".join(replacements.get(index, word) for index, word in enumerate(words)).strip()
     if not clean_text:
         raise AppError("EMPTY_DOCUMENT", "Văn bản sạch không được để trống.", status_code=422)
     document = await session.get(Document, processing.document_id)
@@ -434,9 +590,7 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
         processing.error_message = exc.message if isinstance(exc, AppError) else "Không thể lập chỉ mục văn bản Local."
         await session.commit()
         raise
-    await _publish_policy_update(
-        session, processing=processing, document=document, publication=publication
-    )
+    await _publish_policy_update(session, processing=processing, document=document)
     if document.supersedes_document_id:
         older = await session.get(Document, document.supersedes_document_id)
         if older:

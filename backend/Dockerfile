@@ -17,7 +17,7 @@ FROM python:3.13-slim AS runtime
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 curl tesseract-ocr tesseract-ocr-vie && rm -rf /var/lib/apt/lists/*
+    libpq5 curl tesseract-ocr && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
@@ -30,6 +30,9 @@ COPY --from=builder /build/backend/scripts ./scripts
 
 # Copy sample data for RAG ingestion/seeding
 COPY data ./data
+
+# VietOCR weights are deliberately not downloaded or baked from the network.
+# Provide ./data/models/vietocr/vgg_transformer.pth in the deployment volume.
 
 # Non-root user
 RUN adduser --disabled-password --gecos "" aer && chown -R aer:aer /app
