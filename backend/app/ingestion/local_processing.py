@@ -80,6 +80,21 @@ def _pdf_images(path: Path) -> list[Any]:
         raise AppError("INVALID_DOCUMENT_FILE", "Không thể mở hoặc render PDF đã tải lên.", status_code=422) from exc
 
 
+def _pdf_native_text(path: Path) -> str:
+    """Prefer the embedded PDF text layer before invoking cloud OCR."""
+    try:
+        import fitz
+        pdf = fitz.open(path)
+        try:
+            return "\n".join(page.get_text("text") for page in pdf).strip()
+        finally:
+            pdf.close()
+    except Exception:
+        # A scanned or malformed text layer is eligible for the Gemini Vision
+        # fallback. Rendering/validation errors are handled there consistently.
+        return ""
+
+
 def _vision_mime_type(path: Path) -> str:
     return {
         ".pdf": "application/pdf",
@@ -228,7 +243,12 @@ def extract_document(path: Path, document_type: str) -> tuple[str, str, list[OCR
             raise
         except Exception as exc:
             raise AppError("INVALID_DOCUMENT_FILE", "Không thể đọc file Word đã tải lên.", status_code=422) from exc
-    if document_type in {"PDF", "IMAGE"}:
+    if document_type == "PDF":
+        text = _pdf_native_text(path)
+        if text:
+            return text, "PDF_PYMUPDF_NATIVE", [], []
+        return _extract_with_gemini_vision(path, document_type)
+    if document_type == "IMAGE":
         return _extract_with_gemini_vision(path, document_type)
     raise AppError("UNSUPPORTED_DOCUMENT_TYPE", "Định dạng tài liệu không được hỗ trợ.", status_code=422)
 
