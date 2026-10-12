@@ -8,12 +8,15 @@ import hashlib
 import json
 import re
 import shutil
+import threading
 import uuid
 from functools import lru_cache
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +29,7 @@ from app.models import Course, Document, DocumentChunk, DocumentProcessing, Docu
 from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewItemResponse
 
 SUPPORTED_SUFFIXES = {".pdf": "PDF", ".docx": "DOCX", ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE"}
+_VIETOCR_DOWNLOAD_LOCK = threading.Lock()
 
 
 @dataclass
@@ -119,17 +123,49 @@ def _vietocr_weights_path() -> Path:
     return (REPOSITORY_ROOT / configured).resolve()
 
 
-@lru_cache(maxsize=1)
-def _vietocr_predictor() -> Any:
-    """Create the recogniser from a local checkpoint without network fallback."""
-    weights = _vietocr_weights_path()
-    if not weights.is_file():
+def _download_vietocr_weights(weights: Path) -> None:
+    """Bootstrap the approved pretrained checkpoint once, then keep it local."""
+    settings = get_settings()
+    if not settings.vietocr_allow_weight_download:
         raise AppError(
             "LOCAL_VIETOCR_WEIGHTS_MISSING",
-            "Không có trọng số VietOCR Local. Hãy cung cấp file model tại "
-            f"{weights} trước khi OCR PDF scan hoặc ảnh.",
+            "Chưa có trọng số VietOCR Local và chế độ tải tự động đang tắt.",
             status_code=422,
         )
+    source_url = settings.vietocr_weights_url
+    if urlparse(source_url).scheme != "https":
+        raise AppError(
+            "VIETOCR_DOWNLOAD_URL_INVALID",
+            "URL tải trọng số VietOCR phải dùng HTTPS.",
+            status_code=422,
+        )
+    with _VIETOCR_DOWNLOAD_LOCK:
+        if weights.is_file():
+            return
+        temporary = weights.with_suffix(f"{weights.suffix}.part")
+        try:
+            weights.parent.mkdir(parents=True, exist_ok=True)
+            with urlopen(source_url, timeout=settings.vietocr_download_timeout_seconds) as response:
+                with temporary.open("wb") as target:
+                    shutil.copyfileobj(response, target)
+            if temporary.stat().st_size == 0:
+                raise ValueError("empty model response")
+            temporary.replace(weights)
+        except Exception as exc:
+            temporary.unlink(missing_ok=True)
+            raise AppError(
+                "LOCAL_VIETOCR_DOWNLOAD_FAILED",
+                "Không thể tải trọng số VietOCR. Kiểm tra kết nối hoặc đặt file model thủ công.",
+                status_code=422,
+            ) from exc
+
+
+@lru_cache(maxsize=1)
+def _vietocr_predictor() -> Any:
+    """Create the recogniser from its local checkpoint, bootstrapping it once if allowed."""
+    weights = _vietocr_weights_path()
+    if not weights.is_file():
+        _download_vietocr_weights(weights)
     try:
         from vietocr.tool.config import Cfg
         from vietocr.tool.predictor import Predictor

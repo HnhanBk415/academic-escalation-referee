@@ -31,8 +31,8 @@ COPY --from=builder /build/backend/scripts ./scripts
 # Copy sample data for RAG ingestion/seeding
 COPY data ./data
 
-# VietOCR weights are deliberately not downloaded or baked from the network.
-# Provide ./data/models/vietocr/vgg_transformer.pth in the deployment volume.
+# VietOCR downloads its approved pretrained weights once on first use when the
+# mounted local path is empty, then reuses that local copy.
 
 # Non-root user
 RUN adduser --disabled-password --gecos "" aer && chown -R aer:aer /app

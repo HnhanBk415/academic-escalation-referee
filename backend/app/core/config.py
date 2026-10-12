@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     vietocr_model_name: str = "vgg_transformer"
     vietocr_weights_path: str = "data/models/vietocr/vgg_transformer.pth"
     vietocr_device: Literal["cpu", "cuda"] = "cpu"
+    # The first missing-model request may bootstrap the approved pretrained
+    # checkpoint. It is then persisted locally and reused without a network
+    # request. Administrators can turn this off after provisioning.
+    vietocr_allow_weight_download: bool = True
+    vietocr_weights_url: str = "https://vocr.vn/data/vietocr/vgg_transformer.pth"
+    vietocr_download_timeout_seconds: int = 300
     upload_max_bytes: int = 25 * 1024 * 1024
     prompt_version: str = "referee-v3-structured-exceptions"
     public_base_url: str = "http://localhost:8000"
