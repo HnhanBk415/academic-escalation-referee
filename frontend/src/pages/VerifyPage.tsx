@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { postJson }    from "../api/client";
 import { PageHeader }  from "../components/PageHeader";
@@ -211,11 +211,15 @@ export function VerifyPage() {
   const [results, setResults] = useState<VerifyResult[]>([]);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const runInFlight = useRef(false);
 
   async function runVerify() {
+    // React state updates are asynchronous. This synchronous lock prevents
+    // two near-simultaneous clicks from starting duplicate verification runs.
+    if (runInFlight.current) return;
+    runInFlight.current = true;
     setRunning(true); setProgress(0); setResults([]);
     try {
-      await postJson("/api/v1/demo/reset", {});
       const collected: VerifyResult[] = [];
       for (const item of CASES) {
         const started = performance.now();
@@ -243,7 +247,10 @@ export function VerifyPage() {
         setResults([...collected]);
         setProgress(collected.length);
       }
-    } finally { setRunning(false); }
+    } finally {
+      runInFlight.current = false;
+      setRunning(false);
+    }
   }
 
   const passed    = results.filter((r) => r.passed).length;

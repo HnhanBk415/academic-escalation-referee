@@ -3,5 +3,5 @@ param(
     [string]$Dataset = "harness/scenarios/verify.jsonl"
 )
 
-py -3.13 -m harness.runner --base-url $BaseUrl --dataset $Dataset
+py -3.13 -m harness.runner --base-url $BaseUrl --dataset $Dataset --no-reset
 exit $LASTEXITCODE

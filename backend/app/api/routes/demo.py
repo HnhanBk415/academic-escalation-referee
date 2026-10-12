@@ -13,11 +13,15 @@ from app.models import (
     Course,
     Document,
     DocumentChunk,
+    DocumentProcessing,
+    DocumentReviewItem,
     EscalationCase,
     Group,
     GroupMembership,
     HumanDecision,
     PolicyException,
+    PolicyUpdate,
+    PolicyVersion,
     Question,
     RetrievalEvidence,
 )
@@ -84,6 +88,13 @@ async def reset_demo(
         EscalationCase,
         RetrievalEvidence,
         Question,
+        # Policy updates retain source_chunk_id, and policy versions retain
+        # document_id. Delete these dependent rows before their sources so
+        # reset works after a lecturer has published an upload.
+        PolicyUpdate,
+        PolicyVersion,
+        DocumentReviewItem,
+        DocumentProcessing,
         DocumentChunk,
         Document,
         GroupMembership,

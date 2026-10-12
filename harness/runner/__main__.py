@@ -358,7 +358,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", default="harness/scenarios/verify.jsonl")
     parser.add_argument("--report", default="harness/reports/latest.json")
     parser.add_argument("--timeout", type=float, default=90)
-    parser.add_argument("--reset", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--reset",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Reset and re-seed demo data before verification (disabled by default).",
+    )
     parser.add_argument(
         "--check-lifecycle",
         action=argparse.BooleanOptionalAction,
