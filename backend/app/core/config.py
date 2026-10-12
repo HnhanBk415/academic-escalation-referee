@@ -29,7 +29,6 @@ class Settings(BaseSettings):
     gemini_embed_model: str = "gemini-embedding-001"
     # The OCR/Vision client is intentionally separate from the RAG answer
     # provider. It never falls back to GEMINI_API_KEY.
-    document_ocr_provider: Literal["gemini_vision", "vietocr_local"] = "gemini_vision"
     gemini_vision_api_key: str = ""
     gemini_vision_model: str = "gemini-2.5-flash"
     embedding_dimensions: int = 768
@@ -44,19 +43,6 @@ class Settings(BaseSettings):
     # bytes are additionally sent to Gemini only with the vision provider.
     local_document_storage_dir: str = "data/local-documents"
     ocr_confidence_threshold: float = 0.80
-    # Tesseract is retained only for local page/line segmentation. Text
-    # recognition itself is performed by VietOCR with locally provisioned
-    # weights when DOCUMENT_OCR_PROVIDER=vietocr_local.
-    ocr_tesseract_cmd: str = "tesseract"
-    vietocr_model_name: str = "vgg_transformer"
-    vietocr_weights_path: str = "data/models/vietocr/vgg_transformer.pth"
-    vietocr_device: Literal["cpu", "cuda"] = "cpu"
-    # The first missing-model request may bootstrap the approved pretrained
-    # checkpoint. It is then persisted locally and reused without a network
-    # request. Administrators can turn this off after provisioning.
-    vietocr_allow_weight_download: bool = True
-    vietocr_weights_url: str = "https://vocr.vn/data/vietocr/vgg_transformer.pth"
-    vietocr_download_timeout_seconds: int = 300
     upload_max_bytes: int = 25 * 1024 * 1024
     prompt_version: str = "referee-v3-structured-exceptions"
     public_base_url: str = "http://localhost:8000"

@@ -1,23 +1,14 @@
-"""Offline document extraction and human-review workflow.
-
-VietOCR recognises Vietnamese text from local weights. Tesseract is retained
-only to segment a page into line crops for VietOCR.
-"""
+"""Gemini Vision document extraction and human-review workflow."""
 
 import hashlib
 import json
 import mimetypes
 import re
-import shutil
-import threading
 import uuid
-from functools import lru_cache
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
-from urllib.request import urlopen
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +21,6 @@ from app.models import Course, Document, DocumentChunk, DocumentProcessing, Docu
 from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewItemResponse
 
 SUPPORTED_SUFFIXES = {".pdf": "PDF", ".docx": "DOCX", ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE"}
-_VIETOCR_DOWNLOAD_LOCK = threading.Lock()
 _GEMINI_VISION_PROMPT = """You are an OCR engine for Vietnamese academic regulations.
 Extract every visible text line exactly as written, including printed and handwritten Vietnamese.
 Return JSON only in this shape:
@@ -74,200 +64,15 @@ def local_absolute(relative_path: str) -> Path:
     return candidate
 
 
-def _require_tesseract() -> None:
-    command = get_settings().ocr_tesseract_cmd
-    if not Path(command).is_file() and shutil.which(command) is None:
-        raise AppError(
-            "LOCAL_OCR_UNAVAILABLE",
-            "Không tìm thấy Tesseract Local. Cài Tesseract và bộ ngôn ngữ vie, hoặc nhập văn bản thủ công.",
-            status_code=422,
-        )
-
-
-def _legacy_tesseract_ocr_image(image: Any, page_number: int) -> list[OCRToken]:
-    _require_tesseract()
-    try:
-        import pytesseract
-        from pytesseract import Output
-
-        pytesseract.pytesseract.tesseract_cmd = get_settings().ocr_tesseract_cmd
-        data = pytesseract.image_to_data(
-            image, lang=get_settings().ocr_languages, output_type=Output.DICT
-        )
-    except Exception as exc:
-        raise AppError(
-            "LOCAL_OCR_FAILED",
-            "OCR Local không thể nhận diện tài liệu. Hãy kiểm tra Tesseract, dữ liệu ngôn ngữ vie và chất lượng ảnh.",
-            status_code=422,
-        ) from exc
-    tokens: list[OCRToken] = []
-    for index, raw_text in enumerate(data["text"]):
-        text = (raw_text or "").strip()
-        if not text:
-            continue
-        try:
-            confidence = max(0.0, min(1.0, float(data["conf"][index]) / 100))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        tokens.append(
-            OCRToken(
-                text=text,
-                confidence=confidence,
-                page_number=page_number,
-                box=(
-                    int(data["left"][index]), int(data["top"][index]),
-                    int(data["width"][index]), int(data["height"][index]),
-                ),
-            )
-        )
-    return tokens
-
-
-def _vietocr_weights_path() -> Path:
-    configured = Path(get_settings().vietocr_weights_path)
-    if configured.is_absolute():
-        return configured
-    from app.ingestion.service import REPOSITORY_ROOT
-    return (REPOSITORY_ROOT / configured).resolve()
-
-
-def _download_vietocr_weights(weights: Path) -> None:
-    """Bootstrap the approved pretrained checkpoint once, then keep it local."""
-    settings = get_settings()
-    if not settings.vietocr_allow_weight_download:
-        raise AppError(
-            "LOCAL_VIETOCR_WEIGHTS_MISSING",
-            "Chưa có trọng số VietOCR Local và chế độ tải tự động đang tắt.",
-            status_code=422,
-        )
-    source_url = settings.vietocr_weights_url
-    if urlparse(source_url).scheme != "https":
-        raise AppError(
-            "VIETOCR_DOWNLOAD_URL_INVALID",
-            "URL tải trọng số VietOCR phải dùng HTTPS.",
-            status_code=422,
-        )
-    with _VIETOCR_DOWNLOAD_LOCK:
-        if weights.is_file():
-            return
-        temporary = weights.with_suffix(f"{weights.suffix}.part")
-        try:
-            weights.parent.mkdir(parents=True, exist_ok=True)
-            with urlopen(source_url, timeout=settings.vietocr_download_timeout_seconds) as response:
-                with temporary.open("wb") as target:
-                    shutil.copyfileobj(response, target)
-            if temporary.stat().st_size == 0:
-                raise ValueError("empty model response")
-            temporary.replace(weights)
-        except Exception as exc:
-            temporary.unlink(missing_ok=True)
-            raise AppError(
-                "LOCAL_VIETOCR_DOWNLOAD_FAILED",
-                "Không thể tải trọng số VietOCR. Kiểm tra kết nối hoặc đặt file model thủ công.",
-                status_code=422,
-            ) from exc
-
-
-@lru_cache(maxsize=1)
-def _vietocr_predictor() -> Any:
-    """Create the recogniser from its local checkpoint, bootstrapping it once if allowed."""
-    weights = _vietocr_weights_path()
-    if not weights.is_file():
-        _download_vietocr_weights(weights)
-    try:
-        import torch  # noqa: F401
-        import torchvision  # noqa: F401
-    except (ImportError, OSError) as exc:
-        raise AppError(
-            "LOCAL_VIETOCR_DEPENDENCY_MISSING",
-            "Thiếu runtime PyTorch cho VietOCR. Cài torch và torchvision bản CPU hoặc CUDA tương ứng.",
-            status_code=422,
-        ) from exc
-    try:
-        from vietocr.tool.config import Cfg
-        from vietocr.tool.predictor import Predictor
-
-        config = Cfg.load_config_from_name(get_settings().vietocr_model_name)
-        config["weights"] = str(weights)
-        config["device"] = get_settings().vietocr_device
-        config["cnn"]["pretrained"] = False
-        config["predictor"]["beamsearch"] = False
-        return Predictor(config)
-    except AppError:
-        raise
-    except Exception as exc:
-        raise AppError(
-            "LOCAL_VIETOCR_UNAVAILABLE",
-            "Không thể khởi tạo VietOCR Local. Kiểm tra thư viện, trọng số và cấu hình thiết bị.",
-            status_code=422,
-        ) from exc
-
-
-def _line_boxes(image: Any) -> list[tuple[int, int, int, int]]:
-    """Detect line crops locally; recognition is deliberately left to VietOCR."""
-    _require_tesseract()
-    try:
-        import pytesseract
-        from pytesseract import Output
-
-        pytesseract.pytesseract.tesseract_cmd = get_settings().ocr_tesseract_cmd
-        data = pytesseract.image_to_data(image, config="--psm 6", output_type=Output.DICT)
-    except Exception as exc:
-        raise AppError(
-            "LOCAL_OCR_FAILED",
-            "Không thể tách dòng tài liệu Local. Hãy kiểm tra Tesseract và chất lượng ảnh.",
-            status_code=422,
-        ) from exc
-    grouped: dict[tuple[int, int, int], list[int]] = {}
-    for index, raw_text in enumerate(data["text"]):
-        if not (raw_text or "").strip():
-            continue
-        key = (int(data["block_num"][index]), int(data["par_num"][index]), int(data["line_num"][index]))
-        grouped.setdefault(key, []).append(index)
-    boxes: list[tuple[int, int, int, int]] = []
-    for indexes in grouped.values():
-        left = min(int(data["left"][index]) for index in indexes)
-        top = min(int(data["top"][index]) for index in indexes)
-        right = max(int(data["left"][index]) + int(data["width"][index]) for index in indexes)
-        bottom = max(int(data["top"][index]) + int(data["height"][index]) for index in indexes)
-        boxes.append((left, top, right - left, bottom - top))
-    return boxes
-
-
-def _ocr_image(image: Any, page_number: int) -> list[OCRToken]:
-    """Recognise local line crops with VietOCR and retain calibrated confidence."""
-    predictor = _vietocr_predictor()
-    tokens: list[OCRToken] = []
-    for x, y, width, height in _line_boxes(image):
-        margin = 12
-        crop = image.crop((
-            max(0, x - margin), max(0, y - margin),
-            min(image.width, x + width + margin), min(image.height, y + height + margin),
-        ))
-        try:
-            text, probability = predictor.predict(crop, return_prob=True)
-            text = str(text).strip()
-            confidence = max(0.0, min(1.0, float(probability)))
-        except Exception as exc:
-            raise AppError(
-                "LOCAL_OCR_FAILED",
-                "VietOCR Local không thể nhận diện tài liệu. Hãy kiểm tra trọng số và chất lượng ảnh.",
-                status_code=422,
-            ) from exc
-        if text:
-            tokens.append(OCRToken(text=text, confidence=confidence, page_number=page_number, box=(x, y, width, height)))
-    return tokens
-
-
 def _pdf_images(path: Path) -> list[Any]:
     try:
         from PIL import Image
     except ImportError as exc:
-        raise AppError("LOCAL_OCR_UNAVAILABLE", "Thiếu thư viện xử lý ảnh Local (Pillow).", status_code=422) from exc
+        raise AppError("DOCUMENT_RENDER_UNAVAILABLE", "Thiếu thư viện xử lý ảnh (Pillow).", status_code=422) from exc
     try:
         import fitz
     except ImportError as exc:
-        raise AppError("LOCAL_OCR_UNAVAILABLE", "Thiếu thư viện render PDF Local (PyMuPDF).", status_code=422) from exc
+        raise AppError("DOCUMENT_RENDER_UNAVAILABLE", "Thiếu thư viện render PDF (PyMuPDF).", status_code=422) from exc
     try:
         pdf = fitz.open(path)
         return [Image.frombytes("RGB", (pix.width, pix.height), pix.samples) for page in pdf for pix in [page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)]]
@@ -395,8 +200,8 @@ def _extract_with_gemini_vision(path: Path, document_type: str) -> tuple[str, st
     return "\n".join(token.text for token in tokens).strip(), "GEMINI_VISION_OCR", tokens, images
 
 
-def extract_locally(path: Path, document_type: str) -> tuple[str, str, list[OCRToken], list[Any]]:
-    """Return raw text, extractor label, OCR tokens and OCR page images."""
+def extract_document(path: Path, document_type: str) -> tuple[str, str, list[OCRToken], list[Any]]:
+    """Extract DOCX/TXT natively and send all visual documents to Gemini Vision."""
     if document_type == "TXT":
         try:
             return path.read_text(encoding="utf-8"), "DIRECT_TEXT", [], []
@@ -417,36 +222,9 @@ def extract_locally(path: Path, document_type: str) -> tuple[str, str, list[OCRT
             raise
         except Exception as exc:
             raise AppError("INVALID_DOCUMENT_FILE", "Không thể đọc file Word đã tải lên.", status_code=422) from exc
-    if document_type == "PDF":
-        from pypdf import PdfReader
-        try:
-            text = "\n".join(page.extract_text() or "" for page in PdfReader(path).pages).strip()
-        except Exception as exc:
-            raise AppError("INVALID_DOCUMENT_FILE", "Không thể đọc PDF đã tải lên.", status_code=422) from exc
-        # Native PDF text is safer and more accurate.  OCR is only used for scans.
-        if text:
-            return text, "PDF_NATIVE", [], []
-        images = _pdf_images(path)
-    elif document_type == "IMAGE":
-        try:
-            from PIL import Image
-            images = [Image.open(path).convert("RGB")]
-        except Exception as exc:
-            raise AppError("INVALID_DOCUMENT_FILE", "Không thể mở ảnh đã tải lên.", status_code=422) from exc
-    else:
-        raise AppError("UNSUPPORTED_DOCUMENT_TYPE", "Định dạng tài liệu không được hỗ trợ.", status_code=422)
-    tokens = [token for page, image in enumerate(images, start=1) for token in _ocr_image(image, page)]
-    text = "\n".join(token.text for token in tokens).strip()
-    if not text:
-        raise AppError("OCR_EMPTY_RESULT", "OCR không nhận diện được văn bản. Vui lòng dùng ảnh rõ hơn hoặc nhập thủ công.", status_code=422)
-    return text, "LOCAL_VIETOCR_OCR", tokens, images
-
-
-def extract_document(path: Path, document_type: str) -> tuple[str, str, list[OCRToken], list[Any]]:
-    """Extract native files locally and visual files with the selected OCR provider."""
-    if document_type in {"PDF", "IMAGE"} and get_settings().document_ocr_provider == "gemini_vision":
+    if document_type in {"PDF", "IMAGE"}:
         return _extract_with_gemini_vision(path, document_type)
-    return extract_locally(path, document_type)
+    raise AppError("UNSUPPORTED_DOCUMENT_TYPE", "Định dạng tài liệu không được hỗ trợ.", status_code=422)
 
 
 async def create_processing(
@@ -517,7 +295,7 @@ async def create_processing(
         processing = await session.get(DocumentProcessing, processing_id)
         if processing:
             processing.status = "FAILED"
-            processing.error_message = exc.message if isinstance(exc, AppError) else "Lỗi xử lý Local không xác định."
+            processing.error_message = exc.message if isinstance(exc, AppError) else "Lỗi xử lý tài liệu không xác định."
             document = await session.get(Document, document_id)
             if document:
                 document.status = DocumentStatus.FAILED
@@ -767,7 +545,7 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
     except Exception as exc:
         processing = await get_processing(session, processing_id)
         processing.status = "FAILED"
-        processing.error_message = exc.message if isinstance(exc, AppError) else "Không thể lập chỉ mục văn bản Local."
+        processing.error_message = exc.message if isinstance(exc, AppError) else "Không thể lập chỉ mục văn bản."
         await session.commit()
         raise
     await _publish_policy_update(session, processing=processing, document=document)

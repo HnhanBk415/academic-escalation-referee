@@ -17,7 +17,7 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 curl tesseract-ocr && rm -rf /var/lib/apt/lists/*
+    libpq5 curl && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
@@ -31,8 +31,7 @@ COPY --from=builder /build/backend/scripts ./scripts
 # Copy sample data for RAG ingestion/seeding
 COPY data ./data
 
-# Gemini Vision is the default document OCR provider. VietOCR remains an
-# optional local fallback and needs PyTorch/torchvision installed separately.
+# Gemini Vision performs image and scanned-PDF OCR with its separate API key.
 
 # Non-root user
 RUN adduser --disabled-password --gecos "" aer && chown -R aer:aer /app
