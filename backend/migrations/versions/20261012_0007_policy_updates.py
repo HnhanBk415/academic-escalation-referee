@@ -6,6 +6,7 @@ Revises: 20261012_0006
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 
 revision = "20261012_0007"
 down_revision = "20261012_0006"
@@ -14,6 +15,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # The original initial migration intentionally creates the current model
+    # metadata for fresh installations. In that case this table already exists
+    # before this historical migration is reached.
+    if inspect(op.get_bind()).has_table("policy_updates"):
+        return
     op.create_table(
         "policy_updates",
         sa.Column("id", sa.String(64), primary_key=True),
