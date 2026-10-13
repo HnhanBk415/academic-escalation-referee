@@ -29,11 +29,13 @@ from app.core.policy_topics import (
     canonical_policy_topic,
     infer_policy_topic,
     policy_match_tokens,
+    policy_token_overlap,
     policy_topics_in_text,
     resolve_policy_topic,
 )
 from app.models import (
     Actor,
+    AuditEvent,
     Course,
     Document,
     DocumentChunk,
@@ -899,16 +901,74 @@ async def submit_question(
     )
 
 
-def _build_question_response(
+def build_citations_for_question(
     question: Question,
-    case: EscalationCase | None,
     evidence: list[dict],
-    labels: list[str],
-    final_decision: HumanDecision | None = None,
-    exception_id: str | None = None,
-    applied_exception_id: str | None = None,
-) -> QuestionResponse:
-    citations = [
+    labels: list[str] | None,
+) -> list[CitationResponse]:
+    route_str = str(question.route or "").upper()
+    is_answer = (route_str == "ANSWER" or question.route == Route.ANSWER)
+
+    if not is_answer:
+        # Với ESCALATE/CLARIFY/REJECT: chỉ trả citations có label nằm trong decision.citation_labels;
+        # nếu labels rỗng → citations rỗng. Bỏ điều kiện or question.route == Route.ESCALATE.
+        if not labels:
+            return []
+        label_set = set(labels)
+        return [
+            CitationResponse(
+                label=item["label"],
+                chunk_id=item["chunk_id"],
+                document_id=item["document_id"],
+                document_title=item["document_title"],
+                page_number=item["page_number"],
+                heading=item["heading"],
+                quote=item["content"],
+            )
+            for item in evidence
+            if item.get("label") in label_set
+        ]
+
+    # Với ANSWER: sau khi có labels từ model, lọc thêm:
+    # chỉ giữ citation có topic khớp topic câu hỏi (infer_policy_topic(question) ∈ policy_topics_in_text(chunk))
+    # hoặc policy_token_overlap(question, chunk) ≥ 0.2;
+    # luôn giữ ít nhất 1 citation có điểm cao nhất nếu lọc hết (ANSWER bắt buộc có trích dẫn — xem điều kiện citOk trong frontend VerifyPage).
+    if labels:
+        label_set = set(labels)
+        candidates = [item for item in evidence if item.get("label") in label_set]
+    else:
+        candidates = list(evidence)
+    if not candidates:
+        candidates = list(evidence)
+
+    question_text = str(question.text or "")
+    q_topic = infer_policy_topic(question_text)
+
+    filtered_candidates: list[dict] = []
+    for item in candidates:
+        chunk_text = f"{item.get('heading') or ''} {item.get('content') or ''}".strip()
+        chunk_topics = policy_topics_in_text(chunk_text)
+
+        if q_topic != "GENERAL":
+            topic_match = (q_topic in chunk_topics)
+            has_other_conflicting_topics = bool(chunk_topics and q_topic not in chunk_topics)
+            overlap = policy_token_overlap(question_text, chunk_text)
+            overlap_match = (overlap >= 0.2 and not has_other_conflicting_topics)
+        else:
+            topic_match = ("GENERAL" in chunk_topics)
+            overlap = policy_token_overlap(question_text, chunk_text)
+            overlap_match = (overlap >= 0.2)
+
+        if topic_match or overlap_match:
+            filtered_candidates.append(item)
+
+    if not filtered_candidates:
+        source_list = candidates if candidates else evidence
+        if source_list:
+            best_item = max(source_list, key=lambda x: float(x.get("score") or 0.0))
+            filtered_candidates = [best_item]
+
+    return [
         CitationResponse(
             label=item["label"],
             chunk_id=item["chunk_id"],
@@ -918,9 +978,20 @@ def _build_question_response(
             heading=item["heading"],
             quote=item["content"],
         )
-        for item in evidence
-        if item["label"] in labels or question.route == Route.ESCALATE
+        for item in filtered_candidates
     ]
+
+
+def _build_question_response(
+    question: Question,
+    case: EscalationCase | None,
+    evidence: list[dict],
+    labels: list[str] | None,
+    final_decision: HumanDecision | None = None,
+    exception_id: str | None = None,
+    applied_exception_id: str | None = None,
+) -> QuestionResponse:
+    citations = build_citations_for_question(question, evidence, labels)
     return QuestionResponse(
         question_id=question.id,
         status=question.status,
@@ -970,11 +1041,23 @@ async def get_question_response(session: AsyncSession, question_id: str) -> Ques
             )
             exception_id = exception.id if exception else None
     evidence = await _evidence_for_question(session, question.id)
+    audit_event = await session.scalar(
+        select(AuditEvent)
+        .where(
+            AuditEvent.entity_type == "question",
+            AuditEvent.entity_id == question.id,
+            AuditEvent.event_type == "REFEREE_DECIDED",
+        )
+        .order_by(AuditEvent.created_at.desc())
+    )
+    labels = None
+    if audit_event and isinstance(audit_event.output_snapshot, dict):
+        labels = audit_event.output_snapshot.get("citation_labels")
     return _build_question_response(
         question,
         case,
         evidence,
-        [item["label"] for item in evidence],
+        labels,
         final_decision,
         exception_id,
         question.applied_exception_id,
@@ -1062,6 +1145,22 @@ async def list_questions_response(
         ).all()
         exceptions_by_decision = {item.human_decision_id: item for item in exception_items}
 
+    audit_rows = (
+        await session.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.entity_type == "question",
+                AuditEvent.entity_id.in_(question_ids),
+                AuditEvent.event_type == "REFEREE_DECIDED",
+            )
+            .order_by(AuditEvent.created_at.desc())
+        )
+    ).all()
+    labels_by_question: dict[str, list[str]] = {}
+    for ev in audit_rows:
+        if ev.entity_id not in labels_by_question and isinstance(ev.output_snapshot, dict):
+            labels_by_question[ev.entity_id] = ev.output_snapshot.get("citation_labels") or []
+
     evidence_by_question = await _evidence_for_questions(session, question_ids)
     results: list[QuestionResponse] = []
     for question in questions:
@@ -1069,12 +1168,13 @@ async def list_questions_response(
         final_decision = decision_by_case.get(escalation.id) if escalation else None
         exception = exceptions_by_decision.get(final_decision.id) if final_decision else None
         evidence = evidence_by_question.get(question.id, [])
+        labels = labels_by_question.get(question.id)
         results.append(
             _build_question_response(
                 question,
                 escalation,
                 evidence,
-                [item["label"] for item in evidence],
+                labels,
                 final_decision,
                 exception.id if exception else None,
                 question.applied_exception_id,

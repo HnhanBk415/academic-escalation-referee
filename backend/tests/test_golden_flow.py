@@ -246,3 +246,48 @@ async def test_demo_routing_creates_cases_only_for_course_lecturer(client):
     )
     assert "REQUEST_REJECTED" in {event["event_type"] for event in audit.json()}
 
+
+@pytest.mark.asyncio
+async def test_relevant_citations_for_answer_and_no_unrelated_citations_for_escalate(client):
+    # 1. Câu "Một nhóm đồ án được có bao nhiêu thành viên?" (ANSWER)
+    # -> Chỉ có trích dẫn về thành viên nhóm, không kèm rubric / AI.
+    q_group = await ask(
+        client,
+        "student-a1",
+        "Một nhóm đồ án được có bao nhiêu thành viên?",
+    )
+    assert q_group.status_code == 201
+    group_data = q_group.json()
+    assert group_data["route"] == "ANSWER"
+    assert len(group_data["citations"]) >= 1
+    for cit in group_data["citations"]:
+        assert "rubric" not in cit["document_title"].lower()
+        assert "ai" not in cit["document_title"].lower()
+
+    # Kiểm tra GET /api/v1/questions/{id}
+    q_group_get = await client.get(f"/api/v1/questions/{group_data['question_id']}")
+    assert q_group_get.status_code == 200
+    for cit in q_group_get.json()["citations"]:
+        assert "rubric" not in cit["document_title"].lower()
+        assert "ai" not in cit["document_title"].lower()
+
+    # 2. Câu "Hạn chót để sinh viên được phép xin hủy môn học là khi nào?" (ESCALATE)
+    # -> Không có trích dẫn rubric/AI (citations rỗng).
+    q_cancel = await ask(
+        client,
+        "student-a1",
+        "Hạn chót để sinh viên được phép xin hủy môn học là khi nào?",
+    )
+    assert q_cancel.status_code == 201
+    cancel_data = q_cancel.json()
+    assert cancel_data["route"] == "ESCALATE"
+    assert cancel_data["case_id"] is not None
+    # Citations phải rỗng (không kèm trích dẫn rubric/AI)
+    assert cancel_data["citations"] == []
+
+    # Kiểm tra màn chi tiết case của giảng viên (GET /api/v1/cases/{id})
+    case_detail = await client.get(f"/api/v1/cases/{cancel_data['case_id']}")
+    assert case_detail.status_code == 200
+    assert case_detail.json()["citations"] == []
+
+

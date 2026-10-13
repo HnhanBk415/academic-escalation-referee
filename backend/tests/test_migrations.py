@@ -32,15 +32,8 @@ def test_migration_chain_upgrades_cleanly_and_preserves_flow_one():
             connection.exec_driver_sql("PRAGMA foreign_keys=ON")
             config.attributes["connection"] = connection
 
-            # Upgrade all the way to head.
-            command.upgrade(config, "head")
-
-            # No legacy format-check tables should be present.
-            all_tables = set(sa.inspect(connection).get_table_names())
-            assert not {t for t in all_tables if t.startswith("format_")}
-
-            # Schema must exactly match the ORM metadata.
-            assert all_tables == {*Base.metadata.tables, "alembic_version"}
+            # Upgrade to the latest reversible revision before 0009.
+            command.upgrade(config, "20261012_0008")
 
             # Seed representative Flow 1 data.
             connection.execute(
@@ -105,23 +98,33 @@ def test_migration_chain_upgrades_cleanly_and_preserves_flow_one():
                 },
             )
 
+            flow_one_tables = [
+                Actor.__table__,
+                Course.__table__,
+                Question.__table__,
+                EscalationCase.__table__,
+                HumanDecision.__table__,
+                AuditEvent.__table__,
+            ]
             before = {
                 table.name: _rows_excluding(connection, table)
-                for table in Base.metadata.sorted_tables
+                for table in flow_one_tables
             }
 
             # Downgrade to the revision just before the SLA/clarification migration,
-            # then re-upgrade to head; all stable Flow 1 data must survive.
+            # then re-upgrade all the way to head; all stable Flow 1 data must survive.
             command.downgrade(config, "20261001_0004")
             command.upgrade(config, "head")
 
-            assert set(sa.inspect(connection).get_table_names()) == {
+            all_tables = set(sa.inspect(connection).get_table_names())
+            assert not {t for t in all_tables if t.startswith("format_")}
+            assert all_tables == {
                 *Base.metadata.tables,
                 "alembic_version",
             }
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
 
-            for table in Base.metadata.sorted_tables:
+            for table in flow_one_tables:
                 after = _rows_excluding(connection, table)
                 assert after == before[table.name], f"Data mismatch in {table.name}"
 
@@ -132,5 +135,11 @@ def test_migration_chain_upgrades_cleanly_and_preserves_flow_one():
                 .all()
             )
             assert {"audit_events_no_update", "audit_events_no_delete"} <= set(triggers)
+
+            # Reversible migrations end before 0009; head downgrade is intentionally blocked.
+            import pytest
+            with pytest.raises(NotImplementedError):
+                command.downgrade(config, "20261012_0008")
+
     finally:
         engine.dispose()

@@ -16,6 +16,7 @@ from app.core.errors import AppError
 from app.core.policy_topics import canonical_policy_topic
 from app.models import (
     Actor,
+    AuditEvent,
     Document,
     DocumentChunk,
     EscalationCase,
@@ -34,7 +35,7 @@ from app.schemas.cases import (
 from app.schemas.questions import CitationResponse
 from app.services.audit import add_audit_event
 from app.services.ids import new_id
-from app.services.questions import _evidence_for_question
+from app.services.questions import _evidence_for_question, build_citations_for_question
 
 
 def _sla_is_overdue(case: EscalationCase) -> bool:
@@ -97,18 +98,20 @@ async def get_case_detail(session: AsyncSession, case_id: str) -> CaseDetail:
         raise AppError("QUESTION_NOT_FOUND", "Không tìm thấy câu hỏi gốc.", status_code=500)
     evidence = await _evidence_for_question(session, question.id)
     group = await session.get(Group, question.group_id) if question.group_id else None
-    citations = [
-        CitationResponse(
-            label=item["label"],
-            chunk_id=item["chunk_id"],
-            document_id=item["document_id"],
-            document_title=item["document_title"],
-            page_number=item["page_number"],
-            heading=item["heading"],
-            quote=item["content"],
+    audit_event = await session.scalar(
+        select(AuditEvent)
+        .where(
+            AuditEvent.entity_type == "question",
+            AuditEvent.entity_id == question.id,
+            AuditEvent.event_type == "REFEREE_DECIDED",
         )
-        for item in evidence
-    ]
+        .order_by(AuditEvent.created_at.desc())
+    )
+    labels = None
+    if audit_event and isinstance(audit_event.output_snapshot, dict):
+        labels = audit_event.output_snapshot.get("citation_labels")
+
+    citations = build_citations_for_question(question, evidence, labels)
     return CaseDetail(
         id=case.id,
         question_id=case.question_id,

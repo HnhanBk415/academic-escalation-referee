@@ -33,5 +33,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    pass
-
+    raise NotImplementedError(
+        "The Hybrid RAG schema rollback is intentionally irreversible; "
+        "restore revision 20261012_0008 from a database backup if needed."
+    )
