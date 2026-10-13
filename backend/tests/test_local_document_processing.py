@@ -105,3 +105,65 @@ async def test_supplement_does_not_hide_unrelated_older_rule(client):
     )
     assert answer.status_code == 201, answer.text
     assert answer.json()["citations"][0]["document_id"] == old.json()["document"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_waiver_request_escalates_even_when_policy_update_exists(client):
+    created = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Quy định nhóm mới",
+            "version": "2.0",
+            "text_content": "Mỗi nhóm đồ án có từ 3 đến 5 thành viên.",
+        },
+    )
+    assert created.status_code == 201
+    assert (await client.post(f"/api/v1/documents/processing/{created.json()['id']}/finalize")).status_code == 200
+
+    resp = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Nhóm em xin phép có 6 thành viên được không?",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["route"] == "ESCALATE"
+    assert data["status"] == "ESCALATED"
+    assert data["policy_topic"] == "GROUP_MEMBERSHIP"
+
+
+@pytest.mark.asyncio
+async def test_foreign_language_update_does_not_hijack_rubric_query(client):
+    fl_doc = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Chuẩn ngoại ngữ tốt nghiệp",
+            "version": "1.0",
+            "text_content": "Chuẩn ngoại ngữ tốt nghiệp tiếng Anh TOEIC 600 hoặc TOEFL iBT 64, tiếng Pháp DELF B1.",
+        },
+    )
+    assert fl_doc.status_code == 201
+    assert (await client.post(f"/api/v1/documents/processing/{fl_doc.json()['id']}/finalize")).status_code == 200
+
+    resp = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Rubric chấm điểm báo cáo và sản phẩm như thế nào?",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["route"] == "ANSWER"
+    # Citations must not be from foreign language document
+    if data["citations"]:
+        assert data["citations"][0]["document_id"] != fl_doc.json()["document"]["id"]
+

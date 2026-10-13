@@ -25,6 +25,7 @@ from app.core.errors import AppError
 from app.core.policy_topics import (
     canonical_policy_topic,
     infer_policy_topic,
+    policy_topics_in_text,
     resolve_policy_topic,
 )
 from app.models import (
@@ -252,6 +253,8 @@ async def _load_policy_updates(
 _POLICY_MATCH_STOPWORDS = {
     "bao", "ban", "cac", "cho", "co", "cua", "duoc", "hay", "khi", "la", "mot", "nhung",
     "nguoi", "phai", "sinh", "theo", "toi", "trong", "va", "voi", "vien", "vui", "xin",
+    "em", "ve", "se", "ra", "nay", "den", "tu", "thi", "ma", "nao", "gi", "sao", "nhu",
+    "the", "o", "nhieu", "de", "khong", "a",
 }
 
 
@@ -275,15 +278,33 @@ def _policy_update_relevance(question: str, content: str) -> float:
 
 def _applicable_policy_update(question: str, updates: list[dict]) -> dict | None:
     topic = canonical_policy_topic(infer_policy_topic(question))
+    question_topics = policy_topics_in_text(question)
+    if topic != "GENERAL":
+        question_topics.add(topic)
     relevant: list[dict] = []
     for update in updates:
-        update_topic = canonical_policy_topic(str(update["policy_topic"]))
-        if update["operation"] == "REVOKE":
+        if update.get("operation") == "REVOKE":
             continue
-        if topic != "GENERAL" and update_topic not in {topic, "GENERAL"}:
-            continue
-        relevance = _policy_update_relevance(question, str(update["content"]))
-        if relevance < max(0.20, get_settings().rag_min_score):
+        update_topic = canonical_policy_topic(str(update.get("policy_topic", "GENERAL")))
+        update_content = str(update.get("content", ""))
+        update_topics = policy_topics_in_text(update_content)
+        if update_topic != "GENERAL":
+            update_topics.add(update_topic)
+
+        # Strict topic check:
+        # A domain-specific question MUST find an update covering that topic.
+        # A general policy update must not hijack specific questions.
+        if topic != "GENERAL":
+            if topic not in update_topics and update_topic != topic:
+                continue
+        else:
+            # If the question is GENERAL, an update dedicated to a specific topic
+            # (e.g. GROUP_MEMBERSHIP, SUBMISSION_DEADLINE) must not hijack it.
+            if update_topic != "GENERAL" and not (question_topics & update_topics):
+                continue
+
+        relevance = _policy_update_relevance(question, update_content)
+        if relevance < max(0.40, get_settings().rag_min_score):
             continue
         relevant.append({**update, "relevance": relevance})
     if not relevant:
@@ -293,6 +314,42 @@ def _applicable_policy_update(question: str, updates: list[dict]) -> dict | None
     # A newer saved update wins only among updates that actually match the
     # student's question. This is independent of file title or file name.
     return max(candidates, key=lambda item: (item["published_at"], item["relevance"]))
+
+
+def _is_waiver_request(question: str) -> bool:
+    lowered = question.casefold()
+    waiver_patterns = (
+        "xin phép",
+        "xin phep",
+        "xin ngoại lệ",
+        "xin ngoai le",
+        "xin gia hạn",
+        "xin gia han",
+        "xin miễn",
+        "xin mien",
+        "muốn phúc khảo",
+        "muon phuc khao",
+        "muốn đổi điểm",
+        "muon doi diem",
+        "phúc khảo",
+        "phuc khao",
+        "đổi điểm",
+        "doi diem",
+        "xem xét lại điểm",
+        "xem xet lai diem",
+        "cho nhóm em",
+        "cho nhom em",
+        "cho team em",
+    )
+    if any(token in lowered for token in waiver_patterns):
+        return True
+    if (
+        re.search(r"\b(?:6|sáu|sau|7|bảy|bay|8|tám|tam|9|chín|chin|10|mười|muoi)\b", lowered)
+        and infer_policy_topic(question) == "GROUP_MEMBERSHIP"
+        and any(token in lowered for token in ("xin", "được không", "duoc khong", "phép", "phep"))
+    ):
+        return True
+    return False
 
 
 async def _prepend_policy_update_evidence(
@@ -619,7 +676,8 @@ async def submit_question(
         # newer/older document instead.
         decision = _approved_exception_decision(payload.text, exceptions, evidence)
     if decision is None and selected_policy_update:
-        decision = _policy_update_decision(selected_policy_update, evidence)
+        if not _is_waiver_request(payload.text):
+            decision = _policy_update_decision(selected_policy_update, evidence)
     if decision is None and has_conflicting_evidence:
         decision = _guardrail_decision(
             payload.text,
@@ -677,6 +735,18 @@ async def submit_question(
                 "giảng viên vui lòng xem xét hồ sơ này."
             ),
             confidence=0,
+        )
+
+    if _is_waiver_request(payload.text) and decision.route == Route.ANSWER:
+        decision = RefereeDecision(
+            route=Route.ESCALATE,
+            policy_coverage=PolicyCoverage.REQUESTS_WAIVER,
+            policy_topic=resolve_policy_topic(payload.text, decision.policy_topic),
+            uncertainty_type=UncertaintyType.AUTHORITY_REQUIRED,
+            reason_code="STUDENT_REQUESTS_WAIVER",
+            escalation_target=EscalationTarget.COURSE_LECTURER,
+            decision_question="Giảng viên có phê duyệt yêu cầu vượt ngoài quy định hiện hành không?",
+            confidence=1,
         )
 
     decision.policy_topic = resolve_policy_topic(payload.text, decision.policy_topic)

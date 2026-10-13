@@ -572,11 +572,9 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
         for item in items
     }
     lines = processing.raw_text.splitlines()
-    if lines and any(item.item_index < len(lines) for item in items):
+    if lines:
         clean_text = "\n".join(replacements.get(index, line) for index, line in enumerate(lines)).strip()
     else:
-        # Direct text and DOCX have no OCR review items, but retain this
-        # fallback for processing records created by older app versions.
         words = processing.raw_text.split()
         clean_text = " ".join(replacements.get(index, word) for index, word in enumerate(words)).strip()
     if not clean_text:

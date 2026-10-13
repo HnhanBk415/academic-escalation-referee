@@ -206,14 +206,23 @@ class GeminiProvider:
             try:
                 response = await self._generate_decision(prompt)
                 decision = None
+                raw_dict = None
                 if response.parsed:
-                    decision = (
-                        response.parsed
-                        if isinstance(response.parsed, RefereeDecision)
-                        else RefereeDecision.model_validate(response.parsed)
-                    )
+                    if isinstance(response.parsed, RefereeDecision):
+                        decision = response.parsed
+                    elif isinstance(response.parsed, dict):
+                        raw_dict = dict(response.parsed)
+                    elif hasattr(response.parsed, "model_dump"):
+                        raw_dict = response.parsed.model_dump()
                 elif response.text:
-                    decision = RefereeDecision.model_validate_json(response.text)
+                    try:
+                        raw_dict = json.loads(response.text)
+                    except Exception:
+                        pass
+                if raw_dict is not None and decision is None:
+                    if str(raw_dict.get("route")) == "ANSWER" and not raw_dict.get("citation_labels") and evidence:
+                        raw_dict["citation_labels"] = [evidence[0]["label"]]
+                    decision = RefereeDecision.model_validate(raw_dict)
                 if decision:
                     print(
                         f"[Gemini Chat] => Route: {decision.route}, "
