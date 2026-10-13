@@ -77,6 +77,6 @@ def downgrade() -> None:
     op.drop_table("document_review_items")
     op.drop_table("document_processing")
     op.drop_index("ix_documents_supersedes_document_id", table_name="documents")
-    if op.get_bind().dialect.name != "sqlite":
-        op.drop_constraint("fk_documents_supersedes_document_id", "documents", type_="foreignkey")
-    op.drop_column("documents", "supersedes_document_id")
+    with op.batch_alter_table("documents") as batch_op:
+        batch_op.drop_column("supersedes_document_id")
+

@@ -167,3 +167,145 @@ async def test_foreign_language_update_does_not_hijack_rubric_query(client):
     if data["citations"]:
         assert data["citations"][0]["document_id"] != fl_doc.json()["document"]["id"]
 
+
+@pytest.mark.asyncio
+async def test_discard_processing_in_various_states_and_completed_rejection(client):
+    # 1. Discard in READY_TO_CONFIRM
+    created = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Bản nháp cần bỏ",
+            "version": "0.1",
+            "text_content": "Nội dung bản nháp tạm thời.",
+        },
+    )
+    assert created.status_code == 201
+    proc_id = created.json()["id"]
+    doc_id = created.json()["document"]["id"]
+
+    discarded = await client.post(f"/api/v1/documents/processing/{proc_id}/discard")
+    assert discarded.status_code == 200
+    assert discarded.json()["status"] == "DISCARDED"
+
+    # Verify document and review items can no longer be updated/finalized
+    doc_resp = await client.get(f"/api/v1/documents/{doc_id}")
+    assert doc_resp.json()["status"] == "DISCARDED"
+
+    finalize_attempt = await client.post(f"/api/v1/documents/processing/{proc_id}/finalize")
+    assert finalize_attempt.status_code == 409
+
+    # Verify discarded documents are omitted from default listing
+    docs_list = await client.get("/api/v1/documents?course_id=CO3001")
+    assert docs_list.status_code == 200
+    listed_ids = [d["id"] for d in docs_list.json()]
+    assert doc_id not in listed_ids
+
+    # 2. Discard in COMPLETED rejected with 409
+    completed_doc = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Quy định chính thức",
+            "version": "1.0",
+            "text_content": "Quy định chính thức có hiệu lực.",
+        },
+    )
+    assert completed_doc.status_code == 201
+    comp_id = completed_doc.json()["id"]
+    assert (await client.post(f"/api/v1/documents/processing/{comp_id}/finalize")).status_code == 200
+
+    discard_comp = await client.post(f"/api/v1/documents/processing/{comp_id}/discard")
+    assert discard_comp.status_code == 409
+    assert discard_comp.json()["error"]["code"] == "PROCESSING_ALREADY_PUBLISHED"
+
+
+@pytest.mark.asyncio
+async def test_conflict_detection_and_resolution_replace_and_keep_old(client):
+    # 1. Upload first rubric (V1)
+    v1 = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Rubric V1",
+            "version": "1.0",
+            "text_content": "Rubric chấm điểm học phần: Đồ án chiếm 40% điểm tổng kết, thi cuối kỳ chiếm 60%.",
+        },
+    )
+    assert v1.status_code == 201
+    assert (await client.post(f"/api/v1/documents/processing/{v1.json()['id']}/finalize")).status_code == 200
+
+    # 2. Upload second rubric (V2) with conflicting topic GRADING_RUBRIC
+    v2 = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Rubric V2",
+            "version": "2.0",
+            "text_content": "Rubric chấm điểm học phần mới: Đồ án chiếm 50% điểm tổng kết, thi cuối kỳ chiếm 50%.",
+        },
+    )
+    assert v2.status_code == 201
+    v2_id = v2.json()["id"]
+
+    # 3. Detect conflicts
+    conflicts_resp = await client.get(f"/api/v1/documents/processing/{v2_id}/conflicts")
+    assert conflicts_resp.status_code == 200
+    conflicts = conflicts_resp.json()
+    assert len(conflicts) >= 1
+    assert conflicts[0]["new_chunk_index"] == 0
+    assert conflicts[0]["policy_topic"] == "GRADING_RUBRIC"
+    assert len(conflicts[0]["existing"]) >= 1
+    assert conflicts[0]["existing"][0]["source_document_title"] == "Rubric V1"
+
+    # 4. Finalize without resolution -> 422 CONFLICT_RESOLUTION_REQUIRED
+    fin_missing = await client.post(f"/api/v1/documents/processing/{v2_id}/finalize")
+    assert fin_missing.status_code == 422
+    assert fin_missing.json()["error"]["code"] == "CONFLICT_RESOLUTION_REQUIRED"
+
+    # 5. Finalize with REPLACE
+    fin_replace = await client.post(
+        f"/api/v1/documents/processing/{v2_id}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
+    )
+    assert fin_replace.status_code == 200
+    summary = fin_replace.json()["finalize_summary"]
+    assert summary["replaced_count"] == 1
+
+    # 6. Ask question: answer must reflect V2 (50% / 50%)
+    ans = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Rubric chấm điểm thế nào?",
+        },
+    )
+    assert ans.status_code == 201
+    ans_data = ans.json()
+    assert ans_data["route"] == "ANSWER"
+    assert "50%" in ans_data["answer"]
+    assert ans_data["citations"][0]["document_id"] == v2.json()["document"]["id"]
+
+    # 7. Upload third rubric (V3) and resolve with KEEP_OLD
+    v3 = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Rubric V3",
+            "version": "3.0",
+            "text_content": "Rubric chấm điểm đồ án bổ sung: Đồ án chiếm 70% điểm tổng kết.",
+        },
+    )
+    assert v3.status_code == 201
+    v3_id = v3.json()["id"]
+
+    fin_keep_old = await client.post(
+        f"/api/v1/documents/processing/{v3_id}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "KEEP_OLD"}]},
+    )
+    assert fin_keep_old.status_code == 200
+    assert fin_keep_old.json()["finalize_summary"]["skipped_count"] == 1
+
+

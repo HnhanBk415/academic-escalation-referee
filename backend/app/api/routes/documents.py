@@ -17,6 +17,8 @@ from app.ingestion.local_processing import (
     SUPPORTED_SUFFIXES,
     _root,
     create_processing,
+    detect_conflicts,
+    discard_processing,
     finalize_processing,
     get_processing,
     local_absolute,
@@ -26,8 +28,8 @@ from app.ingestion.local_processing import (
 )
 from app.ingestion.service import ingest_document
 from app.schemas.documents import (
-    DocumentCreate, DocumentResponse, IngestResponse, ProcessingCreate,
-    ProcessingResponse, ReviewItemUpdate,
+    ConflictItem, DocumentCreate, DocumentResponse, FinalizePayload,
+    IngestResponse, ProcessingCreate, ProcessingResponse, ReviewItemUpdate,
 )
 from app.services.documents import (
     get_document_response,
@@ -174,13 +176,36 @@ async def confirm_review_item(
     return await processing_response(session, processing)
 
 
-@router.post("/processing/{processing_id}/finalize", response_model=ProcessingResponse)
-async def finalize_document_processing(
-    processing_id: str, session: SessionDependency, provider: ProviderDependency,
+@router.post("/processing/{processing_id}/discard", response_model=ProcessingResponse)
+async def discard_document_processing(
+    processing_id: str,
+    session: SessionDependency,
     current: CurrentActor = Depends(get_current_actor),
 ) -> ProcessingResponse:
     require_role(current, ActorRole.LECTURER, ActorRole.ACADEMIC_AFFAIRS)
-    return await finalize_processing(session, processing_id, provider)
+    return await discard_processing(session, processing_id, current.id)
+
+
+@router.get("/processing/{processing_id}/conflicts", response_model=list[ConflictItem])
+async def get_document_conflicts(
+    processing_id: str,
+    session: SessionDependency,
+    current: CurrentActor = Depends(get_current_actor),
+) -> list[ConflictItem]:
+    require_role(current, ActorRole.LECTURER, ActorRole.ACADEMIC_AFFAIRS)
+    return await detect_conflicts(session, processing_id)
+
+
+@router.post("/processing/{processing_id}/finalize", response_model=ProcessingResponse)
+async def finalize_document_processing(
+    processing_id: str,
+    session: SessionDependency,
+    provider: ProviderDependency,
+    payload: FinalizePayload | None = None,
+    current: CurrentActor = Depends(get_current_actor),
+) -> ProcessingResponse:
+    require_role(current, ActorRole.LECTURER, ActorRole.ACADEMIC_AFFAIRS)
+    return await finalize_processing(session, processing_id, provider, payload)
 
 
 @router.get("/processing/{processing_id}/review-items/{review_id}/crop")

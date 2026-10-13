@@ -19,6 +19,7 @@ class DocumentStatus(StrEnum):
     ACTIVE = "ACTIVE"
     FAILED = "FAILED"
     SUPERSEDED = "SUPERSEDED"
+    DISCARDED = "DISCARDED"
 
 
 class QuestionStatus(StrEnum):

@@ -330,15 +330,25 @@ export function VerifyPage() {
           <small>Mục tiêu &lt; 90 giây toàn bộ</small>
           {/* Bar chart */}
           <div className="bar-chart">
-            {results.map((r) => (
-              <div key={r.id} className="bar-item" title={`${r.id}: ${r.latency_ms}ms`}>
-                <div
-                  className={`bar-fill ${r.passed ? "pass" : "fail"}`}
-                  style={{ height: `${Math.max(4, (r.latency_ms / maxLatency) * 56)}px` }}
-                />
-                <span className="bar-label">{r.id.replace("verify_", "")}</span>
-              </div>
-            ))}
+            {results.map((r, idx) => {
+              const showLabel =
+                idx === 0 ||
+                idx === 4 ||
+                idx === 9 ||
+                idx === 14 ||
+                idx === results.length - 1;
+              return (
+                <div key={r.id} className="bar-item" title={`${r.id}: ${r.latency_ms}ms`}>
+                  <div
+                    className={`bar-fill ${r.passed ? "pass" : "fail"}`}
+                    style={{ height: `${Math.max(4, (r.latency_ms / maxLatency) * 56)}px` }}
+                  />
+                  <span className="bar-label">
+                    {showLabel ? r.id.replace("verify_", "") : "\u00A0"}
+                  </span>
+                </div>
+              );
+            })}
             {!results.length && (
               <span style={{ fontSize: 11, color: "var(--muted)", alignSelf: "center" }}>
                 Chưa có dữ liệu

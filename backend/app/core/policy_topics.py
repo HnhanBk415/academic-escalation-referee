@@ -122,3 +122,30 @@ def resolve_policy_topic(text: str, proposed_topic: str | None) -> str:
     if inferred != "GENERAL":
         return inferred
     return canonical_policy_topic(proposed_topic)
+
+
+_POLICY_MATCH_STOPWORDS = {
+    "bao", "ban", "cac", "cho", "co", "cua", "duoc", "hay", "khi", "la", "mot", "nhung",
+    "nguoi", "phai", "sinh", "theo", "toi", "trong", "va", "voi", "vien", "vui", "xin",
+    "em", "ve", "se", "ra", "nay", "den", "tu", "thi", "ma", "nao", "gi", "sao", "nhu",
+    "the", "o", "nhieu", "de", "khong", "a",
+}
+
+
+def policy_match_tokens(value: str) -> set[str]:
+    normalized = unicodedata.normalize("NFD", value.casefold())
+    normalized = "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+    normalized = normalized.replace("đ", "d")
+    return {
+        token for token in re.findall(r"[a-z0-9]+", normalized)
+        if len(token) > 1 and token not in _POLICY_MATCH_STOPWORDS
+    }
+
+
+def policy_token_overlap(text1: str, text2: str) -> float:
+    tokens1 = policy_match_tokens(text1)
+    tokens2 = policy_match_tokens(text2)
+    if not tokens1 or not tokens2:
+        return 0.0
+    return len(tokens1 & tokens2) / len(tokens1)
+

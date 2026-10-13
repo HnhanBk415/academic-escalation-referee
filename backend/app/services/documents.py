@@ -73,7 +73,7 @@ async def list_documents_response(
     session: AsyncSession,
     course_id: str | None = None,
 ) -> list[DocumentResponse]:
-    query = select(Document)
+    query = select(Document).where(Document.status != DocumentStatus.DISCARDED)
     if course_id:
         query = query.where(Document.course_id == course_id)
     query = query.order_by(Document.created_at.asc())

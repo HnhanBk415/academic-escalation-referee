@@ -55,6 +55,35 @@ class ReviewItemResponse(BaseModel):
     status: str
 
 
+class ExistingConflictItem(BaseModel):
+    policy_update_id: str
+    content: str
+    source_document_title: str | None = None
+    published_at: datetime | None = None
+
+
+class ConflictItem(BaseModel):
+    new_chunk_index: int
+    new_content: str
+    policy_topic: str
+    existing: list[ExistingConflictItem]
+
+
+class ConflictResolutionItem(BaseModel):
+    new_chunk_index: int
+    action: Literal["REPLACE", "KEEP_OLD", "KEEP_BOTH"]
+
+
+class FinalizePayload(BaseModel):
+    resolutions: list[ConflictResolutionItem] | None = None
+
+
+class FinalizeSummaryResponse(BaseModel):
+    added_count: int = 0
+    replaced_count: int = 0
+    skipped_count: int = 0
+
+
 class ProcessingResponse(BaseModel):
     id: str
     document: DocumentResponse
@@ -69,6 +98,7 @@ class ProcessingResponse(BaseModel):
     review_items: list[ReviewItemResponse]
     pending_review_count: int
     created_at: datetime
+    finalize_summary: FinalizeSummaryResponse | None = None
 
 
 class ReviewItemUpdate(BaseModel):

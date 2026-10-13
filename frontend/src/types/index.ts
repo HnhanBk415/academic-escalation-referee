@@ -208,6 +208,33 @@ export interface ReviewItem {
   status: string;
 }
 
+export interface ExistingConflictItem {
+  policy_update_id: string;
+  content: string;
+  source_document_title: string | null;
+  published_at: string | null;
+}
+
+export interface ConflictItem {
+  new_chunk_index: number;
+  new_content: string;
+  policy_topic: string;
+  existing: ExistingConflictItem[];
+}
+
+export type ConflictResolutionAction = "REPLACE" | "KEEP_OLD" | "KEEP_BOTH";
+
+export interface ConflictResolutionItem {
+  new_chunk_index: number;
+  action: ConflictResolutionAction;
+}
+
+export interface FinalizeSummary {
+  added_count: number;
+  replaced_count: number;
+  skipped_count: number;
+}
+
 export interface ProcessingResponse {
   id: string;
   document: { id: string; title: string; version: string; status: string };
@@ -222,4 +249,5 @@ export interface ProcessingResponse {
   review_items: ReviewItem[];
   pending_review_count: number;
   created_at: string;
+  finalize_summary?: FinalizeSummary | null;
 }

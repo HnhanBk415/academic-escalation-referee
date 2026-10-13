@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.enums import DocumentStatus, PolicyUpdateStatus
 from app.core.errors import AppError
-from app.core.policy_topics import canonical_policy_topic, infer_policy_topic
+from app.core.policy_topics import canonical_policy_topic, infer_policy_topic, policy_token_overlap
 from app.models import (
     Course,
     Document,
@@ -26,7 +26,16 @@ from app.models import (
     PolicyUpdate,
     PolicyVersion,
 )
-from app.schemas.documents import DocumentResponse, ProcessingResponse, ReviewItemResponse
+from app.schemas.documents import (
+    ConflictItem,
+    ConflictResolutionItem,
+    DocumentResponse,
+    ExistingConflictItem,
+    FinalizePayload,
+    FinalizeSummaryResponse,
+    ProcessingResponse,
+    ReviewItemResponse,
+)
 
 SUPPORTED_SUFFIXES = {".pdf": "PDF", ".docx": "DOCX", ".png": "IMAGE", ".jpg": "IMAGE", ".jpeg": "IMAGE"}
 _GEMINI_VISION_PROMPT = """You are an OCR engine for Vietnamese academic regulations.
@@ -407,7 +416,7 @@ async def update_review_item(
     session: AsyncSession, processing_id: str, review_id: str, confirmed_text: str, keep_prediction: bool,
 ) -> DocumentProcessing:
     processing = await get_processing(session, processing_id)
-    if processing.status in {"COMPLETED", "FAILED"}:
+    if processing.status in {"COMPLETED", "FAILED", "DISCARDED"}:
         raise AppError("PROCESSING_CLOSED", "Phiên xử lý đã kết thúc và không thể sửa.", status_code=409)
     item = await session.get(DocumentReviewItem, review_id)
     if item is None or item.processing_id != processing.id:
@@ -419,89 +428,146 @@ async def update_review_item(
     return processing
 
 
-async def _legacy_publish_policy_update(
-    session: AsyncSession, *, processing: DocumentProcessing, document: Document, publication: dict,
-) -> PolicyUpdate:
-    operation = publication["operation"]
-    scope_type = publication["scope_type"]
-    scope_id = publication.get("scope_id") or (document.course_id if scope_type == "COURSE" else None)
-    if not scope_id:
-        raise AppError("UPDATE_SCOPE_REQUIRED", "Cần chọn đối tượng áp dụng cho cập nhật quy định.", status_code=422)
-    if scope_type == "COURSE" and scope_id != document.course_id:
-        raise AppError("UPDATE_SCOPE_INVALID", "Phạm vi COURSE phải trùng với học phần của tài liệu.", status_code=422)
-    target_id = publication.get("supersedes_policy_update_id")
-    target = await session.get(PolicyUpdate, target_id) if target_id else None
-    if target and target.course_id != document.course_id:
-        raise AppError("UPDATE_TARGET_INVALID", "Bản cập nhật được chọn không thuộc học phần này.", status_code=422)
-    if operation == "REVOKE" and target is None:
-        raise AppError("UPDATE_TARGET_REQUIRED", "Thu hồi cần chọn bản cập nhật cần thu hồi.", status_code=422)
-    source_chunk = await session.scalar(
-        select(DocumentChunk)
-        .where(DocumentChunk.document_id == document.id)
-        .order_by(DocumentChunk.chunk_index)
-    )
-    if operation == "REPLACE":
-        targets = [target] if target else list((await session.scalars(
-            select(PolicyUpdate).where(
-                PolicyUpdate.course_id == document.course_id,
-                PolicyUpdate.scope_type == scope_type,
-                PolicyUpdate.scope_id == scope_id,
-                PolicyUpdate.policy_topic == canonical_policy_topic(publication["policy_topic"]),
-                PolicyUpdate.status == PolicyUpdateStatus.ACTIVE,
-            )
-        )).all())
-        for item in targets:
-            if item:
-                item.status = PolicyUpdateStatus.SUPERSEDED
-    elif operation == "REVOKE" and target:
-        target.status = PolicyUpdateStatus.REVOKED
+def _build_clean_text(processing: DocumentProcessing, items: list[DocumentReviewItem]) -> str:
+    replacements = {
+        item.item_index: item.confirmed_text if item.confirmed_text is not None else item.predicted_text
+        for item in items
+    }
+    lines = processing.raw_text.splitlines()
+    if lines:
+        return "\n".join(replacements.get(index, line) for index, line in enumerate(lines)).strip()
+    words = processing.raw_text.split()
+    return " ".join(replacements.get(index, word) for index, word in enumerate(words)).strip()
 
-    update = PolicyUpdate(
-        id=f"policy-update-{uuid.uuid4().hex[:18]}",
-        source_document_id=document.id,
-        source_chunk_id=source_chunk.id if source_chunk else None,
-        course_id=document.course_id,
-        scope_type=scope_type,
-        scope_id=scope_id,
-        policy_topic=canonical_policy_topic(publication["policy_topic"]),
-        operation=operation,
-        content=processing.clean_text or processing.raw_text,
-        valid_from=publication.get("valid_from") or date.today(),
-        valid_until=publication.get("valid_until"),
-        status=PolicyUpdateStatus.REVOKED if operation == "REVOKE" else PolicyUpdateStatus.ACTIVE,
-        supersedes_policy_update_id=target.id if target else None,
-        created_by=processing.created_by,
-        published_at=datetime.now(UTC),
+
+async def discard_processing(session: AsyncSession, processing_id: str, actor_id: str) -> ProcessingResponse:
+    processing = await get_processing(session, processing_id)
+    if processing.status == "COMPLETED":
+        raise AppError(
+            "PROCESSING_ALREADY_PUBLISHED",
+            "Tài liệu đã được xuất bản, không thể hủy bản nháp.",
+            status_code=409,
+        )
+    if processing.status not in {"PROCESSING", "REVIEW_REQUIRED", "READY_TO_CONFIRM", "FAILED"}:
+        raise AppError(
+            "PROCESSING_CANNOT_DISCARD",
+            f"Không thể hủy phiên xử lý ở trạng thái {processing.status}.",
+            status_code=409,
+        )
+    old_status = processing.status
+    processing.status = "DISCARDED"
+    document = await session.get(Document, processing.document_id)
+    if document:
+        document.status = DocumentStatus.DISCARDED
+    policy_version = await session.scalar(
+        select(PolicyVersion).where(PolicyVersion.document_id == processing.document_id)
     )
-    session.add(update)
+    if policy_version:
+        policy_version.status = "DISCARDED"
+
     from app.services.audit import add_audit_event
     add_audit_event(
         session,
-        event_type="POLICY_UPDATE_PUBLISHED",
-        actor_id=processing.created_by,
-        entity_type="policy_update",
-        entity_id=update.id,
-        input_snapshot={
-            "operation": operation,
-            "policy_topic": update.policy_topic,
-            "scope_type": scope_type,
-            "scope_id": scope_id,
-            "supersedes_policy_update_id": update.supersedes_policy_update_id,
-        },
-        output_snapshot={"status": update.status, "source_document_id": document.id},
+        event_type="POLICY_DRAFT_DISCARDED",
+        actor_id=actor_id,
+        entity_type="document_processing",
+        entity_id=processing.id,
+        input_snapshot={"document_id": processing.document_id, "previous_status": old_status},
+        output_snapshot={"status": "DISCARDED"},
     )
-    return update
+    await session.commit()
+    await session.refresh(processing)
+    return await processing_response(session, processing)
+
+
+async def _detect_conflicts(
+    session: AsyncSession, processing: DocumentProcessing, clean_text: str
+) -> list[ConflictItem]:
+    from app.ingestion.chunking import chunk_text
+    chunks = chunk_text(clean_text)
+    if not chunks:
+        return []
+    document = await session.get(Document, processing.document_id)
+    if document is None:
+        raise AppError("DOCUMENT_NOT_FOUND", "Không tìm thấy tài liệu nguồn.", status_code=404)
+    existing_updates = list((await session.scalars(
+        select(PolicyUpdate)
+        .where(
+            PolicyUpdate.course_id == document.course_id,
+            PolicyUpdate.scope_type == "COURSE",
+            PolicyUpdate.scope_id == document.course_id,
+            PolicyUpdate.status == PolicyUpdateStatus.ACTIVE,
+        )
+        .order_by(PolicyUpdate.published_at.desc(), PolicyUpdate.created_at.desc())
+    )).all())
+    if not existing_updates:
+        return []
+
+    doc_ids = {u.source_document_id for u in existing_updates if u.source_document_id}
+    doc_titles: dict[str, str] = {}
+    if doc_ids:
+        docs = (await session.scalars(select(Document).where(Document.id.in_(doc_ids)))).all()
+        doc_titles = {d.id: d.title for d in docs}
+
+    conflicts: list[ConflictItem] = []
+    for new_chunk_index, chunk in enumerate(chunks):
+        topic = infer_policy_topic(chunk.content)
+        matching: list[PolicyUpdate] = []
+        for old in existing_updates:
+            if old.policy_topic != topic:
+                continue
+            if topic == "GENERAL":
+                overlap = policy_token_overlap(chunk.content, old.content)
+                if overlap < 0.5:
+                    continue
+            matching.append(old)
+        if matching:
+            conflicts.append(ConflictItem(
+                new_chunk_index=new_chunk_index,
+                new_content=chunk.content,
+                policy_topic=topic,
+                existing=[
+                    ExistingConflictItem(
+                        policy_update_id=u.id,
+                        content=u.content,
+                        source_document_title=doc_titles.get(u.source_document_id) or "Tài liệu quy định",
+                        published_at=u.published_at,
+                    )
+                    for u in matching
+                ],
+            ))
+    return conflicts
+
+
+async def detect_conflicts(session: AsyncSession, processing_id: str) -> list[ConflictItem]:
+    processing = await get_processing(session, processing_id)
+    if processing.status in {"COMPLETED", "DISCARDED"}:
+        raise AppError("PROCESSING_CLOSED", "Phiên xử lý đã kết thúc hoặc bị hủy.", status_code=409)
+    if processing.status == "FAILED":
+        raise AppError("PROCESSING_FAILED", processing.error_message or "Phiên xử lý đã thất bại.", status_code=422)
+    items = list((await session.scalars(
+        select(DocumentReviewItem)
+        .where(DocumentReviewItem.processing_id == processing.id)
+        .order_by(DocumentReviewItem.item_index)
+    )).all())
+    if any(item.status == "PENDING" for item in items):
+        raise AppError("REVIEW_REQUIRED", "Hãy xác nhận tất cả nội dung được đánh dấu Cần rà soát trước khi kiểm tra xung đột.", status_code=422)
+    clean_text = _build_clean_text(processing, items)
+    if not clean_text:
+        return []
+    return await _detect_conflicts(session, processing, clean_text)
 
 
 async def _publish_policy_update(
-    session: AsyncSession, *, processing: DocumentProcessing, document: Document,
-) -> list[PolicyUpdate]:
-    """Save each indexed chunk as a course-level update layer.
+    session: AsyncSession,
+    *,
+    processing: DocumentProcessing,
+    document: Document,
+    conflicts: list[ConflictItem],
+    resolutions_map: dict[int, str],
+) -> tuple[list[PolicyUpdate], FinalizeSummaryResponse]:
+    from app.services.audit import add_audit_event
 
-    The lecturer's confirmation is the only publication action. Topic and
-    relevance are inferred from each chunk later while answering, so a file
-    name neither grants nor removes priority.
-    """
     chunks = list((await session.scalars(
         select(DocumentChunk)
         .where(DocumentChunk.document_id == document.id)
@@ -515,32 +581,114 @@ async def _publish_policy_update(
         )
     published_at = datetime.now(UTC)
     updates: list[PolicyUpdate] = []
+    conflict_by_index = {c.new_chunk_index: c for c in conflicts}
+    added_count = 0
+    replaced_count = 0
+    skipped_count = 0
+
     for chunk in chunks:
         chunk.chunk_metadata = {
             **(chunk.chunk_metadata or {}),
             "retrieval_eligible": False,
             "source_kind": "POLICY_UPDATE",
         }
-        update = PolicyUpdate(
-            id=f"policy-update-{uuid.uuid4().hex[:18]}",
-            source_document_id=document.id,
-            source_chunk_id=chunk.id,
-            course_id=document.course_id,
-            scope_type="COURSE",
-            scope_id=document.course_id,
-            policy_topic=infer_policy_topic(chunk.content),
-            operation="ADD",
-            content=chunk.content,
-            valid_from=date.today(),
-            valid_until=None,
-            status=PolicyUpdateStatus.ACTIVE,
-            supersedes_policy_update_id=None,
-            created_by=processing.created_by,
-            published_at=published_at,
-        )
-        session.add(update)
-        updates.append(update)
-    from app.services.audit import add_audit_event
+        topic = infer_policy_topic(chunk.content)
+        conflict = conflict_by_index.get(chunk.chunk_index)
+        action = resolutions_map.get(chunk.chunk_index) if conflict else "ADD"
+
+        if action == "KEEP_OLD":
+            skipped_count += 1
+            add_audit_event(
+                session,
+                event_type="POLICY_CONFLICT_RESOLVED",
+                actor_id=processing.created_by,
+                entity_type="document_chunk",
+                entity_id=chunk.id,
+                input_snapshot={"action": "KEEP_OLD", "policy_topic": topic, "chunk_index": chunk.chunk_index},
+                output_snapshot={"status": "OMITTED"},
+            )
+            continue
+
+        if action == "REPLACE":
+            replaced_count += 1
+            existing_ids = [e.policy_update_id for e in conflict.existing]
+            existing_records = list((await session.scalars(
+                select(PolicyUpdate).where(PolicyUpdate.id.in_(existing_ids))
+            )).all())
+            for old_rec in existing_records:
+                old_rec.status = PolicyUpdateStatus.SUPERSEDED
+
+            newest_old = max(
+                existing_records,
+                key=lambda x: (x.published_at or datetime.min.replace(tzinfo=UTC), x.created_at),
+            ) if existing_records else None
+            supersedes_id = newest_old.id if newest_old else None
+
+            update = PolicyUpdate(
+                id=f"policy-update-{uuid.uuid4().hex[:18]}",
+                source_document_id=document.id,
+                source_chunk_id=chunk.id,
+                course_id=document.course_id,
+                scope_type="COURSE",
+                scope_id=document.course_id,
+                policy_topic=topic,
+                operation="REPLACE",
+                content=chunk.content,
+                valid_from=date.today(),
+                valid_until=None,
+                status=PolicyUpdateStatus.ACTIVE,
+                supersedes_policy_update_id=supersedes_id,
+                created_by=processing.created_by,
+                published_at=published_at,
+            )
+            session.add(update)
+            updates.append(update)
+            add_audit_event(
+                session,
+                event_type="POLICY_CONFLICT_RESOLVED",
+                actor_id=processing.created_by,
+                entity_type="policy_update",
+                entity_id=update.id,
+                input_snapshot={
+                    "action": "REPLACE",
+                    "policy_topic": topic,
+                    "superseded_policy_update_ids": existing_ids,
+                    "chunk_index": chunk.chunk_index,
+                },
+                output_snapshot={"status": "ACTIVE", "supersedes_policy_update_id": supersedes_id},
+            )
+        else:
+            added_count += 1
+            update = PolicyUpdate(
+                id=f"policy-update-{uuid.uuid4().hex[:18]}",
+                source_document_id=document.id,
+                source_chunk_id=chunk.id,
+                course_id=document.course_id,
+                scope_type="COURSE",
+                scope_id=document.course_id,
+                policy_topic=topic,
+                operation="ADD",
+                content=chunk.content,
+                valid_from=date.today(),
+                valid_until=None,
+                status=PolicyUpdateStatus.ACTIVE,
+                supersedes_policy_update_id=None,
+                created_by=processing.created_by,
+                published_at=published_at,
+            )
+            session.add(update)
+            updates.append(update)
+            if conflict and action == "KEEP_BOTH":
+                add_audit_event(
+                    session,
+                    event_type="POLICY_CONFLICT_RESOLVED",
+                    actor_id=processing.created_by,
+                    entity_type="policy_update",
+                    entity_id=update.id,
+                    input_snapshot={"action": "KEEP_BOTH", "policy_topic": topic, "chunk_index": chunk.chunk_index},
+                    output_snapshot={"status": "ACTIVE"},
+                )
+
     add_audit_event(
         session,
         event_type="POLICY_UPDATE_SAVED",
@@ -550,11 +698,23 @@ async def _publish_policy_update(
         input_snapshot={"document_id": document.id, "mode": "AUTOMATIC_CHUNK_LAYER"},
         output_snapshot={"policy_update_count": len(updates), "status": "ACTIVE"},
     )
-    return updates
+    summary = FinalizeSummaryResponse(
+        added_count=added_count,
+        replaced_count=replaced_count,
+        skipped_count=skipped_count,
+    )
+    return updates, summary
 
 
-async def finalize_processing(session: AsyncSession, processing_id: str, provider) -> ProcessingResponse:
+async def finalize_processing(
+    session: AsyncSession,
+    processing_id: str,
+    provider,
+    payload: FinalizePayload | None = None,
+) -> ProcessingResponse:
     processing = await get_processing(session, processing_id)
+    if processing.status == "DISCARDED":
+        raise AppError("PROCESSING_DISCARDED", "Phiên xử lý đã bị hủy và không thể xuất bản.", status_code=409)
     if processing.status == "COMPLETED":
         return await processing_response(session, processing)
     if processing.status == "FAILED":
@@ -567,18 +727,24 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
     if any(item.status == "PENDING" for item in items):
         raise AppError("REVIEW_REQUIRED", "Hãy xác nhận tất cả nội dung được đánh dấu Cần rà soát trước khi xuất bản.", status_code=422)
 
-    replacements = {
-        item.item_index: item.confirmed_text if item.confirmed_text is not None else item.predicted_text
-        for item in items
-    }
-    lines = processing.raw_text.splitlines()
-    if lines:
-        clean_text = "\n".join(replacements.get(index, line) for index, line in enumerate(lines)).strip()
-    else:
-        words = processing.raw_text.split()
-        clean_text = " ".join(replacements.get(index, word) for index, word in enumerate(words)).strip()
+    clean_text = _build_clean_text(processing, items)
     if not clean_text:
         raise AppError("EMPTY_DOCUMENT", "Văn bản sạch không được để trống.", status_code=422)
+
+    conflicts = await _detect_conflicts(session, processing, clean_text)
+    resolutions_map: dict[int, str] = {}
+    if payload and payload.resolutions:
+        resolutions_map = {r.new_chunk_index: r.action for r in payload.resolutions}
+    if conflicts:
+        missing = [c.new_chunk_index for c in conflicts if c.new_chunk_index not in resolutions_map]
+        if missing:
+            raise AppError(
+                "CONFLICT_RESOLUTION_REQUIRED",
+                "Cần chọn phương án xử lý cho tất cả các đoạn có xung đột.",
+                status_code=422,
+                details={"missing_chunk_indices": missing},
+            )
+
     document = await session.get(Document, processing.document_id)
     if document is None:
         raise AppError("DOCUMENT_NOT_FOUND", "Không tìm thấy tài liệu nguồn.", status_code=404)
@@ -611,7 +777,14 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
             policy_version.status = DocumentStatus.FAILED
         await session.commit()
         raise
-    await _publish_policy_update(session, processing=processing, document=document)
+
+    updates, summary = await _publish_policy_update(
+        session,
+        processing=processing,
+        document=document,
+        conflicts=conflicts,
+        resolutions_map=resolutions_map,
+    )
     policy_version = await session.scalar(
         select(PolicyVersion).where(PolicyVersion.document_id == document.id)
     )
@@ -634,4 +807,6 @@ async def finalize_processing(session: AsyncSession, processing_id: str, provide
     processing.status = "COMPLETED"
     await session.commit()
     await session.refresh(processing)
-    return await processing_response(session, processing)
+    resp = await processing_response(session, processing)
+    resp.finalize_summary = summary
+    return resp
