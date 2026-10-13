@@ -38,8 +38,11 @@ export function hasAccessToken(): boolean {
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-  else if (demoActorId) headers.set("X-Demo-Actor-ID", demoActorId);
+  if (accessToken) {
+    if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${accessToken}`);
+  } else if (demoActorId) {
+    if (!headers.has("X-Demo-Actor-ID")) headers.set("X-Demo-Actor-ID", demoActorId);
+  }
   if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

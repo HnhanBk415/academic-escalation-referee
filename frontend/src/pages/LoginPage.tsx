@@ -41,11 +41,11 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (actor: AuthActor) => vo
     <main className="min-h-screen grid place-items-center bg-slate-950 px-5 text-slate-900">
       <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-2xl shadow-black/30">
         <div className="mb-7 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-red-600 font-mono text-base font-extrabold tracking-wide text-white">
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-red-600 font-mono text-base font-semibold tracking-wide text-white">
             AER
           </div>
           <div>
-            <h1 className="text-lg font-bold">Academic Escalation Referee</h1>
+            <h1 className="text-lg font-semibold">Academic Escalation Referee</h1>
             <p className="text-sm text-slate-500">Đăng nhập để tiếp tục</p>
           </div>
         </div>

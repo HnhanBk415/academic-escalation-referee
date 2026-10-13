@@ -21,8 +21,11 @@ import {
   IconWarning,
   IconX,
 } from "../components/Icons";
-import { Send } from "lucide-react";
+import { Send, Copy, Check } from "lucide-react";
 import { StudentWorkflowTracker } from "../components/StudentWorkflowTracker";
+import { Badge } from "../components/ui/Badge";
+import { PageHeader } from "../components/ui";
+import { routeLabel, routeTone } from "../utils/labels";
 import type { Citation, DemoCatalog, QuestionResponse } from "../types";
 
 interface StudentSubmitViewProps {
@@ -80,7 +83,7 @@ export function StudentSubmitView({
   onSubmitted,
   onViewHistory,
 }: StudentSubmitViewProps) {
-  const [query, setQuery] = useState(QUICK_CHIPS[0].prompt);
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<QuestionResponse | null>(null);
@@ -88,6 +91,7 @@ export function StudentSubmitView({
   const [clarifyingBusy, setClarifyingBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+  const [copiedRequestId, setCopiedRequestId] = useState(false);
   const [conversationTurns, setConversationTurns] = useState<ClarificationTurnItem[]>([]);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
@@ -270,7 +274,13 @@ export function StudentSubmitView({
     setProcessTime("");
   }
 
-  // Format bold highlight for answer text
+  const handleCopyRequestId = (reqId: string) => {
+    void navigator.clipboard.writeText(reqId);
+    setCopiedRequestId(true);
+    setTimeout(() => setCopiedRequestId(false), 2000);
+  };
+
+  // Format bold highlight for answer text (Material 3: font-medium, no red color)
   const renderFormattedAnswer = (text: string) => {
     const parts = text.split(
       /(hạn chót hủy môn không ghi điểm F là trước 17:00 ngày thứ Sáu của Tuần học thứ 6|3 đến 5 sinh viên|tối đa hai ngày|10%|40%|30%|20%|phải có lý do bất khả kháng và chuyển Giảng viên phê duyệt)/gi
@@ -284,7 +294,7 @@ export function StudentSubmitView({
               part
             );
           return isHighlight ? (
-            <strong key={idx} className="text-[#DC2626] font-bold bg-red-50/80 px-1 py-0.5 rounded">
+            <strong key={idx} className="font-medium text-[var(--on-surface)]">
               {part}
             </strong>
           ) : (
@@ -296,16 +306,14 @@ export function StudentSubmitView({
   };
 
   return (
-    <div className="flex-1 w-full bg-[var(--surface-dim)]">
-      <div className="max-w-[880px] mx-auto space-y-5">
-        {/* Title */}
-        <div className="flex items-center justify-between pb-1">
-          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">
-            Hỏi đáp quy chế
-          </h1>
-        </div>
+    <div className="flex-1 w-full bg-[var(--surface-dim)] space-y-5">
+      {/* Title */}
+      <PageHeader
+        title="Hỏi đáp quy chế"
+        description="Tra cứu quy chế đào tạo, đối soát điều khoản tự động và gửi yêu cầu thẩm định ngoại lệ"
+      />
 
-        {error && (
+      {error && (
           <div className="p-4 bg-[#FFEBEE] border border-[#FFCDD2] rounded-[var(--radius-md)] text-sm text-[var(--error)] font-medium flex items-center gap-2 shadow-xs">
             <IconWarning size={16} />
             <span>{error}</span>
@@ -317,6 +325,7 @@ export function StudentSubmitView({
           <div className="relative">
             <select
               value={selectedCourseId}
+              disabled={!catalog || !catalog.courses || catalog.courses.length === 0}
               onChange={(e) => {
                 onSelectCourse(e.target.value);
                 setResult(null);
@@ -324,13 +333,19 @@ export function StudentSubmitView({
                 setSubmitTime("");
                 setProcessTime("");
               }}
-              className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs"
+              className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {catalog?.courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.code} - {course.name} ({course.semester})
+              {!catalog || !catalog.courses || catalog.courses.length === 0 ? (
+                <option value="" disabled>
+                  Đang tải môn học…
                 </option>
-              ))}
+              ) : (
+                catalog.courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.code} - {course.name} ({course.semester})
+                  </option>
+                ))
+              )}
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--on-surface-variant)]">
               <IconChevronRight size={14} className="rotate-90" />
@@ -346,7 +361,7 @@ export function StudentSubmitView({
         </div>
 
         {/* Hàng 2: ô hỏi lớn với nút FAB nhỏ */}
-        <div className="rounded-[var(--radius-lg)] bg-[var(--surface-container)] border border-[var(--outline)]/40 focus-within:border-[var(--primary)] focus-within:bg-[var(--surface)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20 transition-all p-4 shadow-xs">
+        <div className="rounded-[var(--radius-lg)] bg-[var(--surface-container)] border border-[var(--outline)]/40 focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:bg-[var(--surface)] transition-all p-4 shadow-xs">
           <textarea
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
@@ -357,8 +372,9 @@ export function StudentSubmitView({
               }
             }}
             rows={3}
-            placeholder="Nhập thắc mắc về quy định, số lượng nhóm, tỷ lệ điểm hoặc xin ngoại lệ... (Enter để gửi, Shift+Enter xuống dòng)"
-            className="w-full bg-transparent border-0 outline-none resize-none text-sm text-[var(--on-surface)] placeholder-[var(--on-surface-variant)]/60 leading-relaxed min-h-[75px]"
+            placeholder="Nhập câu hỏi về quy chế môn học, vd: Nhóm đồ án được tối đa bao nhiêu thành viên?"
+            style={{ border: "none", outline: "none", boxShadow: "none" }}
+            className="border-0 outline-none ring-0 shadow-none focus:ring-0 focus:outline-none bg-transparent resize-none w-full text-sm text-[var(--on-surface)] placeholder-[var(--on-surface-variant)]/60 leading-relaxed min-h-[4.6875rem]"
           />
           <div className="flex justify-end pt-2">
             <button
@@ -405,87 +421,48 @@ export function StudentSubmitView({
 
         {/* ── CARD 3: KẾT QUẢ ĐỐI SOÁT & TRÍCH LỤC QUY CHẾ ── */}
         {result && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden transition-all">
-            {/* Top Ribbon Alert */}
-            <div
-              className={`border-b px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 ${
-                result.route === "REJECT"
-                  ? "bg-rose-50 border-rose-200 text-rose-900"
-                  : result.route === "OUT_OF_SCOPE"
-                  ? "bg-purple-50 border-purple-200 text-purple-900"
-                  : result.applied_exception_id
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                  : "bg-gradient-to-r from-red-50/90 via-rose-50/70 to-orange-50/50 border-red-100 text-red-900"
-              }`}
-            >
-              <div className="flex items-center gap-2 text-xs font-bold">
-                <span
-                  className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    result.route === "REJECT"
-                      ? "bg-rose-100 text-rose-600"
-                      : result.route === "OUT_OF_SCOPE"
-                      ? "bg-purple-100 text-purple-600"
-                      : result.applied_exception_id
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-red-100 text-[#DC2626]"
-                  }`}
-                >
-                  {result.route === "REJECT" ? (
-                    <IconX size={12} />
-                  ) : result.route === "OUT_OF_SCOPE" ? (
-                    <IconInfo size={12} />
-                  ) : (
-                    <IconCheck size={12} />
-                  )}
-                </span>
-                <span>
+          <div className="bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] shadow-xs overflow-hidden transition-all">
+            {/* Header: 1 line with Badge + sentence case text + subtle case ID */}
+            <div className="px-5 py-3.5 border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)] flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <Badge tone={routeTone(result.route)}>
+                  {routeLabel(result.route)}
+                </Badge>
+                <span className="text-sm text-[var(--on-surface)]">
                   {result.applied_exception_id
-                    ? "ĐÃ ÁP DỤNG NGOẠI LỆ • Phê duyệt tự động dựa trên ngoại lệ của Giảng viên"
+                    ? "Đã áp dụng ngoại lệ phê duyệt từ giảng viên"
                     : result.route === "ANSWER"
-                    ? "ĐÃ ĐỐI CHIẾU THÀNH CÔNG • Trực tiếp từ quy chế hiện hành (AI Trả lời tự động)"
+                    ? "Trả lời tự động từ quy chế hiện hành"
                     : result.route === "OUT_OF_SCOPE"
-                    ? "NGOÀI PHẠM VI XỬ LÝ • Không thuộc thẩm quyền giải quyết của môn học"
+                    ? "Ngoài phạm vi thẩm quyền của môn học"
                     : result.route === "REJECT"
-                    ? "YÊU CẦU BỊ TỪ CHỐI • Không tạo hồ sơ chuyển giảng viên"
+                    ? "Yêu cầu không được chấp thuận theo quy chế"
                     : result.final_decision
-                    ? `GIẢNG VIÊN ĐÃ ${result.final_decision === "APPROVED" ? "PHÊ DUYỆT" : "TỪ CHỐI"} • Đã có phán quyết chính thức`
+                    ? `Giảng viên đã ${result.final_decision === "APPROVED" ? "phê duyệt" : "từ chối"}`
                     : result.route === "ESCALATE"
-                    ? "ĐÃ CHUYỂN TIẾP CHO GIẢNG VIÊN • Vượt thẩm quyền AI (Chờ phê duyệt)"
-                    : `CẦN BỔ SUNG THÔNG TIN • Lượt ${result.clarification_round || 1}/2`}
+                    ? "Đã chuyển tiếp cho giảng viên phụ trách"
+                    : `Cần bổ sung thông tin (Lượt ${result.clarification_round || 1}/2)`}
                 </span>
               </div>
-              <div className="flex items-center gap-3">
-                {result.case_id && (
-                  <div className="text-xs font-mono text-slate-500 font-semibold flex items-center gap-1.5">
-                    <IconClock size={13} className="text-slate-400" />
-                    <span>HỒ SƠ: #{result.case_id}</span>
-                  </div>
-                )}
-                {currentRequestId && (
-                  <div className="text-[11px] font-mono text-slate-400 font-normal">
-                    Req: {currentRequestId.slice(0, 8)}...
-                  </div>
-                )}
-              </div>
+              {result.case_id && (
+                <span className="text-xs font-mono text-[var(--on-surface-variant)]">
+                  Hồ sơ #{result.case_id}
+                </span>
+              )}
             </div>
 
-            <div className="p-6 lg:p-7 space-y-6">
+            <div className="p-5 md:p-6 space-y-6">
               {/* Applied Exception Banner if present */}
               {result.applied_exception_id && (
-                <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl flex items-start gap-3 shadow-xs">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <IconCheck size={16} />
+                <div className="p-3.5 bg-[#E8F5E9] border border-[#C8E6C9] rounded-[var(--radius-md)] flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-[#146C2E] text-white flex items-center justify-center shrink-0 mt-0.5">
+                    <IconCheck size={14} />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-200 text-emerald-900 font-mono">
-                        ĐÃ ÁP DỤNG NGOẠI LỆ
-                      </span>
-                      <span className="font-mono text-xs font-bold text-emerald-800">
-                        #{result.applied_exception_id}
-                      </span>
-                    </div>
-                    <p className="text-xs text-emerald-900 mt-1 leading-relaxed">
+                  <div className="flex-1 text-xs">
+                    <span className="font-semibold text-[#146C2E]">
+                      Đã áp dụng ngoại lệ #{result.applied_exception_id}
+                    </span>
+                    <p className="text-[#146C2E]/90 mt-0.5 leading-relaxed">
                       Câu hỏi này đã được đối chiếu với cơ sở dữ liệu ngoại lệ và tự động áp dụng ngoại lệ được Giảng viên phê duyệt trước đó cho nhóm/môn này.
                     </p>
                   </div>
@@ -493,39 +470,26 @@ export function StudentSubmitView({
               )}
 
               {/* 1. Official Conclusion / Decision Block */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-[#DC2626]">
-                    {result.route === "ANSWER" ? (
-                      <IconScale size={18} />
-                    ) : result.route === "OUT_OF_SCOPE" ? (
-                      <IconInfo size={18} />
-                    ) : result.route === "REJECT" ? (
-                      <IconX size={18} />
-                    ) : (
-                      <IconTeacher size={18} />
-                    )}
-                  </span>
-                  <h3 className="text-xs font-semibold text-slate-700">
-                    {result.route === "ANSWER"
-                      ? "Kết luận quy chế chính thức"
-                      : result.route === "OUT_OF_SCOPE"
-                      ? "Hướng dẫn học vụ ngoài phạm vi môn học"
-                      : result.route === "REJECT"
-                      ? "Thông báo từ chối yêu cầu"
-                      : result.final_decision
-                      ? "Quyết định chính thức từ Giảng viên"
-                      : result.route === "ESCALATE"
-                      ? "Hồ sơ chuyển tiếp Giảng viên phụ trách thụ lý"
-                      : `Yêu cầu làm rõ từ hệ thống (Lượt ${result.clarification_round || 1}/2)`}
-                  </h3>
-                </div>
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-[var(--on-surface)]">
+                  {result.route === "ANSWER"
+                    ? "Kết luận quy chế chính thức"
+                    : result.route === "OUT_OF_SCOPE"
+                    ? "Hướng dẫn học vụ ngoài phạm vi môn học"
+                    : result.route === "REJECT"
+                    ? "Thông báo từ chối yêu cầu"
+                    : result.final_decision
+                    ? "Quyết định chính thức từ Giảng viên"
+                    : result.route === "ESCALATE"
+                    ? "Hồ sơ chuyển tiếp Giảng viên phụ trách thụ lý"
+                    : `Yêu cầu làm rõ từ hệ thống (Lượt ${result.clarification_round || 1}/2)`}
+                </h3>
 
                 {/* Answer box according to route */}
-                <div className="p-5 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                <div className="p-4 bg-[var(--surface-container)] border border-[var(--outline)]/20 rounded-[var(--radius-md)]">
                   {/* ANSWER route */}
                   {result.route === "ANSWER" && result.answer && (
-                    <p className="text-sm text-slate-800 leading-relaxed font-medium">
+                    <p className="text-base text-[var(--on-surface)] leading-relaxed">
                       {renderFormattedAnswer(result.answer)}
                     </p>
                   )}
@@ -534,16 +498,15 @@ export function StudentSubmitView({
                   {result.route === "OUT_OF_SCOPE" && (
                     <div className="space-y-3">
                       {result.answer && (
-                        <p className="text-sm text-slate-800 leading-relaxed font-medium">
+                        <p className="text-base text-[var(--on-surface)] leading-relaxed">
                           {result.answer}
                         </p>
                       )}
-                      <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-lg text-xs space-y-1.5 text-purple-900">
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <IconInfo size={14} className="text-purple-700" />
-                          <span>Ngoài phạm vi xử lý của môn học</span>
-                        </div>
-                        <p className="text-purple-800 leading-relaxed">
+                      <div className="p-3 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-sm)] text-xs space-y-1 text-[var(--on-surface-variant)]">
+                        <p className="font-medium text-[var(--on-surface)]">
+                          Ngoài phạm vi xử lý của môn học
+                        </p>
+                        <p className="leading-relaxed">
                           Yêu cầu của bạn không thuộc thẩm quyền của Giảng viên hay Quy chế môn học này. Vui lòng liên hệ Phòng Đào tạo, Ban Quản lý Ký túc xá hoặc đơn vị phụ trách liên quan theo hướng dẫn.
                         </p>
                       </div>
@@ -554,16 +517,15 @@ export function StudentSubmitView({
                   {result.route === "REJECT" && (
                     <div className="space-y-3">
                       {result.answer && (
-                        <p className="text-sm text-rose-900 leading-relaxed font-medium">
+                        <p className="text-base text-[var(--on-surface)] leading-relaxed">
                           {result.answer}
                         </p>
                       )}
-                      <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-lg text-xs space-y-1.5 text-rose-900">
-                        <div className="flex items-center gap-1.5 font-bold text-rose-700">
-                          <IconWarning size={14} />
-                          <span>Thông báo từ chối</span>
-                        </div>
-                        <p className="text-rose-800 leading-relaxed">
+                      <div className="p-3 bg-[#FFEBEE] border border-[#FFCDD2] rounded-[var(--radius-sm)] text-xs space-y-1 text-[#B3261E]">
+                        <p className="font-medium">
+                          Thông báo từ chối
+                        </p>
+                        <p className="leading-relaxed">
                           Nội dung yêu cầu vi phạm chính sách học vụ hoặc không hợp lệ. Hệ thống từ chối yêu cầu và không tạo hồ sơ chuyển tiếp cho giảng viên.
                         </p>
                       </div>
@@ -574,51 +536,49 @@ export function StudentSubmitView({
                   {result.route === "ESCALATE" && (
                     <div className="space-y-3">
                       {result.final_decision ? (
-                        <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-2">
+                        <div className="p-4 bg-[#E8F5E9] border border-[#C8E6C9] rounded-[var(--radius-md)] space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-xs text-sky-900">
+                            <span className="font-semibold text-xs text-[#146C2E]">
                               Quyết định: {result.final_decision === "APPROVED" ? "Đã phê duyệt" : "Đã từ chối"}
                             </span>
                             {result.exception_id && (
-                              <span className="font-mono text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
+                              <span className="font-mono text-xs bg-[#C8E6C9] text-[#146C2E] px-2 py-0.5 rounded font-semibold">
                                 Ngoại lệ: #{result.exception_id}
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-slate-800 font-medium">
+                          <p className="text-base text-[var(--on-surface)] leading-relaxed">
                             {result.final_decision_reason || "Giảng viên đã hoàn tất thẩm định hồ sơ."}
                           </p>
                         </div>
                       ) : (
                         <>
-                          <p className="text-sm text-slate-800 leading-relaxed">
-                            Yêu cầu của bạn thuộc diện{" "}
-                            <strong className="text-red-700">ngoại lệ quy chế hoặc vượt thẩm quyền tự động</strong>{" "}
-                            của AI. Hồ sơ đã được chuyển tiếp đến Giảng viên phụ trách môn học và đang chờ phê duyệt.
+                          <p className="text-base text-[var(--on-surface)] leading-relaxed">
+                            Yêu cầu của bạn thuộc diện <span className="font-medium">ngoại lệ quy chế hoặc vượt thẩm quyền tự động</span> của AI. Hồ sơ đã được chuyển tiếp đến Giảng viên phụ trách môn học và đang chờ xem xét.
                           </p>
-                          <div className="p-3 bg-white border border-amber-200 rounded-lg text-xs space-y-1.5 text-amber-900">
+                          <div className="p-3.5 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-sm)] text-xs space-y-1.5 text-[var(--on-surface-variant)]">
                             {result.case_id && (
                               <div className="flex items-center justify-between">
-                                <span className="font-semibold">Mã hồ sơ thẩm định (lưu để xem trạng thái):</span>
-                                <span className="font-mono font-bold text-slate-800 bg-amber-100 px-2 py-0.5 rounded">#{result.case_id}</span>
+                                <span className="font-medium text-[var(--on-surface)]">Mã hồ sơ thẩm định:</span>
+                                <span className="font-mono font-medium text-[var(--on-surface)]">#{result.case_id}</span>
                               </div>
                             )}
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold">Giảng viên thụ lý:</span>
-                              <span>
+                              <span>Giảng viên thụ lý:</span>
+                              <span className="font-medium text-[var(--on-surface)]">
                                 {catalog?.lecturer.display_name || "TS. Trần Minh Tuấn"} ({catalog?.lecturer.id || "lecturer-01"})
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold">Phân luồng:</span>
-                              <span className="font-semibold text-slate-800">
-                                {result.escalation_target || "COURSE_LECTURER"}
+                              <span>Phân luồng:</span>
+                              <span className="font-medium text-[var(--on-surface)]">
+                                {result.escalation_target || "Giảng viên phụ trách"}
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold">Lý do phân luồng:</span>
-                              <span className="font-mono text-[11px] bg-amber-100 px-1.5 py-0.5 rounded text-amber-800">
-                                {result.reason_code || "AUTHORITY_EXCEPTION_REQUIRED"}
+                              <span>Lý do phân luồng:</span>
+                              <span className="font-medium text-[var(--on-surface)]">
+                                {result.reason_code || "Cần thẩm quyền giảng viên"}
                               </span>
                             </div>
                           </div>
@@ -629,7 +589,7 @@ export function StudentSubmitView({
                               type="button"
                               onClick={handleRefreshQuestion}
                               disabled={refreshing}
-                              className="px-3.5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                              className="px-3 py-1.5 bg-[var(--surface-container-high)] hover:bg-[var(--surface-container-highest)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                             >
                               <IconRotateCcw size={13} className={refreshing ? "animate-spin" : ""} />
                               <span>{refreshing ? "Đang kiểm tra…" : "Làm mới kết quả hồ sơ"}</span>
@@ -643,31 +603,28 @@ export function StudentSubmitView({
                   {/* CLARIFY route */}
                   {result.route === "CLARIFY" && (
                     <div className="space-y-4">
-                      {/* Conversation turns history if any */}
                       {conversationTurns.length > 0 && (
-                        <div className="space-y-2 border-b border-slate-200/80 pb-3">
-                          <div className="text-[11px] font-semibold text-slate-600">
+                        <div className="space-y-2 border-b border-[var(--outline)]/20 pb-3">
+                          <div className="text-xs font-medium text-[var(--on-surface-variant)]">
                             Tiến trình đối thoại bổ sung (Tối đa 2 lượt)
                           </div>
                           {conversationTurns.map((turn, idx) => (
-                            <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1.5">
-                              <div className="flex items-center justify-between font-semibold text-slate-600">
-                                <span>{turn.round === 0 ? "Câu hỏi gốc ban đầu" : `Lượt làm rõ ${turn.round}/2`}</span>
+                            <div key={idx} className="p-3 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-sm)] text-xs space-y-1.5">
+                              <div className="flex items-center justify-between text-[var(--on-surface-variant)]">
+                                <span className="font-medium">{turn.round === 0 ? "Câu hỏi gốc ban đầu" : `Lượt làm rõ ${turn.round}/2`}</span>
                                 {turn.round > 0 && (
-                                  <span className="font-mono text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">
+                                  <span className="font-mono text-xs">
                                     Vòng {turn.round}
                                   </span>
                                 )}
                               </div>
                               {turn.clarifyingQuestion && (
-                                <div className="text-sky-900 font-medium bg-sky-50/80 p-2 rounded-lg border border-sky-100 flex items-start gap-1.5">
-                                  <IconHelp size={14} className="text-sky-600 flex-shrink-0 mt-0.5" />
+                                <div className="text-[var(--on-surface)] bg-[var(--surface-container)] p-2 rounded border border-[var(--outline)]/20 flex items-start gap-1.5">
                                   <span><b>AI:</b> {turn.clarifyingQuestion}</span>
                                 </div>
                               )}
                               {turn.studentResponse && (
-                                <div className="text-slate-800 font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-start gap-1.5">
-                                  <IconMessageSquare size={14} className="text-slate-600 flex-shrink-0 mt-0.5" />
+                                <div className="text-[var(--on-surface)] bg-[var(--surface-container)] p-2 rounded border border-[var(--outline)]/20 flex items-start gap-1.5">
                                   <span><b>Sinh viên:</b> {turn.studentResponse}</span>
                                 </div>
                               )}
@@ -678,16 +635,16 @@ export function StudentSubmitView({
 
                       {/* Current clarifying question */}
                       {result.clarifying_question && (
-                        <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl space-y-1.5">
+                        <div className="p-3.5 bg-[var(--surface)] border border-[var(--primary)]/30 rounded-[var(--radius-sm)] space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-sky-900">
-                              Câu hỏi làm rõ từ AI Referee:
+                            <span className="text-xs font-medium text-[var(--primary)]">
+                              Câu hỏi làm rõ từ AI:
                             </span>
-                            <span className="text-[11px] font-medium text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
+                            <span className="text-xs font-medium text-[var(--on-surface-variant)]">
                               Lượt {result.clarification_round || 1}/2
                             </span>
                           </div>
-                          <p className="text-sm font-semibold text-sky-950">
+                          <p className="text-sm font-medium text-[var(--on-surface)]">
                             {result.clarifying_question}
                           </p>
                         </div>
@@ -701,18 +658,18 @@ export function StudentSubmitView({
                             value={clarificationText}
                             onChange={(e) => setClarificationText(e.target.value)}
                             placeholder="Nhập câu trả lời hoặc thông tin bổ sung (ví dụ: 'Nhóm em là nhóm A')..."
-                            className="flex-1 px-3.5 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-[#DC2626] bg-white text-slate-800 shadow-xs"
+                            className="flex-1 px-3.5 py-2 text-xs border border-[var(--outline)]/40 rounded-[var(--radius-sm)] focus:outline-none focus:border-[var(--primary)] bg-[var(--surface)] text-[var(--on-surface)]"
                           />
                           <button
                             type="submit"
                             disabled={clarifyingBusy || !clarificationText.trim()}
-                            className="px-5 py-2.5 bg-[#B91C1C] text-white text-xs font-semibold rounded-lg hover:bg-[#991B1B] disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-xs"
+                            className="px-4 py-2 bg-[var(--primary)] text-white text-xs font-medium rounded-[var(--radius-sm)] hover:bg-[#0842A0] disabled:opacity-50 transition-all flex items-center gap-1.5 cursor-pointer"
                           >
                             {clarifyingBusy ? "Đang gửi…" : "Gửi thông tin bổ sung"}
                           </button>
                         </form>
                       ) : (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-900">
+                        <div className="p-3 bg-[var(--surface-container)] rounded-[var(--radius-sm)] text-xs text-[var(--on-surface-variant)]">
                           Hệ thống đã đạt giới hạn tối đa 2 lượt bổ sung thông tin.
                         </div>
                       )}
@@ -725,56 +682,51 @@ export function StudentSubmitView({
               {result.citations && result.citations.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#DC2626]">
-                        <IconBookOpen size={16} />
-                      </span>
-                      <h4 className="text-xs font-semibold text-slate-700">
-                        Căn cứ trích dẫn học phần
-                      </h4>
-                    </div>
-                    <span className="text-xs text-slate-400 font-medium">
-                      Số trích dẫn: {result.citations.length} tài liệu
-                    </span>
+                    <h4 className="text-sm font-medium text-[var(--on-surface)]">
+                      Căn cứ trích dẫn học phần ({result.citations.length})
+                    </h4>
                   </div>
 
                   {/* Citations Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {result.citations.slice(0, 4).map((c, i) => (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {result.citations.map((c, i) => (
                       <div
                         key={i}
-                        className="p-4 bg-slate-50/60 hover:bg-slate-50 border border-slate-200/90 rounded-xl flex items-start gap-3 transition-all group shadow-2xs"
+                        className="p-3.5 bg-[var(--surface-container)] border border-[var(--outline)]/30 rounded-[var(--radius-md)] flex flex-col justify-between text-xs space-y-2"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-red-100/80 text-[#DC2626] flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
-                          {i % 2 === 0 ? <IconBookOpen size={16} /> : <IconShield size={16} />}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="font-bold text-xs text-slate-900 truncate">
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-[var(--on-surface)] truncate" title={c.document_title}>
                               {c.document_title}
+                            </span>
+                            <span className="text-xs font-mono text-[var(--on-surface-variant)] shrink-0">
+                              {c.label}
                             </span>
                           </div>
 
-                          <p className="text-[11px] text-slate-500 font-medium line-clamp-1">
-                            {c.heading || `Trích đoạn quy chuẩn ${c.label}`}
-                            {c.page_number !== null && c.page_number !== undefined
-                              ? ` · Trang ${c.page_number}`
-                              : ""}
-                          </p>
-
-                          {c.quote && (
-                            <p className="text-[11px] text-slate-600 italic mt-1.5 line-clamp-2 pl-2 border-l-2 border-red-300">
-                              "{c.quote}"
+                          {c.heading && (
+                            <p className="text-xs text-[var(--on-surface-variant)] mt-0.5">
+                              {c.heading}
+                              {c.page_number !== null && c.page_number !== undefined
+                                ? ` · Trang ${c.page_number}`
+                                : ""}
                             </p>
                           )}
 
+                          {c.quote && (
+                            <p className="text-xs text-[var(--on-surface)] italic mt-2 pl-2.5 border-l-2 border-[var(--outline)] line-clamp-3 leading-relaxed">
+                              "{c.quote}"
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
                           <button
                             type="button"
                             onClick={() => setSelectedCitation(c)}
-                            className="mt-2 text-[11px] font-semibold text-[#DC2626] hover:text-[#991B1B] flex items-center gap-1 transition-colors"
+                            className="text-xs font-medium text-[var(--primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
                           >
-                            <span>Xem điều khoản gốc</span>
+                            <span>Xem thêm điều khoản</span>
                             <IconArrowUpRight size={12} />
                           </button>
                         </div>
@@ -784,51 +736,46 @@ export function StudentSubmitView({
                 </div>
               )}
 
-              {/* 3. Red Escalation Suggestion Banner (Only shown for ANSWER route) */}
+              {/* 3. Escalation Suggestion Banner (Only shown for ANSWER route) */}
               {result.route === "ANSWER" && (
-                <div className="p-4 bg-gradient-to-r from-red-50/80 to-rose-50/50 border border-red-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#DC2626] text-white flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <IconTeacher size={16} />
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-bold text-red-950">
-                        Trường hợp của bạn vượt quá quy chuẩn hoặc có lý do đặc biệt?
-                      </h5>
-                      <p className="text-[11px] text-red-800/80 mt-0.5">
-                        Hệ thống hỗ trợ tạo hồ sơ ngoại lệ để chuyển trực tiếp Giảng viên phụ trách xem xét và phê duyệt.
-                      </p>
-                    </div>
+                <div className="p-4 bg-[var(--surface-container)] border border-[var(--outline)]/30 rounded-[var(--radius-md)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h5 className="text-xs font-medium text-[var(--on-surface)]">
+                      Trường hợp của bạn vượt quá quy chuẩn hoặc có lý do đặc biệt?
+                    </h5>
+                    <p className="text-xs text-[var(--on-surface-variant)] mt-0.5">
+                      Hệ thống hỗ trợ tạo hồ sơ ngoại lệ để chuyển trực tiếp Giảng viên phụ trách xem xét và phê duyệt.
+                    </p>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleEscalateManually}
-                    className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 flex-shrink-0"
+                    className="px-3.5 py-2 bg-[var(--surface-container-high)] hover:bg-[var(--surface-container-highest)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] border border-[var(--outline)]/40 transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
                   >
-                    <span>Chuyển tiếp ngay hồ sơ</span>
+                    <span>Chuyển tiếp hồ sơ</span>
                     <IconChevronRight size={13} />
                   </button>
                 </div>
               )}
 
               {/* 4. Bottom Utility Bar */}
-              <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="pt-4 border-t border-[var(--outline)]/20 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--on-surface-variant)]">
                 <div className="flex items-center gap-2">
                   {onViewHistory && (
                     <button
                       type="button"
                       onClick={() => onViewHistory(result.question_id)}
-                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+                      className="px-3.5 py-1.5 bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] border border-[var(--outline)]/30 transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <IconBookOpen size={13} />
-                      <span>Lưu vào Hồ sơ của tôi</span>
+                      <span>Lưu vào Hồ sơ</span>
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={handleNewQuestion}
-                    className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-semibold rounded-lg transition-colors"
+                    className="px-3.5 py-1.5 bg-[var(--surface)] hover:bg-[var(--surface-container)] border border-[var(--outline)]/40 text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer"
                   >
                     + Đặt câu hỏi mới
                   </button>
@@ -836,15 +783,26 @@ export function StudentSubmitView({
 
                 <div className="flex items-center gap-3">
                   {result.case_id && (
-                    <div className="text-xs font-mono font-bold text-slate-500 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                      <span>MÃ HỒ SƠ: #{result.case_id}</span>
-                    </div>
+                    <span className="font-mono text-xs">
+                      Mã hồ sơ: #{result.case_id}
+                    </span>
                   )}
                   {currentRequestId && (
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">
-                      X-Request-ID: {currentRequestId}
-                    </span>
+                    <div className="flex items-center gap-1 font-mono text-xs text-[var(--on-surface-variant)]">
+                      <span>Req: {currentRequestId.slice(0, 8)}...</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyRequestId(currentRequestId)}
+                        className="p-1 hover:bg-[var(--surface-container)] rounded transition-colors cursor-pointer"
+                        title="Sao chép Request ID"
+                      >
+                        {copiedRequestId ? (
+                          <Check size={12} className="text-[#146C2E]" />
+                        ) : (
+                          <Copy size={12} />
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -853,15 +811,15 @@ export function StudentSubmitView({
         )}
 
         {/* ── CARD 4: FOOTER FEEDBACK BAR ── */}
-        <div className="px-5 py-3.5 bg-white border border-slate-200/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 shadow-2xs">
+        <div className="px-5 py-3.5 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--on-surface-variant)] shadow-xs">
           <div className="flex items-center gap-2">
             <span>Thông tin phản hồi có hữu ích với bạn không?</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setFeedback("up")}
-                className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${
-                  feedback === "up" ? "text-emerald-600 bg-emerald-50" : "text-slate-400"
+                className={`p-1.5 rounded hover:bg-[var(--surface-container)] transition-colors cursor-pointer ${
+                  feedback === "up" ? "text-[#146C2E] bg-[#E8F5E9]" : "text-[var(--on-surface-variant)]"
                 }`}
                 title="Hữu ích"
               >
@@ -870,8 +828,8 @@ export function StudentSubmitView({
               <button
                 type="button"
                 onClick={() => setFeedback("down")}
-                className={`p-1.5 rounded hover:bg-slate-100 transition-colors ${
-                  feedback === "down" ? "text-red-600 bg-red-50" : "text-slate-400"
+                className={`p-1.5 rounded hover:bg-[var(--surface-container)] transition-colors cursor-pointer ${
+                  feedback === "down" ? "text-[var(--error)] bg-[#FFEBEE]" : "text-[var(--on-surface-variant)]"
                 }`}
                 title="Chưa hữu ích"
               >
@@ -883,31 +841,30 @@ export function StudentSubmitView({
           <button
             type="button"
             onClick={handleEscalateManually}
-            className="text-slate-500 hover:text-[#DC2626] font-medium flex items-center gap-1 transition-colors"
+            className="text-[var(--on-surface-variant)] hover:text-[var(--primary)] font-medium flex items-center gap-1 transition-colors cursor-pointer"
           >
-            <span>Cần khiếu nại hoặc chuyển tiếp Trọng tài viên xem xét</span>
+            <span>Cần khiếu nại hoặc chuyển tiếp giảng viên xem xét</span>
             <IconChevronRight size={13} />
           </button>
         </div>
-      </div>
 
       {/* ── CITATION DETAILS MODAL ── */}
       {selectedCitation && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] max-w-lg w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--outline)]/20 pb-3">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 bg-red-100 text-[#DC2626] font-mono font-bold text-xs rounded">
+                <span className="px-2 py-0.5 bg-[var(--primary-container)] text-[var(--primary)] font-mono font-medium text-xs rounded">
                   {selectedCitation.label}
                 </span>
-                <h4 className="text-sm font-bold text-slate-900">
+                <h4 className="text-sm font-medium text-[var(--on-surface)]">
                   {selectedCitation.document_title}
                 </h4>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedCitation(null)}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100"
+                className="text-[var(--on-surface-variant)] hover:text-[var(--on-surface)] transition-colors p-1 rounded hover:bg-[var(--surface-container)] cursor-pointer"
                 aria-label="Đóng"
               >
                 <IconX size={18} />
@@ -915,12 +872,12 @@ export function StudentSubmitView({
             </div>
 
             {selectedCitation.heading && (
-              <p className="text-xs font-semibold text-slate-700">
+              <p className="text-xs font-medium text-[var(--on-surface)]">
                 Điều khoản: {selectedCitation.heading}
               </p>
             )}
 
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
+            <div className="p-4 bg-[var(--surface-container)] border border-[var(--outline)]/30 rounded-[var(--radius-md)] text-xs text-[var(--on-surface)] leading-relaxed font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
               {selectedCitation.quote}
             </div>
 
@@ -928,7 +885,7 @@ export function StudentSubmitView({
               <button
                 type="button"
                 onClick={() => setSelectedCitation(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
+                className="px-4 py-2 bg-[var(--surface-container-high)] hover:bg-[var(--surface-container-highest)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer"
               >
                 Đóng
               </button>

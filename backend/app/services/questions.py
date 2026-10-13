@@ -8,8 +8,11 @@ from sqlalchemy import case as sql_case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
+from app.core.auth import CurrentActor
 from app.core.config import get_settings
+from app.core.constants import VERIFY_ACTOR_ID
 from app.core.enums import (
+    ActorRole,
     CaseStatus,
     DocumentStatus,
     EscalationTarget,
@@ -999,6 +1002,8 @@ async def list_questions_response(
     stmt = select(Question).order_by(Question.created_at.desc()).limit(limit).offset(offset)
     if actor_id:
         stmt = stmt.where(Question.actor_id == actor_id)
+    else:
+        stmt = stmt.where(or_(Question.actor_id != VERIFY_ACTOR_ID, Question.actor_id.is_(None)))
     if course_id:
         stmt = stmt.where(Question.course_id == course_id)
     if group_id:
@@ -1091,20 +1096,70 @@ async def _evidence_for_questions(
     return result
 
 
-async def dashboard_counts(session: AsyncSession) -> DashboardCounts:
+async def dashboard_counts(
+    session: AsyncSession, actor: CurrentActor | None = None
+) -> DashboardCounts:
+    if actor and actor.role == ActorRole.STUDENT:
+        pending_questions = await session.scalar(
+            select(func.count(Question.id.distinct()))
+            .select_from(Question)
+            .outerjoin(EscalationCase, Question.id == EscalationCase.question_id)
+            .where(
+                Question.actor_id == actor.id,
+                or_(
+                    and_(
+                        EscalationCase.id.is_not(None),
+                        EscalationCase.status.not_in(
+                            [CaseStatus.DECIDED, CaseStatus.CANCELLED]
+                        ),
+                    ),
+                    Question.status == QuestionStatus.CLARIFICATION_REQUIRED,
+                ),
+            )
+        )
+        return DashboardCounts(
+            pending_questions=int(pending_questions or 0),
+            under_review_cases=0,
+        )
+
+    if actor and actor.role == ActorRole.LECTURER:
+        under_review_cases = await session.scalar(
+            select(func.count())
+            .select_from(EscalationCase)
+            .outerjoin(Question, EscalationCase.question_id == Question.id)
+            .where(
+                EscalationCase.status == CaseStatus.UNDER_REVIEW,
+                or_(
+                    EscalationCase.assigned_reviewer_id == actor.id,
+                    EscalationCase.assigned_reviewer_id.is_(None),
+                ),
+                or_(Question.actor_id != VERIFY_ACTOR_ID, Question.actor_id.is_(None)),
+            )
+        )
+        return DashboardCounts(
+            pending_questions=0,
+            under_review_cases=int(under_review_cases or 0),
+        )
+
     pending_questions = await session.scalar(
         select(func.count())
         .select_from(EscalationCase)
+        .outerjoin(Question, EscalationCase.question_id == Question.id)
         .where(
             EscalationCase.status.not_in(
                 [CaseStatus.DECIDED, CaseStatus.CANCELLED]
-            )
+            ),
+            or_(Question.actor_id != VERIFY_ACTOR_ID, Question.actor_id.is_(None)),
         )
     )
     under_review_cases = await session.scalar(
         select(func.count())
         .select_from(EscalationCase)
-        .where(EscalationCase.status == CaseStatus.UNDER_REVIEW)
+        .outerjoin(Question, EscalationCase.question_id == Question.id)
+        .where(
+            EscalationCase.status == CaseStatus.UNDER_REVIEW,
+            or_(Question.actor_id != VERIFY_ACTOR_ID, Question.actor_id.is_(None)),
+        )
     )
     return DashboardCounts(
         pending_questions=int(pending_questions or 0),

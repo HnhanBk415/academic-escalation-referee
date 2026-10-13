@@ -47,6 +47,9 @@ def _fold_text(value: str) -> str:
 
 def infer_policy_topic(text: str) -> str:
     """Map natural phrasing to a small, shared policy-topic vocabulary."""
+    folded = _fold_text(text)
+    if any(token in folded for token in ("rubric", "co cau diem", "cham diem")):
+        return "GRADING_RUBRIC"
     topics = policy_topics_in_text(text)
     for topic in (
         "SECURITY",

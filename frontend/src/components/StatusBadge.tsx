@@ -12,41 +12,41 @@ export type EscalationTag = "OUT_OF_POLICY" | "INSUFFICIENT_EVIDENCE" | string;
 export function StatusBadge({ status }: { status: CaseStatus | string }) {
   if (status === "auto_replied" || status === "ANSWERED" || status === "ANSWER") {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold tracking-wider font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
         TỰ ĐỘNG PHẢN HỒI
       </span>
     );
   }
   if (status === "pending_lecturer" || status === "UNDER_REVIEW" || status === "ESCALATED" || status === "ESCALATE") {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-amber-50 text-amber-800 border border-amber-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold tracking-wider font-mono bg-amber-50 text-amber-800 border border-amber-200">
         CHUYỂN TIẾP · CHỜ DUYỆT
       </span>
     );
   }
   if (status === "clarify" || status === "CLARIFICATION_REQUIRED" || status === "CLARIFY") {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-sky-50 text-sky-800 border border-sky-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold tracking-wider font-mono bg-sky-50 text-sky-800 border border-sky-200">
         CẦN LÀM RÕ
       </span>
     );
   }
   if (status === "out_of_scope" || status === "OUT_OF_SCOPE") {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-purple-50 text-purple-700 border border-purple-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold tracking-wider font-mono bg-purple-50 text-purple-700 border border-purple-200">
         NGOÀI PHẠM VI
       </span>
     );
   }
   if (status === "rejected" || status === "reject" || status === "REJECT" || status === "REJECTED") {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-rose-50 text-rose-700 border border-rose-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold tracking-wider font-mono bg-rose-50 text-rose-700 border border-rose-200">
         BỊ TỪ CHỐI
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider font-mono bg-sky-50 text-sky-700 border border-sky-200">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold tracking-wider font-mono bg-sky-50 text-sky-700 border border-sky-200">
       GIẢNG VIÊN ĐÃ DUYỆT
     </span>
   );
@@ -56,7 +56,7 @@ export function EscalationTagBadge({ tag }: { tag: EscalationTag }) {
   const isOOP = tag === "OUT_OF_POLICY";
   return (
     <span
-      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border ${
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-medium border ${
         isOOP
           ? "bg-rose-50 text-rose-700 border-rose-200"
           : "bg-amber-50 text-amber-700 border-amber-200"

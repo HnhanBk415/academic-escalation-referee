@@ -11,9 +11,9 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
-        <h1 className="text-[22px] font-normal text-[var(--on-surface)]">{title}</h1>
+        <h1 className="text-2xl font-normal text-[var(--on-surface)]">{title}</h1>
         {description && (
-          <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5 max-w-3xl leading-snug">
+          <p className="text-sm text-[var(--on-surface-variant)] mt-0.5 max-w-3xl leading-snug">
             {description}
           </p>
         )}

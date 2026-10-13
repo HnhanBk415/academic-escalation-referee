@@ -80,6 +80,12 @@ export interface CaseSummary {
   created_at: string;
   sla_due_at?: string | null;
   sla_overdue?: boolean;
+  original_question?: string | null;
+  actor_id?: string | null;
+  course_id?: string | null;
+  group_id?: string | null;
+  group_name?: string | null;
+  policy_topic?: string | null;
 }
 
 export interface CaseDetail extends CaseSummary {
@@ -209,10 +215,13 @@ export interface ReviewItem {
 }
 
 export interface ExistingConflictItem {
-  policy_update_id: string;
+  policy_update_id?: string | null;
   content: string;
   source_document_title: string | null;
   published_at: string | null;
+  source_kind?: "POLICY_UPDATE" | "BASE_DOCUMENT";
+  chunk_id?: string | null;
+  document_id?: string | null;
 }
 
 export interface ConflictItem {

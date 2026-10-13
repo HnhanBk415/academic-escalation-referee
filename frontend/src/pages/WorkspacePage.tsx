@@ -1,6 +1,7 @@
 import React from "react";
-import { useParams, Navigate, useNavigate } from "react-router-dom";
+import { useParams, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { WorkspaceRail } from "../components/WorkspaceRail";
+import { PageContainer } from "../components/ui";
 import { StudentSubmitView } from "./StudentSubmitView";
 import { StudentHistoryView } from "./StudentHistoryView";
 import { LecturerInboxView } from "./LecturerInboxView";
@@ -38,7 +39,10 @@ export function WorkspacePage({
   queueCount,
 }: WorkspacePageProps) {
   const { feature } = useParams<{ feature: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  const isReadingMode = searchParams.get("read") === "1";
 
   // Validate allowed features per role
   const studentFeatures = ["ask", "history"];
@@ -57,55 +61,67 @@ export function WorkspacePage({
     navigate(`/workspace/history/${questionId}`);
   };
 
+  const isTwoColumn = feature === "history" || feature === "inbox";
+
   return (
-    <div className="relative min-h-[calc(100vh-64px)] flex-1 flex flex-col bg-[var(--surface-dim)]">
+    <div className="relative min-h-[calc(100vh-4rem)] flex-1 flex flex-col bg-[var(--surface-dim)]">
       {/* Floating Left Rail */}
-      <WorkspaceRail
-        role={role}
-        pendingCount={pendingCount}
-        queueCount={queueCount}
-      />
+      {!isReadingMode && (
+        <WorkspaceRail
+          role={role}
+          pendingCount={pendingCount}
+          queueCount={queueCount}
+        />
+      )}
 
       {/* Main Workspace Content */}
       <div
-        className={`flex-1 md:pl-[88px] ${
-          feature === "history" ? "p-0" : "pr-4 sm:pr-8 py-6 pb-20 md:pb-8 max-w-7xl mx-auto"
-        } w-full overflow-y-auto flex flex-col`}
+        className={`flex-1 ${isReadingMode ? "pl-0" : "md:pl-[5.5rem]"} w-full flex flex-col ${
+          isTwoColumn ? "h-[calc(100vh-4rem)] overflow-hidden" : "overflow-y-auto"
+        }`}
       >
         {role === "student" && feature === "ask" && (
-          <StudentSubmitView
-            actorId={actorId}
-            catalog={catalog}
-            selectedCourseId={selectedCourseId}
-            selectedGroupId={selectedGroupId}
-            onSelectCourse={onSelectCourse}
-            onSelectGroup={onSelectGroup}
-            onSubmitted={onQuestionSubmitted}
-            onViewHistory={handleNavigateToHistory}
-          />
+          <PageContainer variant="reading" className="py-6 pb-20 md:pb-8 flex-1">
+            <StudentSubmitView
+              actorId={actorId}
+              catalog={catalog}
+              selectedCourseId={selectedCourseId}
+              selectedGroupId={selectedGroupId}
+              onSelectCourse={onSelectCourse}
+              onSelectGroup={onSelectGroup}
+              onSubmitted={onQuestionSubmitted}
+              onViewHistory={handleNavigateToHistory}
+            />
+          </PageContainer>
         )}
 
         {role === "student" && feature === "history" && (
-          <StudentHistoryView
-            actorId={actorId}
-            catalog={catalog}
-            selectedCourseId={selectedCourseId}
-            selectedGroupId={selectedGroupId}
-          />
+          <PageContainer variant="wide" className="h-full p-0 flex-1 flex flex-col overflow-hidden">
+            <StudentHistoryView
+              actorId={actorId}
+              catalog={catalog}
+              selectedCourseId={selectedCourseId}
+              selectedGroupId={selectedGroupId}
+            />
+          </PageContainer>
         )}
 
         {role === "lecturer" && feature === "inbox" && (
-          <LecturerInboxView onDecisionMade={onDecisionMade} />
+          <PageContainer variant="wide" className="h-full p-0 flex-1 flex flex-col overflow-hidden">
+            <LecturerInboxView onDecisionMade={onDecisionMade} />
+          </PageContainer>
         )}
 
         {role === "lecturer" && feature === "exceptions" && (
-          <ExceptionsView actorId={actorId} />
+          <PageContainer variant="wide" className="py-6 pb-20 md:pb-8 flex-1">
+            <ExceptionsView actorId={actorId} />
+          </PageContainer>
         )}
 
         {role === "lecturer" && feature === "documents" && (
-          <div className="bg-[var(--surface)] rounded-[var(--radius-lg)] p-6 border border-[var(--outline)]/40 shadow-xs">
+          <PageContainer variant="wide" className="py-6 pb-20 md:pb-8 flex-1">
             <DocumentProcessingPage courseId={selectedCourseId} />
-          </div>
+          </PageContainer>
         )}
       </div>
     </div>

@@ -23,7 +23,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const baseStyles =
-    "inline-flex items-center justify-center font-medium transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none";
+    "inline-flex items-center justify-center font-medium transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none whitespace-nowrap [&_svg]:shrink-0 [&_svg]:inline-block";
 
   const sizeStyles: Record<ButtonSize, string> = {
     sm: "h-8 px-3 text-xs gap-1.5 rounded-[var(--radius-xl)]",
@@ -52,7 +52,7 @@ export function Button({
     >
       {loading ? (
         <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4 text-current"
+          className="animate-spin -ml-0.5 mr-1.5 h-4 w-4 text-current shrink-0 inline-block"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -72,11 +72,11 @@ export function Button({
           />
         </svg>
       ) : icon && iconPosition === "left" ? (
-        <span className="shrink-0">{icon}</span>
+        <span className="shrink-0 inline-flex items-center">{icon}</span>
       ) : null}
-      <span>{children}</span>
+      <span className="inline-flex items-center gap-2 whitespace-nowrap">{children}</span>
       {!loading && icon && iconPosition === "right" ? (
-        <span className="shrink-0">{icon}</span>
+        <span className="shrink-0 inline-flex items-center">{icon}</span>
       ) : null}
     </button>
   );

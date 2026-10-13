@@ -10,7 +10,7 @@ import {
   ChevronRight,
   ArrowRight,
 } from "lucide-react";
-import { Badge, Button, Card } from "../components/ui";
+import { Badge, Button, Card, PageContainer, PageHeader } from "../components/ui";
 import type { DemoCatalog } from "../types";
 
 type Role = "student" | "lecturer" | "academic_affairs";
@@ -65,23 +65,17 @@ export function HomePage({
     : "Mở hàng chờ thẩm định";
 
   return (
-    <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-8 py-6 space-y-6">
+    <PageContainer variant="reading" className="py-6 space-y-6">
       {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">
-            Hướng dẫn sử dụng học vụ
-          </h1>
-          <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
-            Quy trình tra cứu quy chế, phân luồng tự động và thẩm định học vụ tại AER
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Hướng dẫn sử dụng học vụ"
+        description="Quy trình tra cứu quy chế, phân luồng tự động và thẩm định học vụ tại AER"
+        actions={
           <Badge tone={aiOnline ? "answer" : "neutral"}>
             {aiOnline ? "Hệ thống sẵn sàng" : "AI đang kiểm tra"}
           </Badge>
-        </div>
-      </div>
+        }
+      />
 
       {/* Hero Section - Clean Flat Material Surface */}
       <Card className="p-6 sm:p-8 bg-[var(--surface)] border border-[var(--outline)]/30">
@@ -117,10 +111,10 @@ export function HomePage({
               variant="filled"
               size="md"
               onClick={() => onNavigate(primaryAction)}
-              className="gap-2"
+              icon={<ArrowRight className="w-4 h-4" />}
+              iconPosition="right"
             >
-              <span>{primaryLabel}</span>
-              <ArrowRight className="w-4 h-4" />
+              {primaryLabel}
             </Button>
           </div>
         </div>
@@ -297,7 +291,7 @@ export function HomePage({
                       ? "Trung tâm vận hành"
                       : "Hàng chờ thẩm định"}
                   </div>
-                  <div className="text-[11px] text-[var(--on-surface-variant)]">
+                  <div className="text-xs text-[var(--on-surface-variant)]">
                     {isStudent
                       ? "Gửi tình huống học vụ"
                       : isOperations
@@ -326,7 +320,7 @@ export function HomePage({
                       ? "Nhật ký kiểm toán"
                       : "Xem ngoại lệ"}
                   </div>
-                  <div className="text-[11px] text-[var(--on-surface-variant)]">
+                  <div className="text-xs text-[var(--on-surface-variant)]">
                     {isStudent
                       ? "Lịch sử & ngoại lệ"
                       : isOperations
@@ -340,6 +334,6 @@ export function HomePage({
           </div>
         </Card>
       </div>
-    </div>
+    </PageContainer>
   );
 }

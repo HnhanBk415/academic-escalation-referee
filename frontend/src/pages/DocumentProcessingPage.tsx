@@ -12,7 +12,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api, apiBlob, postJson } from "../api/client";
-import { Badge, Button, Card, Modal } from "../components/ui";
+import { Badge, Button, Card, Modal, PageHeader } from "../components/ui";
+import { policyTopicLabel } from "../utils/labels";
 import type {
   ConflictItem,
   ConflictResolutionAction,
@@ -218,19 +219,31 @@ export function DocumentProcessingPage({ courseId }: Props) {
     }
   };
 
+  const resetToStart = () => {
+    setStep(1);
+    setProcessing(null);
+    setConflicts([]);
+    setResolutions({});
+    setSelected(null);
+    setDraft("");
+    setCropUrl(null);
+    setFile(null);
+    setText("");
+    setTitle("Quy định học phần");
+    setVersion("1.0");
+    setError("");
+  };
+
   const retryFailed = async () => {
-    if (processing?.id) {
+    const procId = processing?.id;
+    if (procId) {
       try {
-        await api(`/api/v1/documents/processing/${processing.id}/discard`, { method: "POST" });
+        await api(`/api/v1/documents/processing/${procId}/discard`, { method: "POST" });
       } catch {
         // ignore
       }
     }
-    setProcessing(null);
-    setStep(1);
-    setFile(null);
-    setText("");
-    setError("");
+    resetToStart();
     setNotice("");
   };
 
@@ -265,28 +278,20 @@ export function DocumentProcessingPage({ courseId }: Props) {
   };
 
   const discardDraft = async () => {
-    if (!processing) return;
+    const procId = processing?.id;
     setBusy(true);
     setError("");
+    setModal(null);
     try {
-      await api(`/api/v1/documents/processing/${processing.id}/discard`, { method: "POST" });
-      setProcessing(null);
-      setStep(1);
-      setTitle("Quy định học phần");
-      setVersion("1.0");
-      setText("");
-      setFile(null);
-      setSelected(null);
-      setDraft("");
-      setCropUrl(null);
-      setConflicts([]);
-      setResolutions({});
-      setNotice("Đã hủy bản nháp thành công.");
+      if (procId) {
+        await api(`/api/v1/documents/processing/${procId}/discard`, { method: "POST" });
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không thể hủy bản nháp.");
+      console.warn("Discard draft error:", e);
     } finally {
+      resetToStart();
+      setNotice("Đã hủy bản nháp");
       setBusy(false);
-      setModal(null);
     }
   };
 
@@ -304,7 +309,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
     setModal({
       open: true,
       title: "Hủy, không lưu quy định?",
-      message: "Bản nháp sẽ chuyển sang trạng thái đã hủy (DISCARDED) và không được lưu vào hệ thống.",
+      message: "Bản nháp sẽ chuyển sang trạng thái đã hủy và không được lưu vào hệ thống.",
       confirmText: "Xác nhận hủy",
       onConfirm: discardDraft,
     });
@@ -351,18 +356,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
   };
 
   const resetAll = () => {
-    setProcessing(null);
-    setStep(1);
-    setTitle("Quy định học phần");
-    setVersion("1.0");
-    setText("");
-    setFile(null);
-    setSelected(null);
-    setDraft("");
-    setCropUrl(null);
-    setConflicts([]);
-    setResolutions({});
-    setError("");
+    resetToStart();
     setNotice("");
   };
 
@@ -390,12 +384,10 @@ export function DocumentProcessingPage({ courseId }: Props) {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div>
-        <h1 className="text-[22px] font-normal text-[var(--on-surface)]">Tiếp nhận quy định</h1>
-        <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
-          Trích xuất tài liệu học phần, rà soát OCR tiếng Việt và xử lý xung đột quy chế
-        </p>
-      </div>
+      <PageHeader
+        title="Tiếp nhận quy định"
+        description="Trích xuất tài liệu học phần, rà soát OCR tiếng Việt và xử lý xung đột quy chế"
+      />
 
       {/* Stepper Material ngang */}
       <div className="flex items-center justify-between bg-[var(--surface-container-low)] p-3.5 rounded-[var(--radius-lg)] border border-[var(--outline)]/20">
@@ -403,58 +395,58 @@ export function DocumentProcessingPage({ courseId }: Props) {
         <div className="flex items-center gap-2.5">
           <div
             className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-              step === 1
-                ? "bg-[var(--primary)] text-white shadow-xs"
-                : step > 1 || isCompleted
+              isCompleted || step > 1
                 ? "bg-[#E8F5E9] text-[#146C2E]"
+                : step === 1
+                ? "bg-[var(--primary)] text-white shadow-xs"
                 : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
             }`}
           >
-            {step > 1 || isCompleted ? <Check className="w-3.5 h-3.5" /> : "1"}
+            {isCompleted || step > 1 ? <Check className="w-3.5 h-3.5" /> : "1"}
           </div>
           <span
             className={`text-xs font-medium ${
-              step === 1 ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
+              step === 1 || isCompleted ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
             }`}
           >
             Nguồn tài liệu
           </span>
         </div>
 
-        <div className="flex-1 h-[2px] bg-[var(--outline)]/20 mx-4" />
+        <div className="flex-1 h-0.5 bg-[var(--outline)]/20 mx-4" />
 
         {/* Step 2 */}
         <div className="flex items-center gap-2.5">
           <div
             className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-              step === 2
-                ? "bg-[var(--primary)] text-white shadow-xs"
-                : step > 2 || isCompleted
+              isCompleted || step > 2
                 ? "bg-[#E8F5E9] text-[#146C2E]"
+                : step === 2
+                ? "bg-[var(--primary)] text-white shadow-xs"
                 : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
             }`}
           >
-            {step > 2 || isCompleted ? <Check className="w-3.5 h-3.5" /> : "2"}
+            {isCompleted || step > 2 ? <Check className="w-3.5 h-3.5" /> : "2"}
           </div>
           <span
             className={`text-xs font-medium ${
-              step === 2 ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
+              step === 2 || isCompleted ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
             }`}
           >
             Rà soát nhận diện
           </span>
         </div>
 
-        <div className="flex-1 h-[2px] bg-[var(--outline)]/20 mx-4" />
+        <div className="flex-1 h-0.5 bg-[var(--outline)]/20 mx-4" />
 
         {/* Step 3 */}
         <div className="flex items-center gap-2.5">
           <div
             className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-              step === 3 && !isCompleted
-                ? "bg-[var(--primary)] text-white shadow-xs"
-                : isCompleted
+              isCompleted
                 ? "bg-[#E8F5E9] text-[#146C2E]"
+                : step === 3
+                ? "bg-[var(--primary)] text-white shadow-xs"
                 : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
             }`}
           >
@@ -462,7 +454,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
           </div>
           <span
             className={`text-xs font-medium ${
-              step === 3 ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
+              step === 3 || isCompleted ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
             }`}
           >
             Kiểm tra xung đột & Lưu
@@ -647,9 +639,9 @@ export function DocumentProcessingPage({ courseId }: Props) {
           </label>
 
           <div className="flex items-center gap-3">
-            <div className="flex-1 h-[1px] bg-[var(--outline)]/20" />
+            <div className="flex-1 h-px bg-[var(--outline)]/20" />
             <span className="text-xs text-[var(--on-surface-variant)]">hoặc dán văn bản</span>
-            <div className="flex-1 h-[1px] bg-[var(--outline)]/20" />
+            <div className="flex-1 h-px bg-[var(--outline)]/20" />
           </div>
 
           <div>
@@ -666,18 +658,20 @@ export function DocumentProcessingPage({ courseId }: Props) {
           </div>
 
           <div className="flex justify-end pt-2">
-            <Button variant="filled" disabled={busy} onClick={start} className="gap-2">
-              {busy ? (
-                <>
+            <Button
+              variant="filled"
+              disabled={busy}
+              onClick={start}
+              icon={
+                busy ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Đang trích xuất OCR...</span>
-                </>
-              ) : (
-                <>
-                  <span>Trích xuất & Rà soát</span>
+                ) : (
                   <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+                )
+              }
+              iconPosition={busy ? "left" : "right"}
+            >
+              {busy ? "Đang trích xuất OCR..." : "Trích xuất & Rà soát"}
             </Button>
           </div>
         </Card>
@@ -692,9 +686,8 @@ export function DocumentProcessingPage({ courseId }: Props) {
               size="sm"
               onClick={handleBackToStep1}
               disabled={busy}
-              className="gap-1.5"
+              icon={<ArrowLeft className="w-3.5 h-3.5" />}
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
               Quay lại
             </Button>
             <div className="flex gap-2">
@@ -712,10 +705,10 @@ export function DocumentProcessingPage({ courseId }: Props) {
                 size="sm"
                 onClick={goToStep3}
                 disabled={busy || pending.length > 0}
-                className="gap-1.5"
+                icon={<ArrowRight className="w-3.5 h-3.5" />}
+                iconPosition="right"
               >
-                <span>Kiểm tra xung đột</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                Kiểm tra xung đột
               </Button>
             </div>
           </div>
@@ -727,9 +720,9 @@ export function DocumentProcessingPage({ courseId }: Props) {
                 <span className="text-xs font-semibold text-[var(--on-surface)]">
                   Cần rà soát ({pending.length})
                 </span>
-                <span className="text-[11px] text-[var(--on-surface-variant)]">Độ tin cậy &lt; 80%</span>
+                <span className="text-xs text-[var(--on-surface-variant)]">Độ tin cậy &lt; 80%</span>
               </div>
-              <div className="space-y-2 max-h-[480px] overflow-y-auto">
+              <div className="space-y-2 max-h-[30rem] overflow-y-auto">
                 {pending.length ? (
                   pending.map((item) => (
                     <div
@@ -741,7 +734,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
                           : "border-[var(--outline)]/30 hover:bg-[var(--surface-container-low)]"
                       }`}
                     >
-                      <div className="flex items-center justify-between text-[11px] text-[var(--on-surface-variant)] mb-1">
+                      <div className="flex items-center justify-between text-xs text-[var(--on-surface-variant)] mb-1">
                         <span>Trang {item.page_number ?? "—"}</span>
                         <span className="font-mono">{Math.round(item.confidence * 100)}%</span>
                       </div>
@@ -843,13 +836,13 @@ export function DocumentProcessingPage({ courseId }: Props) {
                 else handleBackToStep1();
               }}
               disabled={busy}
-              className="gap-1.5"
+              icon={<ArrowLeft className="w-3.5 h-3.5" />}
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
               Quay lại
             </Button>
             <div className="flex gap-2">
               <Button
+                id="discard-draft-btn"
                 variant="text"
                 size="sm"
                 onClick={handleDiscardClick}
@@ -859,23 +852,20 @@ export function DocumentProcessingPage({ courseId }: Props) {
                 Hủy, không lưu
               </Button>
               <Button
+                id="save-policy-update-btn"
                 variant="filled"
                 size="sm"
                 onClick={finalize}
                 disabled={busy || !allConflictsResolved}
-                className="gap-1.5"
-              >
-                {busy ? (
-                  <>
+                icon={
+                  busy ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang lưu...</span>
-                  </>
-                ) : (
-                  <>
+                  ) : (
                     <Check className="w-3.5 h-3.5" />
-                    <span>Lưu cập nhật quy định</span>
-                  </>
-                )}
+                  )
+                }
+              >
+                {busy ? "Đang lưu..." : "Lưu cập nhật quy định"}
               </Button>
             </div>
           </div>
@@ -908,60 +898,73 @@ export function DocumentProcessingPage({ courseId }: Props) {
               </div>
 
               {conflicts.map((conflict) => {
-                const existing = conflict.existing[0];
-                const diff = existing
-                  ? computeWordDiff(existing.content, conflict.new_content)
-                  : null;
-                const chosen = resolutions[conflict.new_chunk_index] || "REPLACE";
+                const hasPolicyUpdate = conflict.existing.some(
+                  (e) => e.source_kind === "POLICY_UPDATE"
+                );
+                const chosen = resolutions[conflict.new_chunk_index];
 
                 return (
                   <Card key={conflict.new_chunk_index} className="p-5 space-y-4">
                     {/* Conflict Title */}
                     <div className="flex items-center justify-between pb-3 border-b border-[var(--outline)]/20">
                       <span className="text-xs font-semibold text-[var(--on-surface)]">
-                        Xung đột #{conflict.new_chunk_index + 1} · Chủ đề: {conflict.policy_topic}
+                        Xung đột #{conflict.new_chunk_index + 1} · Chủ đề: {policyTopicLabel(conflict.policy_topic)}
                       </span>
-                      <span className="text-[11px] text-[var(--on-surface-variant)] font-mono">
+                      <span className="text-xs text-[var(--on-surface-variant)] font-mono">
                         Đoạn {conflict.new_chunk_index + 1}
                       </span>
                     </div>
 
                     {/* 2-Column Comparison Table / Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Left side: Đang hiệu lực */}
-                      <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between text-xs mb-1.5 font-medium text-[var(--on-surface)]">
-                            <span>Đang hiệu lực</span>
-                            <span className="text-[11px] text-[var(--on-surface-variant)] font-normal">
-                              {existing?.published_at
-                                ? new Date(existing.published_at).toLocaleDateString("vi-VN")
-                                : "Hiện hành"}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-[var(--on-surface-variant)] mb-2">
-                            Nguồn: {existing?.source_document_title || "Quy định cũ"}
-                          </p>
-                          <div className="text-xs text-[var(--on-surface)] leading-relaxed whitespace-pre-wrap">
-                            {diff ? diff.oldElements : existing?.content}
-                          </div>
-                        </div>
+                      {/* Left side: Danh sách xếp chồng các nguồn cũ */}
+                      <div className="space-y-3">
+                        {conflict.existing.map((existingItem, eIdx) => {
+                          const diff = computeWordDiff(existingItem.content, conflict.new_content);
+                          const isBase = existingItem.source_kind === "BASE_DOCUMENT";
+                          const sourceLabel = isBase
+                            ? `Quy chế gốc · ${existingItem.source_document_title || "Tài liệu môn học"}`
+                            : `Bản cập nhật · ${existingItem.source_document_title || "Bản cập nhật"} · ${
+                                existingItem.published_at
+                                  ? new Date(existingItem.published_at).toLocaleDateString("vi-VN")
+                                  : "Hiện hành"
+                              }`;
+                          const badgeLabel = isBase ? "Quy chế gốc" : "Đang hiệu lực";
+
+                          return (
+                            <div
+                              key={existingItem.chunk_id || eIdx}
+                              className="p-3.5 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 flex flex-col justify-between"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between text-xs mb-1.5 font-medium text-[var(--on-surface)]">
+                                  <span className="font-medium text-[var(--on-surface)]">
+                                    {sourceLabel}
+                                  </span>
+                                  <span className="text-xs text-[var(--on-surface-variant)] font-normal">
+                                    {badgeLabel}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-[var(--on-surface)] leading-relaxed whitespace-pre-wrap mt-2">
+                                  {diff.oldElements}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
 
                       {/* Right side: Bản mới tải lên */}
-                      <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 flex flex-col justify-between">
+                      <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 flex flex-col justify-between self-start">
                         <div>
                           <div className="flex items-center justify-between text-xs mb-1.5 font-medium text-[var(--primary)]">
-                            <span>Bản mới tải lên</span>
-                            <span className="text-[11px] text-[var(--on-surface-variant)] font-normal">
+                            <span>Bản mới tải lên · {processing.document.title}</span>
+                            <span className="text-xs text-[var(--on-surface-variant)] font-normal">
                               Phiên bản {processing.document.version}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[var(--on-surface-variant)] mb-2">
-                            Nguồn: {processing.document.title}
-                          </p>
-                          <div className="text-xs text-[var(--on-surface)] leading-relaxed whitespace-pre-wrap">
-                            {diff ? diff.newElements : conflict.new_content}
+                          <div className="text-xs text-[var(--on-surface)] leading-relaxed whitespace-pre-wrap mt-2">
+                            {conflict.new_content}
                           </div>
                         </div>
                       </div>
@@ -974,6 +977,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
                       </span>
                       <div className="inline-flex rounded-full bg-[var(--surface-container-high)] p-1 gap-1">
                         <button
+                          id={`resolve-replace-${conflict.new_chunk_index}`}
                           type="button"
                           onClick={() => setConflictResolution(conflict.new_chunk_index, "REPLACE")}
                           className={`px-3 py-1 text-xs rounded-full transition-all ${
@@ -982,9 +986,10 @@ export function DocumentProcessingPage({ courseId }: Props) {
                               : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
                           }`}
                         >
-                          Dùng bản mới (thay thế)
+                          Dùng bản mới
                         </button>
                         <button
+                          id={`resolve-keep-old-${conflict.new_chunk_index}`}
                           type="button"
                           onClick={() => setConflictResolution(conflict.new_chunk_index, "KEEP_OLD")}
                           className={`px-3 py-1 text-xs rounded-full transition-all ${
@@ -993,19 +998,22 @@ export function DocumentProcessingPage({ courseId }: Props) {
                               : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
                           }`}
                         >
-                          Giữ bản cũ
+                          {hasPolicyUpdate ? "Giữ bản cũ" : "Giữ quy chế gốc"}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setConflictResolution(conflict.new_chunk_index, "KEEP_BOTH")}
-                          className={`px-3 py-1 text-xs rounded-full transition-all ${
-                            chosen === "KEEP_BOTH"
-                              ? "bg-[var(--surface)] text-[var(--primary)] font-semibold shadow-xs"
-                              : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
-                          }`}
-                        >
-                          Giữ cả hai
-                        </button>
+                        {hasPolicyUpdate && (
+                          <button
+                            id={`resolve-keep-both-${conflict.new_chunk_index}`}
+                            type="button"
+                            onClick={() => setConflictResolution(conflict.new_chunk_index, "KEEP_BOTH")}
+                            className={`px-3 py-1 text-xs rounded-full transition-all ${
+                              chosen === "KEEP_BOTH"
+                                ? "bg-[var(--surface)] text-[var(--primary)] font-semibold shadow-xs"
+                                : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
+                            }`}
+                          >
+                            Giữ cả hai
+                          </button>
+                        )}
                       </div>
                     </div>
                   </Card>

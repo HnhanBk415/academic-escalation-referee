@@ -67,6 +67,12 @@ class CaseSummary(BaseModel):
     created_at: datetime
     sla_due_at: datetime | None = None
     sla_overdue: bool = False
+    original_question: str | None = None
+    actor_id: str | None = None
+    course_id: str | None = None
+    group_id: str | None = None
+    group_name: str | None = None
+    policy_topic: str | None = None
 
     @field_validator("created_at", "sla_due_at", mode="after")
     @classmethod
@@ -81,10 +87,10 @@ class CaseSummary(BaseModel):
 class CaseDetail(CaseSummary):
     original_question: str
     actor_id: str
-    group_id: str | None
-    group_name: str | None
+    group_id: str | None = None
+    group_name: str | None = None
     course_id: str
-    policy_topic: str | None
+    policy_topic: str | None = None
     ai_summary: str
     citations: list[CitationResponse]
 

@@ -39,6 +39,7 @@ def load_demo_config() -> dict:
             {"id": "student-b1", "display_name": "Trần Thị B (Student B1)"},
             {"id": "student-dadn-a1", "display_name": "Lê Văn C (DADN A1)"},
             {"id": "student-dadn-b1", "display_name": "Phạm Thị D (DADN B1)"},
+            {"id": "verify-harness", "display_name": "Verify Harness"},
         ],
         "groups": [],
     }

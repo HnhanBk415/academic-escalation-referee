@@ -1,16 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Search, RefreshCw, ChevronDown, ChevronUp, FileCode, History, AlertCircle } from "lucide-react";
 import { api } from "../api/client";
-import { Badge, Button, Chip } from "../components/ui";
+import { Badge, Button, Chip, PageHeader } from "../components/ui";
+import { auditEventLabel, auditEventTone } from "../utils/labels";
 import type { AuditEvent } from "../types";
-
-const EVENT_TYPE_LABELS: Record<string, { label: string; tone: "info" | "answer" | "escalate" | "clarify" | "reject" | "neutral" }> = {
-  QUESTION_ROUTED: { label: "Phân luồng", tone: "info" },
-  CASE_DECIDED: { label: "Quyết định", tone: "answer" },
-  EXCEPTION_CREATED: { label: "Tạo ngoại lệ", tone: "escalate" },
-  POLICY_UPDATE_PUBLISHED: { label: "Ban hành", tone: "clarify" },
-  POLICY_DRAFT_DISCARDED: { label: "Hủy nháp", tone: "reject" },
-};
 
 export function AuditPage() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -61,6 +54,10 @@ export function AuditPage() {
     });
   }, [events, searchQuery, selectedEventType]);
 
+  const availableEventTypes = useMemo(() => {
+    return Array.from(new Set(events.map((e) => e.event_type))).filter(Boolean);
+  }, [events]);
+
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
   };
@@ -68,28 +65,21 @@ export function AuditPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">
-            Nhật ký kiểm toán
-          </h1>
-          <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
-            Truy vết toàn bộ phân luồng AI, quyết định ca duyệt và thay đổi quy định (append-only)
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Nhật ký kiểm toán"
+        description="Truy vết toàn bộ phân luồng AI, quyết định ca duyệt và thay đổi quy định (append-only)"
+        actions={
           <Button
             variant="tonal"
             size="sm"
             onClick={() => void loadAuditEvents()}
             disabled={loading}
-            className="gap-2"
+            icon={<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             Làm mới
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {error && (
         <div className="rounded-[var(--radius-md)] border border-[var(--error)]/30 bg-[var(--error)]/10 p-4 text-sm text-[var(--error)] flex items-center gap-3">
@@ -117,7 +107,7 @@ export function AuditPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--outline)]/15">
-          <span className="text-[12px] font-medium text-[var(--on-surface-variant)] mr-1">
+          <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">
             Loại sự kiện:
           </span>
           <Chip
@@ -125,10 +115,10 @@ export function AuditPage() {
             selected={selectedEventType === "ALL"}
             onClick={() => setSelectedEventType("ALL")}
           />
-          {Object.entries(EVENT_TYPE_LABELS).map(([type, meta]) => (
+          {availableEventTypes.map((type) => (
             <Chip
               key={type}
-              label={meta.label}
+              label={auditEventLabel(type)}
               selected={selectedEventType === type}
               onClick={() => setSelectedEventType(type)}
             />
@@ -143,7 +133,7 @@ export function AuditPage() {
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
-                className="h-[52px] bg-[var(--surface-container-low)] rounded animate-pulse w-full"
+                className="h-[3.25rem] bg-[var(--surface-container-low)] rounded animate-pulse w-full"
               />
             ))}
           </div>
@@ -164,22 +154,22 @@ export function AuditPage() {
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)]">
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Thời gian
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Loại sự kiện
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Thực thể
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Tác nhân
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Xử lý
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
                     Chi tiết
                   </th>
                 </tr>
@@ -187,16 +177,14 @@ export function AuditPage() {
               <tbody>
                 {filteredEvents.map((event) => {
                   const isExpanded = expandedId === event.id;
-                  const typeMeta = EVENT_TYPE_LABELS[event.event_type] || {
-                    label: event.event_type,
-                    tone: "neutral",
-                  };
+                  const label = auditEventLabel(event.event_type);
+                  const tone = auditEventTone(event.event_type);
 
                   return (
                     <React.Fragment key={event.id}>
                       <tr
                         onClick={() => toggleExpand(event.id)}
-                        className={`h-[52px] border-b border-[var(--outline)]/15 cursor-pointer transition-colors ${
+                        className={`h-[3.25rem] border-b border-[var(--outline)]/15 cursor-pointer transition-colors ${
                           isExpanded
                             ? "bg-[var(--surface-container)]"
                             : "hover:bg-[var(--surface-container-low)]/60"
@@ -209,7 +197,7 @@ export function AuditPage() {
 
                         {/* Event Type */}
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <Badge tone={typeMeta.tone}>{typeMeta.label}</Badge>
+                          <Badge tone={tone}>{label}</Badge>
                         </td>
 
                         {/* Entity */}
@@ -277,7 +265,7 @@ export function AuditPage() {
                                 </div>
                                 <div>
                                   <span className="text-[var(--on-surface-variant)] block mb-0.5">Request ID</span>
-                                  <code className="text-[var(--on-surface)] font-mono text-[11px] truncate block">
+                                  <code className="text-[var(--on-surface)] font-mono text-xs truncate block">
                                     {event.request_id ?? "—"}
                                   </code>
                                 </div>
@@ -290,7 +278,7 @@ export function AuditPage() {
                                     <FileCode className="w-3.5 h-3.5 text-[var(--primary)]" />
                                     <span>Đầu vào (Input Snapshot)</span>
                                   </div>
-                                  <pre className="p-3 bg-[var(--surface-container-lowest)] rounded border border-[var(--outline)]/20 overflow-x-auto text-[11px] font-mono leading-relaxed text-[var(--on-surface)] max-h-60">
+                                  <pre className="p-3 bg-[var(--surface-container-lowest)] rounded border border-[var(--outline)]/20 overflow-x-auto text-xs font-mono leading-relaxed text-[var(--on-surface)] max-h-60">
                                     {JSON.stringify(event.input_snapshot, null, 2)}
                                   </pre>
                                 </div>
@@ -300,7 +288,7 @@ export function AuditPage() {
                                     <FileCode className="w-3.5 h-3.5 text-[var(--primary)]" />
                                     <span>Kết quả (Output Snapshot)</span>
                                   </div>
-                                  <pre className="p-3 bg-[var(--surface-container-lowest)] rounded border border-[var(--outline)]/20 overflow-x-auto text-[11px] font-mono leading-relaxed text-[var(--on-surface)] max-h-60">
+                                  <pre className="p-3 bg-[var(--surface-container-lowest)] rounded border border-[var(--outline)]/20 overflow-x-auto text-xs font-mono leading-relaxed text-[var(--on-surface)] max-h-60">
                                     {JSON.stringify(event.output_snapshot, null, 2)}
                                   </pre>
                                 </div>
@@ -316,7 +304,7 @@ export function AuditPage() {
                                     {event.evidence_ids.map((id) => (
                                       <span
                                         key={id}
-                                        className="px-2 py-0.5 bg-[var(--surface-container-high)] rounded text-[11px] font-mono text-[var(--on-surface)]"
+                                        className="px-2 py-0.5 bg-[var(--surface-container-high)] rounded text-xs font-mono text-[var(--on-surface)]"
                                       >
                                         {id}
                                       </span>

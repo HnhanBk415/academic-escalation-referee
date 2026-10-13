@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Play, Check, X, Loader2 } from "lucide-react";
 import { postJson } from "../api/client";
-import { Badge, Button } from "../components/ui";
+import { Badge, Button, PageHeader } from "../components/ui";
 import type { QuestionResponse, Route } from "../types";
 
 /* ── Semantic routing verification cases ── */
@@ -258,7 +258,20 @@ export function VerifyPage() {
   const [results, setResults] = useState<VerifyResult[]>([]);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
   const runInFlight = useRef(false);
+
+  const handleScrollToRow = (caseId: string) => {
+    const el = document.getElementById(`verify-row-${caseId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedRowId(caseId);
+      setTimeout(() => {
+        setHighlightedRowId((curr) => (curr === caseId ? null : curr));
+      }, 2000);
+    }
+  };
 
   async function runVerify() {
     if (runInFlight.current) return;
@@ -269,15 +282,23 @@ export function VerifyPage() {
     try {
       const collected: VerifyResult[] = [];
       for (const item of CASES) {
+        setActiveCaseId(item.id);
         const started = performance.now();
         let response: QuestionResponse | null = null;
         let error: string | null = null;
         try {
-          response = await postJson<QuestionResponse>("/api/v1/questions", {
-            course_id: item.course_id,
-            group_id: item.group_id,
-            text: item.question,
-          });
+          response = await postJson<QuestionResponse>(
+            "/api/v1/questions",
+            {
+              actor_id: "verify-harness",
+              course_id: item.course_id,
+              group_id: item.group_id,
+              text: item.question,
+            },
+            {
+              "X-Demo-Actor-ID": "verify-harness",
+            }
+          );
         } catch (e) {
           error = e instanceof Error ? e.message : "Unknown request error";
         }
@@ -313,6 +334,7 @@ export function VerifyPage() {
         setProgress(collected.length);
       }
     } finally {
+      setActiveCaseId(null);
       runInFlight.current = false;
       setRunning(false);
     }
@@ -339,34 +361,30 @@ export function VerifyPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">
-            Kiểm chứng hệ thống
-          </h1>
-          <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
-            Tự động kiểm tra 16 ca thẩm định phân luồng, trích xuất và đo lường độ chính xác
-          </p>
-        </div>
-        <div>
+      <PageHeader
+        title="Kiểm chứng hệ thống"
+        description="Tự động kiểm tra 16 ca thẩm định phân luồng, trích xuất và đo lường độ chính xác"
+        actions={
           <Button
             id="run-verify-btn"
             variant="filled"
             onClick={runVerify}
             disabled={running}
-            className="gap-2 shadow-xs"
+            className="shadow-xs"
+            icon={
+              running ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4 fill-current" />
+              )
+            }
           >
-            {running ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4 fill-current" />
-            )}
             {running
               ? `Đang chạy ${progress}/${CASES.length}...`
               : "Chạy toàn bộ Verify"}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* 4 Flat Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -374,7 +392,7 @@ export function VerifyPage() {
         <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
           <div>
             <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
-              Tỷ lệ Đạt (Pass Rate)
+              Tỷ lệ đạt
             </span>
             <div className="text-2xl font-normal text-[var(--on-surface)] mt-1 flex items-baseline gap-1">
               <span className={complete && passed === CASES.length ? "text-[#146C2E] font-medium" : ""}>
@@ -389,7 +407,7 @@ export function VerifyPage() {
                 style={{ width: `${(progress / CASES.length) * 100}%` }}
               />
             </div>
-            <p className="text-[11px] text-[var(--on-surface-variant)] mt-1.5">
+            <p className="text-xs text-[var(--on-surface-variant)] mt-1.5">
               {totalDone}/{CASES.length} ca đã chạy · {passed} Đạt
             </p>
           </div>
@@ -399,7 +417,7 @@ export function VerifyPage() {
         <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
           <div>
             <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
-              Over-escalation Rate
+              Tỷ lệ chuyển thừa
             </span>
             <div className="text-2xl font-normal text-[var(--on-surface)] mt-1">
               <span
@@ -415,7 +433,7 @@ export function VerifyPage() {
               </span>
             </div>
           </div>
-          <p className="text-[11px] text-[var(--on-surface-variant)] mt-3">
+          <p className="text-xs text-[var(--on-surface-variant)] mt-3">
             {complete
               ? `${overEscalated}/${routineCases.length} ca thường bị đẩy thừa · Mục tiêu: 0%`
               : "Đẩy thừa ca quy chuẩn lên giảng viên"}
@@ -426,7 +444,7 @@ export function VerifyPage() {
         <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
           <div>
             <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
-              Under-escalation Rate
+              Tỷ lệ bỏ sót
             </span>
             <div className="text-2xl font-normal text-[var(--on-surface)] mt-1">
               <span
@@ -442,49 +460,108 @@ export function VerifyPage() {
               </span>
             </div>
           </div>
-          <p className="text-[11px] text-[var(--on-surface-variant)] mt-3">
+          <p className="text-xs text-[var(--on-surface-variant)] mt-3">
             {complete
               ? `${underEscalated}/${escalateCases.length} ca thẩm quyền bị sót · Mục tiêu: 0%`
               : "Bỏ sót ca cần chuyển lên thẩm quyền"}
           </p>
         </div>
 
-        {/* Metric 4: Latency & Bar chart */}
-        <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+        {/* Metric 4: Latency & 16-Square Grid */}
+        <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
           <div>
             <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
               Tổng thời gian xử lý
             </span>
-            <div className="text-2xl font-normal text-[var(--on-surface)] mt-1 font-mono">
-              {totalLatency} <span className="text-xs font-sans text-[var(--on-surface-variant)]">ms</span>
+            <div className="flex items-baseline justify-between mt-1 min-w-0">
+              <div className="text-2xl font-normal text-[var(--on-surface)] font-mono">
+                {results.length > 0 ? (totalLatency / 1000).toFixed(1).replace(".", ",") : "0,0"}{" "}
+                <span className="text-sm font-sans font-normal text-[var(--on-surface-variant)]">s</span>
+              </div>
+              <span className="text-xs text-[var(--on-surface-variant)] shrink-0">/ 90 s mục tiêu</span>
+            </div>
+            <div className="text-xs text-[var(--on-surface-variant)] mt-1 truncate">
+              {results.length > 0 ? (
+                (() => {
+                  const avgSec = (totalLatency / results.length / 1000).toFixed(1).replace(".", ",");
+                  const slowest = results.reduce(
+                    (max, r) => (r.latency_ms > max.latency_ms ? r : max),
+                    results[0]
+                  );
+                  const slowestNum = slowest.id.replace(/^verify_0*/, "").padStart(3, "0");
+                  const slowestSec = (slowest.latency_ms / 1000).toFixed(1).replace(".", ",");
+                  return `TB ${avgSec} s · chậm nhất #${slowestNum} (${slowestSec} s)`;
+                })()
+              ) : (
+                "Chưa có dữ liệu chạy"
+              )}
             </div>
           </div>
 
-          <div className="mt-2 min-w-0">
-            {/* Bar chart with min-w-0 on bars to prevent overflow */}
-            <div className="flex items-end gap-1 h-14 w-full min-w-0">
-              {results.length > 0 ? (
-                results.map((r) => (
-                  <div
-                    key={r.id}
-                    className="flex-1 min-w-0 flex flex-col items-center justify-end h-full group relative"
+          <div className="mt-3 min-w-0">
+            {/* 16 ô vuông: grid 8 cột × 2 hàng, gap 0.25rem, aspect-square bo 0.25rem */}
+            <div
+              className="grid grid-cols-8 grid-rows-2 gap-1 w-full min-w-0"
+              role="group"
+              aria-label="Độ trễ từng ca kiểm thử"
+            >
+              {CASES.map((item, idx) => {
+                const caseNumber = String(idx + 1).padStart(2, "0");
+                const res = results.find((r) => r.id === item.id);
+                const isRunning = running && activeCaseId === item.id;
+
+                let cellStyle = "bg-[var(--surface-container)] text-[var(--on-surface-variant)]/40 border border-transparent";
+                let tooltip = `${item.id} · Chưa chạy`;
+
+                if (res) {
+                  const latencySec = res.latency_ms / 1000;
+                  if (latencySec < 2) {
+                    cellStyle = "bg-[#E8F5E9] text-[#146C2E] border border-transparent";
+                  } else if (latencySec <= 5) {
+                    cellStyle = "bg-[#FFF8E1] text-[#8C5000] border border-transparent";
+                  } else {
+                    cellStyle = "bg-[#FFEBEE] text-[#B3261E] border border-transparent";
+                  }
+
+                  if (!res.passed) {
+                    cellStyle += " ring-2 ring-inset ring-[var(--error)]";
+                  }
+
+                  tooltip = `${item.id} · ${res.latency_ms.toLocaleString("vi-VN")} ms · ${res.passed ? "PASS" : "FAIL"}`;
+                } else if (isRunning) {
+                  cellStyle = "border-2 border-[var(--primary)] bg-[var(--surface-container-high)] text-[var(--primary)] animate-pulse";
+                  tooltip = `${item.id} · Đang chạy...`;
+                }
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleScrollToRow(item.id)}
+                    title={tooltip}
+                    aria-label={tooltip}
+                    className={`aspect-square rounded-[0.25rem] flex items-center justify-center font-mono text-xs font-semibold cursor-pointer transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] select-none ${cellStyle}`}
                   >
-                    <div
-                      className={`w-full rounded-t-sm transition-all ${
-                        r.passed ? "bg-[#146C2E]" : "bg-[var(--error)]"
-                      }`}
-                      style={{
-                        height: `${Math.max(4, (r.latency_ms / maxLatency) * 48)}px`,
-                      }}
-                      title={`${r.id}: ${r.latency_ms}ms`}
-                    />
-                  </div>
-                ))
-              ) : (
-                <div className="text-[11px] text-[var(--on-surface-variant)] self-center w-full text-center">
-                  Chưa có dữ liệu chạy
-                </div>
-              )}
+                    {caseNumber}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Chú thích 3 màu nhỏ bên dưới lưới: "< 2 s", "2–5 s", "> 5 s" */}
+            <div className="flex items-center justify-between text-xs text-[var(--on-surface-variant)] mt-2 pt-1.5 border-t border-[var(--outline)]/15">
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-[2px] bg-[#E8F5E9] border border-[#C8E6C9] inline-block shrink-0" />
+                <span>&lt; 2 s</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-[2px] bg-[#FFF8E1] border border-[#FFE082] inline-block shrink-0" />
+                <span>2–5 s</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-[2px] bg-[#FFEBEE] border border-[#FFCDD2] inline-block shrink-0" />
+                <span>&gt; 5 s</span>
+              </div>
             </div>
           </div>
         </div>
@@ -494,7 +571,7 @@ export function VerifyPage() {
       <div className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-[var(--outline)]/20 flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--on-surface)]">
-            Chi tiết kết quả phân luồng (Routing Evaluation)
+            Kết quả từng ca kiểm thử
           </span>
           {complete && (
             <span
@@ -513,22 +590,22 @@ export function VerifyPage() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)]">
-                <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                   Mã ca · Nhóm
                 </th>
-                <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)]">
+                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)]">
                   Nội dung câu hỏi
                 </th>
-                <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                   Phân luồng dự kiến
                 </th>
-                <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                   Kết quả thực tế
                 </th>
-                <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                   Độ trễ
                 </th>
-                <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
+                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
                   Kết quả
                 </th>
               </tr>
@@ -541,7 +618,12 @@ export function VerifyPage() {
                 return (
                   <tr
                     key={item.id}
-                    className="min-h-[52px] border-b border-[var(--outline)]/15 hover:bg-[var(--surface-container-low)]/50 transition-colors"
+                    id={`verify-row-${item.id}`}
+                    className={`min-h-[3.25rem] border-b border-[var(--outline)]/15 transition-all duration-300 ${
+                      highlightedRowId === item.id
+                        ? "bg-[var(--primary)]/15 ring-2 ring-inset ring-[var(--primary)]"
+                        : "hover:bg-[var(--surface-container-low)]/50"
+                    }`}
                   >
                     {/* Case ID & Category */}
                     <td className="px-4 py-2.5 text-xs whitespace-nowrap">
@@ -550,7 +632,7 @@ export function VerifyPage() {
                       </div>
                       <div className="mt-1">
                         <span
-                          className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border"
+                          className="inline-block px-1.5 py-0.5 rounded text-xs font-medium border"
                           style={{
                             backgroundColor: catMeta.bg,
                             color: catMeta.text,
@@ -577,7 +659,7 @@ export function VerifyPage() {
                       <div className="flex items-center gap-1.5">
                         <Badge route={item.expected_route}>{item.expected_route}</Badge>
                         {item.expected_target === "COURSE_LECTURER" && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-container-high)] text-[var(--on-surface-variant)] font-medium">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-container-high)] text-[var(--on-surface-variant)] font-medium">
                             Giảng viên
                           </span>
                         )}
@@ -592,7 +674,7 @@ export function VerifyPage() {
                             {res.actual_route ?? "ESCALATE"}
                           </Badge>
                           {res.response?.escalation_target === "COURSE_LECTURER" && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-container-high)] text-[var(--on-surface-variant)] font-medium">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-container-high)] text-[var(--on-surface-variant)] font-medium">
                               Giảng viên
                             </span>
                           )}
@@ -628,7 +710,7 @@ export function VerifyPage() {
                               <X className="w-3.5 h-3.5" />
                               FAIL
                             </summary>
-                            <div className="absolute right-6 mt-1 p-3 bg-[var(--surface)] border border-[var(--outline)]/40 rounded-[var(--radius-md)] shadow-lg z-20 text-[11px] text-[var(--on-surface)] max-w-xs space-y-1">
+                            <div className="absolute right-6 mt-1 p-3 bg-[var(--surface)] border border-[var(--outline)]/40 rounded-[var(--radius-md)] shadow-lg z-20 text-xs text-[var(--on-surface)] max-w-xs space-y-1">
                               {res.error && <div>Lỗi: {res.error}</div>}
                               {res.actual_route !== res.expected_route && (
                                 <div>

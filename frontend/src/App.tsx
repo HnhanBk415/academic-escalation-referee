@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { api, setDemoActorId } from "./api/client";
 import { AppHeader } from "./components/AppHeader";
+import { PageContainer } from "./components/ui";
 import { DEMO_ACCOUNTS, type DemoAccount } from "./components/AccountSwitcher";
 import { HomePage } from "./pages/HomePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
@@ -12,16 +13,18 @@ import type { AIHealth, DashboardCounts, DemoCatalog } from "./types";
 const STORAGE_KEY = "aer_demo_account_id";
 
 function getInitialAccount(): DemoAccount {
+  let acc = DEMO_ACCOUNTS[0]; // student-a1 by default
   try {
     const savedId = localStorage.getItem(STORAGE_KEY);
     if (savedId) {
       const found = DEMO_ACCOUNTS.find((a) => a.id === savedId);
-      if (found) return found;
+      if (found) acc = found;
     }
   } catch {
     // ignore localStorage errors
   }
-  return DEMO_ACCOUNTS[0]; // student-a1 by default
+  setDemoActorId(acc.id);
+  return acc;
 }
 
 export function App() {
@@ -47,22 +50,37 @@ export function App() {
     }
   }, [currentAccount]);
 
-  // Load demo catalog
+  // Load demo catalog with retry (up to 5 times, every 3s)
   useEffect(() => {
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+
     async function loadCatalog() {
       try {
         const data = await api<DemoCatalog>("/api/v1/demo/catalog");
+        if (cancelled) return;
         setCatalog(data);
         if (data.courses && data.courses.length > 0) {
-          if (!selectedCourseId) {
-            setSelectedCourseId(data.courses[0].id);
-          }
+          setSelectedCourseId((prev) => prev || data.courses[0].id);
         }
       } catch (err) {
         console.warn("Could not load demo catalog", err);
+        attempts += 1;
+        if (!cancelled && attempts < 5) {
+          timer = setTimeout(() => {
+            void loadCatalog();
+          }, 3000);
+        }
       }
     }
+
     void loadCatalog();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const refreshCounts = useCallback(async () => {
@@ -222,8 +240,10 @@ export function App() {
           <Route
             path="/audit"
             element={
-              <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
-                <AuditPage />
+              <div className="flex-1 overflow-y-auto py-6">
+                <PageContainer variant="wide">
+                  <AuditPage />
+                </PageContainer>
               </div>
             }
           />
@@ -232,8 +252,10 @@ export function App() {
           <Route
             path="/verify"
             element={
-              <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
-                <VerifyPage />
+              <div className="flex-1 overflow-y-auto py-6">
+                <PageContainer variant="wide">
+                  <VerifyPage />
+                </PageContainer>
               </div>
             }
           />

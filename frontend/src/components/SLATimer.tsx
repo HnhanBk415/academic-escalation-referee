@@ -103,12 +103,12 @@ export function SlaTimer({
             <p className="text-xs font-semibold text-rose-800 flex items-center gap-1.5">
               <IconWarning size={14} className="text-rose-600 inline" /> Đã quá hạn SLA 48 giờ
             </p>
-            <p className="text-[11px] text-rose-700 mt-0.5">
+            <p className="text-xs text-rose-700 mt-0.5">
               SLA chỉ là thông tin theo dõi, hệ thống không tự chuyển hồ sơ.
             </p>
           </div>
         </div>
-        <span className="font-mono text-xs font-bold px-3 py-1 bg-rose-200 text-rose-900 rounded-lg">
+        <span className="font-mono text-xs font-semibold px-3 py-1 bg-rose-200 text-rose-900 rounded-lg">
           QUÁ HẠN
         </span>
       </div>
@@ -128,7 +128,7 @@ export function SlaTimer({
           <p className={`text-xs font-semibold ${isUrgent ? "text-rose-800" : "text-amber-800"}`}>
             Thời gian theo dõi SLA 48h
           </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             SLA chỉ là thông tin theo dõi, không tự chuyển hồ sơ
           </p>
         </div>
@@ -142,7 +142,7 @@ export function SlaTimer({
           {time}
         </span>
         {dueAt && (
-          <p className="text-[10px] text-slate-400 font-mono">
+          <p className="text-xs text-slate-400 font-mono">
             Hạn: {new Date(dueAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} {new Date(dueAt).toLocaleDateString("vi-VN")}
           </p>
         )}

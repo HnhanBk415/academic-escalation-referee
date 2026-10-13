@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { ShieldAlert, RefreshCw, AlertCircle, FileText } from "lucide-react";
 import { api, postJson } from "../api/client";
-import { Badge, Button, Chip, Modal } from "../components/ui";
+import { Badge, Button, Chip, Modal, PageHeader } from "../components/ui";
+import { policyTopicLabel, groupLabel } from "../utils/labels";
 import type { CourseExceptionOverview, PolicyException } from "../types";
 
 interface FlattenedException extends PolicyException {
@@ -100,30 +101,25 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
   return (
     <div className="flex flex-col gap-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">Ngoại lệ quy chế</h1>
-          <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
-            Theo dõi và quản lý ngoại lệ quy chế đã cấp theo môn học và nhóm lớp
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Ngoại lệ quy chế"
+        description="Theo dõi và quản lý ngoại lệ quy chế đã cấp theo môn học và nhóm lớp"
+        actions={
           <Button
             variant="tonal"
             size="sm"
             onClick={() => void loadExceptions()}
             disabled={loading}
-            className="gap-2"
+            icon={<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             Làm mới
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Filter Chips Bar */}
       <div className="flex flex-wrap items-center gap-2 bg-[var(--surface)] p-3 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs">
-        <span className="text-[12px] font-medium text-[var(--on-surface-variant)] mr-1">Phạm vi:</span>
+        <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">Phạm vi:</span>
         <Chip
           label="Tất cả"
           selected={scopeFilter === "ALL"}
@@ -145,9 +141,9 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
           onClick={() => setScopeFilter("STUDENT")}
         />
 
-        <div className="h-4 w-[1px] bg-[var(--outline)]/30 mx-1 hidden sm:block" />
+        <div className="h-4 w-px bg-[var(--outline)]/30 mx-1 hidden sm:block" />
 
-        <span className="text-[12px] font-medium text-[var(--on-surface-variant)] mr-1">Trạng thái:</span>
+        <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">Trạng thái:</span>
         <Chip
           label="Tất cả"
           selected={statusFilter === "ALL"}
@@ -179,7 +175,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
             {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
-                className="h-[52px] bg-[var(--surface-container-low)] rounded animate-pulse w-full"
+                className="h-[3.25rem] bg-[var(--surface-container-low)] rounded animate-pulse w-full"
               />
             ))}
           </div>
@@ -202,22 +198,22 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)]">
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Môn học · Phạm vi
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Chủ đề quy chế
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)]">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)]">
                     Nội dung ngoại lệ
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Thời hạn hiệu lực
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
                     Trạng thái
                   </th>
-                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
+                  <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
                     Thao tác
                   </th>
                 </tr>
@@ -230,7 +226,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
                   return (
                     <tr
                       key={item.id}
-                      className="h-[52px] border-b border-[var(--outline)]/15 hover:bg-[var(--surface-container-low)]/50 transition-colors"
+                      className="h-[3.25rem] border-b border-[var(--outline)]/15 hover:bg-[var(--surface-container-low)]/50 transition-colors"
                     >
                       {/* Course / Scope */}
                       <td className="px-4 py-2.5 text-sm">
@@ -239,7 +235,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
                         </div>
                         <div className="text-xs text-[var(--on-surface-variant)]">
                           {item.scope_type === "COURSE" && "Toàn môn"}
-                          {item.scope_type === "GROUP" && (item.groupName || item.scope_id)}
+                          {item.scope_type === "GROUP" && (item.groupName || groupLabel(item.scope_id))}
                           {item.scope_type === "STUDENT" && `SV: ${item.scope_id}`}
                         </div>
                       </td>
@@ -247,7 +243,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
                       {/* Topic */}
                       <td className="px-4 py-2.5 text-xs">
                         <span className="font-medium text-[var(--primary)] bg-[var(--primary-container)] px-2 py-0.5 rounded-[var(--radius-sm)]">
-                          {item.policy_topic}
+                          {policyTopicLabel(item.policy_topic)}
                         </span>
                       </td>
 
@@ -278,7 +274,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
                           <button
                             type="button"
                             onClick={() => handleOpenRevoke(item)}
-                            className="text-[13px] font-medium text-[var(--error)] hover:underline hover:bg-[var(--error)]/10 px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors"
+                            className="text-sm font-medium text-[var(--error)] hover:underline hover:bg-[var(--error)]/10 px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors"
                           >
                             Thu hồi
                           </button>
@@ -329,9 +325,11 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
                   {revokingItem.courseCode} ·{" "}
                   {revokingItem.scope_type === "COURSE"
                     ? "Toàn môn"
-                    : revokingItem.groupName || revokingItem.scope_id}
+                    : revokingItem.groupName || groupLabel(revokingItem.scope_id)}
                 </span>
-                <span className="font-mono">{revokingItem.policy_topic}</span>
+                <span className="font-medium text-[var(--primary)] bg-[var(--primary-container)] px-2 py-0.5 rounded-[var(--radius-sm)]">
+                  {policyTopicLabel(revokingItem.policy_topic)}
+                </span>
               </div>
               <p className="text-sm font-medium text-[var(--on-surface)] leading-relaxed">
                 {revokingItem.content}

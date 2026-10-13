@@ -56,10 +56,13 @@ class ReviewItemResponse(BaseModel):
 
 
 class ExistingConflictItem(BaseModel):
-    policy_update_id: str
+    policy_update_id: str | None = None
     content: str
     source_document_title: str | None = None
     published_at: datetime | None = None
+    source_kind: Literal["POLICY_UPDATE", "BASE_DOCUMENT"] = "POLICY_UPDATE"
+    chunk_id: str | None = None
+    document_id: str | None = None
 
 
 class ConflictItem(BaseModel):

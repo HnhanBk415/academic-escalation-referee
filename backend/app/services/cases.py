@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import VERIFY_ACTOR_ID
 from app.core.enums import (
     ActorRole,
     CaseStatus,
@@ -45,11 +46,24 @@ def _sla_is_overdue(case: EscalationCase) -> bool:
     return due_at < datetime.now(UTC)
 
 
-async def list_cases(session: AsyncSession, status: CaseStatus | None = None) -> list[CaseSummary]:
-    statement = select(EscalationCase).order_by(EscalationCase.created_at.desc())
+async def list_cases(
+    session: AsyncSession,
+    status: CaseStatus | None = None,
+    include_verify: bool = False,
+) -> list[CaseSummary]:
+    statement = (
+        select(EscalationCase, Question, Group)
+        .outerjoin(Question, EscalationCase.question_id == Question.id)
+        .outerjoin(Group, Question.group_id == Group.id)
+        .order_by(EscalationCase.created_at.desc())
+    )
     if status:
         statement = statement.where(EscalationCase.status == status)
-    cases = (await session.scalars(statement)).all()
+    if not include_verify:
+        statement = statement.where(
+            or_(Question.actor_id != VERIFY_ACTOR_ID, Question.actor_id.is_(None))
+        )
+    rows = (await session.execute(statement)).all()
     return [
         CaseSummary(
             id=item.id,
@@ -63,8 +77,14 @@ async def list_cases(session: AsyncSession, status: CaseStatus | None = None) ->
             created_at=item.created_at,
             sla_due_at=item.sla_due_at,
             sla_overdue=_sla_is_overdue(item),
+            original_question=q.text if q else None,
+            actor_id=q.actor_id if q else None,
+            course_id=q.course_id if q else None,
+            group_id=q.group_id if q else None,
+            group_name=g.name if g else None,
+            policy_topic=q.policy_topic if q else None,
         )
-        for item in cases
+        for item, q, g in rows
     ]
 
 

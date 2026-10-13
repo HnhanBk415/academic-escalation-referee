@@ -186,7 +186,7 @@ export function StudentPage() {
                   Đang xử lý…
                 </>
               ) : (
-                "Tra cứu quy chế →"
+                "Tra cứu quy chế"
               )}
             </button>
           </form>

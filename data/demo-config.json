@@ -47,6 +47,10 @@
     {
       "id": "student-dadn-b1",
       "display_name": "Phạm Thị D (DADN B1)"
+    },
+    {
+      "id": "verify-harness",
+      "display_name": "Verify Harness"
     }
   ],
   "groups": [

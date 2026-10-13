@@ -18,7 +18,8 @@ async def test_direct_text_processing_can_be_confirmed_exported_and_indexed(clie
     assert processing["pending_review_count"] == 0
 
     finalized = await client.post(
-        f"/api/v1/documents/processing/{processing['id']}/finalize"
+        f"/api/v1/documents/processing/{processing['id']}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
     )
     assert finalized.status_code == 200, finalized.text
     assert finalized.json()["status"] == "COMPLETED"
@@ -42,7 +43,8 @@ async def test_latest_relevant_policy_update_wins_even_when_title_differs(client
     )
     assert first.status_code == 201, first.text
     assert (await client.post(
-        f"/api/v1/documents/processing/{first.json()['id']}/finalize"
+        f"/api/v1/documents/processing/{first.json()['id']}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
     )).status_code == 200
 
     second = await client.post(
@@ -53,7 +55,8 @@ async def test_latest_relevant_policy_update_wins_even_when_title_differs(client
     )
     assert second.status_code == 201, second.text
     assert (await client.post(
-        f"/api/v1/documents/processing/{second.json()['id']}/finalize"
+        f"/api/v1/documents/processing/{second.json()['id']}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
     )).status_code == 200
 
     old_document = await client.get(f"/api/v1/documents/{first.json()['document']['id']}")
@@ -85,7 +88,8 @@ async def test_supplement_does_not_hide_unrelated_older_rule(client):
     )
     assert old.status_code == 201, old.text
     assert (await client.post(
-        f"/api/v1/documents/processing/{old.json()['id']}/finalize"
+        f"/api/v1/documents/processing/{old.json()['id']}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
     )).status_code == 200
     supplement = await client.post(
         "/api/v1/documents/processing/text",
@@ -119,7 +123,10 @@ async def test_waiver_request_escalates_even_when_policy_update_exists(client):
         },
     )
     assert created.status_code == 201
-    assert (await client.post(f"/api/v1/documents/processing/{created.json()['id']}/finalize")).status_code == 200
+    assert (await client.post(
+        f"/api/v1/documents/processing/{created.json()['id']}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
+    )).status_code == 200
 
     resp = await client.post(
         "/api/v1/questions",
@@ -233,7 +240,10 @@ async def test_conflict_detection_and_resolution_replace_and_keep_old(client):
         },
     )
     assert v1.status_code == 201
-    assert (await client.post(f"/api/v1/documents/processing/{v1.json()['id']}/finalize")).status_code == 200
+    assert (await client.post(
+        f"/api/v1/documents/processing/{v1.json()['id']}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
+    )).status_code == 200
 
     # 2. Upload second rubric (V2) with conflicting topic GRADING_RUBRIC
     v2 = await client.post(
@@ -307,5 +317,105 @@ async def test_conflict_detection_and_resolution_replace_and_keep_old(client):
     )
     assert fin_keep_old.status_code == 200
     assert fin_keep_old.json()["finalize_summary"]["skipped_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_base_document_conflict_detection_and_resolution(client):
+    # 1. DB has NO PolicyUpdate initially
+    # Upload conflicting rubric 25/45/20/10
+    rubric_upload = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Rubric cập nhật mới",
+            "version": "2026.2",
+            "text_content": "Rubric chấm điểm đồ án CO3001: báo cáo chiếm 25%, sản phẩm chiếm 45%, trình bày chiếm 20%, hợp tác nhóm chiếm 10%.",
+        },
+    )
+    assert rubric_upload.status_code == 201
+    rubric_proc_id = rubric_upload.json()["id"]
+
+    # 2. Check conflicts -> must return 1 conflict with source_kind BASE_DOCUMENT
+    conflicts_resp = await client.get(f"/api/v1/documents/processing/{rubric_proc_id}/conflicts")
+    assert conflicts_resp.status_code == 200
+    conflicts = conflicts_resp.json()
+    assert len(conflicts) >= 1
+    assert conflicts[0]["policy_topic"] == "GRADING_RUBRIC"
+    base_conflict = next(
+        (e for e in conflicts[0]["existing"] if e["source_kind"] == "BASE_DOCUMENT"), None
+    )
+    assert base_conflict is not None
+    assert base_conflict["policy_update_id"] is None
+    assert base_conflict["chunk_id"] is not None
+    assert "Rubric" in base_conflict["source_document_title"]
+
+    # 3. Upload unrelated content -> no conflict
+    unrelated = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Lịch bảo vệ",
+            "version": "1.0",
+            "text_content": "Lịch bảo vệ đồ án vào tuần 15 tại hội trường A.",
+        },
+    )
+    assert unrelated.status_code == 201
+    unrelated_id = unrelated.json()["id"]
+    unrelated_conflicts = (await client.get(f"/api/v1/documents/processing/{unrelated_id}/conflicts")).json()
+    assert len(unrelated_conflicts) == 0
+
+    # 4. Finalize with REPLACE -> asks question returns 25% / 45%
+    fin_replace = await client.post(
+        f"/api/v1/documents/processing/{rubric_proc_id}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
+    )
+    assert fin_replace.status_code == 200
+    assert fin_replace.json()["finalize_summary"]["replaced_count"] == 1
+
+    ans = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Rubric chấm điểm báo cáo và sản phẩm như thế nào?",
+        },
+    )
+    assert ans.status_code == 201
+    ans_data = ans.json()
+    assert "25%" in ans_data["answer"] or "45%" in ans_data["answer"]
+
+    # 5. Now upload another rubric and resolve with KEEP_OLD -> still answers with previous policy
+    rubric_keep_old = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Rubric thử nghiệm",
+            "version": "2026.3",
+            "text_content": "Rubric chấm điểm đồ án CO3001: báo cáo chiếm 10%, sản phẩm chiếm 70%, trình bày chiếm 10%, hợp tác nhóm chiếm 10%.",
+        },
+    )
+    assert rubric_keep_old.status_code == 201
+    proc_keep_old_id = rubric_keep_old.json()["id"]
+    fin_keep = await client.post(
+        f"/api/v1/documents/processing/{proc_keep_old_id}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "KEEP_OLD"}]},
+    )
+    assert fin_keep.status_code == 200
+    assert fin_keep.json()["finalize_summary"]["skipped_count"] == 1
+
+    ans_after = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Rubric chấm điểm báo cáo và sản phẩm như thế nào?",
+        },
+    )
+    assert ans_after.status_code == 201
+    # 70% should NOT be in the answer because it was KEEP_OLD
+    assert "70%" not in ans_after.json()["answer"]
+
 
 

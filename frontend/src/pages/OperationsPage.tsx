@@ -34,7 +34,7 @@ export function OperationsPage({ onOpenAudit }: { onOpenAudit: () => void }) {
     <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-8 py-5 backdrop-blur">
         <div>
-          <h1 className="text-[22px] font-normal text-slate-900">Trung tâm vận hành học vụ</h1>
+          <h1 className="text-2xl font-normal text-slate-900">Trung tâm vận hành học vụ</h1>
           <p className="mt-1 text-sm text-slate-500">Theo dõi luồng hồ sơ, SLA, ngoại lệ và căn cứ kiểm toán.</p>
         </div>
         <button type="button" onClick={() => void load()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:border-[#DC2626] hover:text-[#B91C1C]">
@@ -42,7 +42,7 @@ export function OperationsPage({ onOpenAudit }: { onOpenAudit: () => void }) {
         </button>
       </header>
 
-      <div className="mx-auto max-w-6xl space-y-6 p-8">
+      <div className="mx-auto max-w-7xl space-y-6 p-8">
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map(([key, label, Icon, tone]) => (
             <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -70,7 +70,7 @@ export function OperationsPage({ onOpenAudit }: { onOpenAudit: () => void }) {
             <div className="mt-4 divide-y divide-slate-100">
               {overview?.recent_activity.map((item) => (
                 <div key={item.id} className="flex items-start justify-between gap-4 py-3">
-                  <div><p className="text-sm font-bold text-slate-800">{item.event_type}</p><p className="mt-0.5 text-xs text-slate-500">{item.entity_type} · {item.entity_id} · {item.actor_id ?? "system"}</p></div>
+                  <div><p className="text-sm font-semibold text-slate-800">{item.event_type}</p><p className="mt-0.5 text-xs text-slate-500">{item.entity_type} · {item.entity_id} · {item.actor_id ?? "system"}</p></div>
                   <time className="shrink-0 text-xs text-slate-400">{new Date(item.created_at).toLocaleString("vi-VN")}</time>
                 </div>
               ))}

@@ -21,11 +21,12 @@ router = APIRouter()
 @router.get("", response_model=list[CaseSummary])
 async def get_cases(
     status: CaseStatus | None = Query(default=None),
+    include_verify: bool = Query(default=False),
     current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> list[CaseSummary]:
     require_role(current, ActorRole.LECTURER, ActorRole.ACADEMIC_AFFAIRS)
-    return await list_cases(session, status)
+    return await list_cases(session, status, include_verify=include_verify)
 
 
 @router.get("/{case_id}", response_model=CaseDetail)

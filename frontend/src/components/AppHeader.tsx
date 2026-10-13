@@ -35,12 +35,12 @@ export function AppHeader({
   };
 
   return (
-    <header className="h-16 px-4 sm:px-6 bg-[var(--surface-dim)] border-b border-[var(--outline)]/30 flex items-center justify-between shrink-0 select-none z-40">
+    <header className="sticky top-0 z-40 h-16 px-4 sm:px-6 bg-[var(--surface-dim)] border-b border-[var(--outline)]/30 flex items-center justify-between shrink-0 select-none">
       {/* Left: Brand */}
       <div className="flex items-center gap-6">
         <Link to="/" className="flex items-center gap-2.5 group">
           <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-[#C51A1B] flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105">
-            <span className="text-white font-mono font-bold text-xs tracking-wider">AER</span>
+            <span className="text-white font-mono font-semibold text-xs tracking-wider">AER</span>
           </div>
           <div>
             <span className="font-semibold text-base text-[var(--on-surface)] tracking-tight">

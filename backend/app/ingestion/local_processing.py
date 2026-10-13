@@ -4,6 +4,7 @@ import hashlib
 import json
 import mimetypes
 import re
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -16,7 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.enums import DocumentStatus, PolicyUpdateStatus
 from app.core.errors import AppError
-from app.core.policy_topics import canonical_policy_topic, infer_policy_topic, policy_token_overlap
+from app.core.policy_topics import (
+    canonical_policy_topic,
+    infer_policy_topic,
+    policy_match_tokens,
+    policy_token_overlap,
+    policy_topics_in_text,
+)
 from app.models import (
     Course,
     Document,
@@ -480,6 +487,46 @@ async def discard_processing(session: AsyncSession, processing_id: str, actor_id
     return await processing_response(session, processing)
 
 
+def _extract_snippet(base_text: str, new_text: str, window_chars: int = 300) -> str:
+    """Extract a representative snippet around the dense overlapping area (±300 chars)."""
+    if len(base_text) <= window_chars:
+        return base_text
+    common_tokens = policy_match_tokens(new_text) & policy_match_tokens(base_text)
+    if not common_tokens:
+        return base_text[:window_chars] + "..."
+
+    normalized_base = unicodedata.normalize("NFD", base_text.casefold())
+    normalized_base = "".join(c for c in normalized_base if unicodedata.category(c) != "Mn").replace("đ", "d")
+    matches = [m.start() for m in re.finditer(r"[a-z0-9]+", normalized_base) if m.group(0) in common_tokens]
+    if not matches:
+        return base_text[:window_chars] + "..."
+
+    half_win = window_chars // 2
+    best_center = matches[0]
+    best_count = 0
+    for pos in matches:
+        count = sum(1 for m in matches if abs(m - pos) <= half_win)
+        if count > best_count:
+            best_count = count
+            best_center = pos
+
+    start = max(0, best_center - half_win)
+    end = min(len(base_text), best_center + half_win)
+
+    if start > 0:
+        prev_space = base_text.rfind(" ", max(0, start - 30), start)
+        if prev_space != -1:
+            start = prev_space + 1
+    if end < len(base_text):
+        next_space = base_text.find(" ", end, min(len(base_text), end + 30))
+        if next_space != -1:
+            end = next_space
+
+    prefix = "..." if start > 0 else ""
+    suffix = "..." if end < len(base_text) else ""
+    return prefix + base_text[start:end].strip() + suffix
+
+
 async def _detect_conflicts(
     session: AsyncSession, processing: DocumentProcessing, clean_text: str
 ) -> list[ConflictItem]:
@@ -490,6 +537,8 @@ async def _detect_conflicts(
     document = await session.get(Document, processing.document_id)
     if document is None:
         raise AppError("DOCUMENT_NOT_FOUND", "Không tìm thấy tài liệu nguồn.", status_code=404)
+
+    # 1. Tier 1: Existing Active Policy Updates
     existing_updates = list((await session.scalars(
         select(PolicyUpdate)
         .where(
@@ -500,19 +549,41 @@ async def _detect_conflicts(
         )
         .order_by(PolicyUpdate.published_at.desc(), PolicyUpdate.created_at.desc())
     )).all())
-    if not existing_updates:
-        return []
 
     doc_ids = {u.source_document_id for u in existing_updates if u.source_document_id}
+
+    # 2. Tier 2: Base Document Chunks (Quy chế gốc)
+    base_docs = list((await session.scalars(
+        select(Document).where(
+            Document.course_id == document.course_id,
+            Document.status == DocumentStatus.ACTIVE,
+            Document.id != document.id,
+        )
+    )).all())
+    base_doc_ids = [d.id for d in base_docs]
+    doc_ids.update(base_doc_ids)
+
     doc_titles: dict[str, str] = {}
     if doc_ids:
         docs = (await session.scalars(select(Document).where(Document.id.in_(doc_ids)))).all()
         doc_titles = {d.id: d.title for d in docs}
 
+    base_chunks: list[DocumentChunk] = []
+    if base_doc_ids:
+        all_chunks = list((await session.scalars(
+            select(DocumentChunk).where(DocumentChunk.document_id.in_(base_doc_ids))
+        )).all())
+        base_chunks = [
+            c for c in all_chunks
+            if not c.chunk_metadata or c.chunk_metadata.get("source_kind") != "POLICY_UPDATE"
+        ]
+
     conflicts: list[ConflictItem] = []
     for new_chunk_index, chunk in enumerate(chunks):
         topic = infer_policy_topic(chunk.content)
-        matching: list[PolicyUpdate] = []
+        existing_items: list[ExistingConflictItem] = []
+
+        # (a) Check updates tier
         for old in existing_updates:
             if old.policy_topic != topic:
                 continue
@@ -520,22 +591,55 @@ async def _detect_conflicts(
                 overlap = policy_token_overlap(chunk.content, old.content)
                 if overlap < 0.5:
                     continue
-            matching.append(old)
-        if matching:
-            conflicts.append(ConflictItem(
-                new_chunk_index=new_chunk_index,
-                new_content=chunk.content,
-                policy_topic=topic,
-                existing=[
-                    ExistingConflictItem(
-                        policy_update_id=u.id,
-                        content=u.content,
-                        source_document_title=doc_titles.get(u.source_document_id) or "Tài liệu quy định",
-                        published_at=u.published_at,
-                    )
-                    for u in matching
-                ],
-            ))
+            existing_items.append(
+                ExistingConflictItem(
+                    policy_update_id=old.id,
+                    content=old.content,
+                    source_document_title=doc_titles.get(old.source_document_id) or "Bản cập nhật",
+                    published_at=old.published_at,
+                    source_kind="POLICY_UPDATE",
+                    chunk_id=old.source_chunk_id,
+                    document_id=old.source_document_id,
+                )
+            )
+
+        # (b) Check base documents tier
+        matched_base: list[tuple[float, DocumentChunk]] = []
+        for base_chunk in base_chunks:
+            overlap = policy_token_overlap(chunk.content, base_chunk.content)
+            if topic != "GENERAL":
+                topics_in_base = policy_topics_in_text(base_chunk.content)
+                if topic in topics_in_base and overlap >= 0.2:
+                    matched_base.append((overlap, base_chunk))
+            else:
+                if overlap >= 0.5:
+                    matched_base.append((overlap, base_chunk))
+
+        # Take at most 2 best matching base chunks (sorted by overlap descending)
+        matched_base.sort(key=lambda x: x[0], reverse=True)
+        for _, b_chunk in matched_base[:2]:
+            existing_items.append(
+                ExistingConflictItem(
+                    policy_update_id=None,
+                    content=_extract_snippet(b_chunk.content, chunk.content),
+                    source_document_title=doc_titles.get(b_chunk.document_id) or "Quy chế gốc",
+                    published_at=None,
+                    source_kind="BASE_DOCUMENT",
+                    chunk_id=b_chunk.id,
+                    document_id=b_chunk.document_id,
+                )
+            )
+
+        if existing_items:
+            conflicts.append(
+                ConflictItem(
+                    new_chunk_index=new_chunk_index,
+                    new_content=chunk.content,
+                    policy_topic=topic,
+                    existing=existing_items,
+                )
+            )
+
     return conflicts
 
 
@@ -596,6 +700,24 @@ async def _publish_policy_update(
         conflict = conflict_by_index.get(chunk.chunk_index)
         action = resolutions_map.get(chunk.chunk_index) if conflict else "ADD"
 
+        has_policy_update_conflicts = (
+            conflict is not None and any(e.source_kind == "POLICY_UPDATE" for e in conflict.existing)
+        )
+        base_chunk_ids = (
+            [e.chunk_id for e in conflict.existing if e.source_kind == "BASE_DOCUMENT" and e.chunk_id]
+            if conflict
+            else []
+        )
+        existing_update_ids = (
+            [e.policy_update_id for e in conflict.existing if e.source_kind == "POLICY_UPDATE" and e.policy_update_id]
+            if conflict
+            else []
+        )
+
+        # KEEP_BOTH does not apply to base tier conflicts: if received KEEP_BOTH for a chunk that only conflicted with base tier -> treat as REPLACE
+        if action == "KEEP_BOTH" and not has_policy_update_conflicts:
+            action = "REPLACE"
+
         if action == "KEEP_OLD":
             skipped_count += 1
             add_audit_event(
@@ -611,18 +733,19 @@ async def _publish_policy_update(
 
         if action == "REPLACE":
             replaced_count += 1
-            existing_ids = [e.policy_update_id for e in conflict.existing]
-            existing_records = list((await session.scalars(
-                select(PolicyUpdate).where(PolicyUpdate.id.in_(existing_ids))
-            )).all())
-            for old_rec in existing_records:
-                old_rec.status = PolicyUpdateStatus.SUPERSEDED
+            supersedes_id = None
+            if existing_update_ids:
+                existing_records = list((await session.scalars(
+                    select(PolicyUpdate).where(PolicyUpdate.id.in_(existing_update_ids))
+                )).all())
+                for old_rec in existing_records:
+                    old_rec.status = PolicyUpdateStatus.SUPERSEDED
 
-            newest_old = max(
-                existing_records,
-                key=lambda x: (x.published_at or datetime.min.replace(tzinfo=UTC), x.created_at),
-            ) if existing_records else None
-            supersedes_id = newest_old.id if newest_old else None
+                newest_old = max(
+                    existing_records,
+                    key=lambda x: (x.published_at or datetime.min.replace(tzinfo=UTC), x.created_at),
+                ) if existing_records else None
+                supersedes_id = newest_old.id if newest_old else None
 
             update = PolicyUpdate(
                 id=f"policy-update-{uuid.uuid4().hex[:18]}",
@@ -652,7 +775,8 @@ async def _publish_policy_update(
                 input_snapshot={
                     "action": "REPLACE",
                     "policy_topic": topic,
-                    "superseded_policy_update_ids": existing_ids,
+                    "superseded_policy_update_ids": existing_update_ids,
+                    "base_chunk_ids": base_chunk_ids,
                     "chunk_index": chunk.chunk_index,
                 },
                 output_snapshot={"status": "ACTIVE", "supersedes_policy_update_id": supersedes_id},

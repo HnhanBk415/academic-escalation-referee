@@ -30,7 +30,7 @@ async def get_dashboard_counts(
     current: CurrentActor = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
 ) -> DashboardCounts:
-    return await dashboard_counts(session)
+    return await dashboard_counts(session, actor=current)
 
 
 @router.get("", response_model=list[QuestionResponse])

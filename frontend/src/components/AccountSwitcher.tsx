@@ -125,10 +125,10 @@ export function AccountSwitcher({
 
         {/* Name and Role */}
         <div className="text-left hidden sm:block">
-          <p className="text-xs font-medium text-[var(--on-surface)] leading-tight truncate max-w-[130px]">
+          <p className="text-xs font-medium text-[var(--on-surface)] leading-tight truncate max-w-[8.125rem]">
             {currentAccount.name}
           </p>
-          <p className="text-[11px] text-[var(--on-surface-variant)] leading-none mt-0.5 truncate">
+          <p className="text-xs text-[var(--on-surface-variant)] leading-none mt-0.5 truncate">
             {currentAccount.roleLabel}
             {currentAccount.groupLabel ? ` · ${currentAccount.groupLabel}` : ""}
           </p>
@@ -146,7 +146,7 @@ export function AccountSwitcher({
       {isOpen && (
         <div className="absolute right-0 mt-2 w-72 bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[var(--shadow-2)] border border-[var(--outline)]/40 py-2 z-50 animate-fade-in">
           <div className="px-4 py-2 border-b border-[var(--outline)]/30">
-            <p className="text-[11px] font-medium text-[var(--on-surface-variant)]">
+            <p className="text-xs font-medium text-[var(--on-surface-variant)]">
               Chọn tài khoản demo
             </p>
           </div>
@@ -182,7 +182,7 @@ export function AccountSwitcher({
                     >
                       {acc.name}
                     </p>
-                    <p className="text-[11px] text-[var(--on-surface-variant)] truncate">
+                    <p className="text-xs text-[var(--on-surface-variant)] truncate">
                       {acc.roleLabel}
                       {acc.groupLabel ? ` · ${acc.groupLabel}` : ""}
                     </p>

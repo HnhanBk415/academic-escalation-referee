@@ -92,7 +92,6 @@
   /* Typography */
   font-family: 'Roboto', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--on-surface);
-  font-size: 14px;
   line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -106,6 +105,11 @@
   --shadow-xl: var(--shadow-3);
 }
 
+/* Fluid root font-size */
+html {
+  font-size: clamp(15px, calc(0.5vw + 9.5px), 19px);
+}
+
 /* ── Reset ── */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -114,6 +118,7 @@
 }
 
 body {
+  font-size: 1rem;
   min-width: 320px;
   min-height: 100vh;
   background: var(--surface-dim);
@@ -198,4 +203,21 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .sla-blink {
   animation: sla-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Reading Mode ── */
+.reading-mode-container {
+  --reading-font-size: 1.125rem;
+  --reading-line-height: 1.75;
+}
+
+.reading-transition {
+  transition: opacity 180ms ease-in-out, transform 180ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reading-transition,
+  .reading-mode-container {
+    transition: none !important;
+  }
 }

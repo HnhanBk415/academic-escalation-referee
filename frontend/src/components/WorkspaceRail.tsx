@@ -114,9 +114,9 @@ export function WorkspaceRail({
             triggerCollapse();
           }
         }}
-        className={`hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center bg-[var(--surface-container)] border border-[var(--outline)]/40 rounded-[28px] py-3 px-2 shadow-sm transition-[width,box-shadow] duration-200 ease-out select-none ${
+        className={`hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center bg-[var(--surface-container)] border border-[var(--outline)]/40 rounded-[1.75rem] py-3 px-2 shadow-sm transition-[width,box-shadow] duration-200 ease-out select-none ${
           isExpanded
-            ? "w-[210px] items-stretch shadow-[var(--shadow-2)] bg-[var(--surface-container-high)]"
+            ? "w-[13.125rem] items-stretch shadow-[var(--shadow-2)] bg-[var(--surface-container-high)]"
             : "w-16"
         }`}
       >
@@ -130,7 +130,7 @@ export function WorkspaceRail({
                 to={`/workspace/${item.feature}`}
                 aria-label={item.label}
                 title={item.label}
-                className={`relative flex items-center h-12 rounded-[24px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                className={`relative flex items-center h-12 rounded-[1.5rem] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
                   isActive
                     ? "bg-[var(--primary-container)] text-[var(--primary)] font-semibold"
                     : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--on-surface)]"
@@ -141,7 +141,7 @@ export function WorkspaceRail({
                   <Icon size={20} className={isActive ? "text-[var(--primary)]" : "currentColor"} />
                   {/* Collapsed Badge */}
                   {!isExpanded && item.badge !== undefined && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--error)] text-white text-[10px] font-bold font-mono flex items-center justify-center shadow-xs">
+                    <span className="absolute -top-1 -right-1 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-[var(--error)] text-white text-xs font-semibold font-mono flex items-center justify-center shadow-xs">
                       {item.badge}
                     </span>
                   )}
@@ -152,7 +152,7 @@ export function WorkspaceRail({
                   <div className="flex-1 min-w-0 flex items-center justify-between overflow-hidden">
                     <span className="text-xs truncate">{item.label}</span>
                     {item.badge !== undefined && (
-                      <span className="ml-2 min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--error)] text-white text-[10px] font-bold font-mono flex items-center justify-center shrink-0">
+                      <span className="ml-2 min-w-[1.125rem] h-[1.125rem] px-1.5 rounded-full bg-[var(--error)] text-white text-xs font-semibold font-mono flex items-center justify-center shrink-0">
                         {item.badge}
                       </span>
                     )}
@@ -189,12 +189,12 @@ export function WorkspaceRail({
               >
                 <Icon size={18} />
                 {item.badge !== undefined && (
-                  <span className="absolute -top-1 right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-[var(--error)] text-white text-[9px] font-bold font-mono flex items-center justify-center">
+                  <span className="absolute -top-1 right-2 min-w-4 h-4 px-1 rounded-full bg-[var(--error)] text-white text-xs font-semibold font-mono flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] mt-0.5 truncate max-w-[80px]">
+              <span className="text-xs mt-0.5 truncate max-w-[5rem]">
                 {item.label}
               </span>
             </Link>
