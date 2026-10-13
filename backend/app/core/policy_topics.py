@@ -48,7 +48,11 @@ def _fold_text(value: str) -> str:
 def infer_policy_topic(text: str) -> str:
     """Map natural phrasing to a small, shared policy-topic vocabulary."""
     folded = _fold_text(text)
-    if any(token in folded for token in ("rubric", "co cau diem", "cham diem")):
+    if (
+        any(token in folded for token in ("rubric", "co cau diem", "cham diem"))
+        or "%" in text
+        or bool(re.search(r"\d+\s*%", folded))
+    ):
         return "GRADING_RUBRIC"
     topics = policy_topics_in_text(text)
     for topic in (
@@ -58,8 +62,8 @@ def infer_policy_topic(text: str) -> str:
         "AI_USAGE",
         "CAMPUS_LIFE",
         "COURSE_REGISTRATION",
-        "GROUP_MEMBERSHIP",
         "GRADING_RUBRIC",
+        "GROUP_MEMBERSHIP",
     ):
         if topic in topics:
             return topic
@@ -72,11 +76,51 @@ def policy_topics_in_text(text: str) -> set[str]:
     topics: set[str] = set()
     if any(token in folded for token in ("ignore previous", "system prompt", "developer message")):
         topics.add("SECURITY")
-    if any(
-        token in folded
-        for token in ("thanh vien", "nhom", "team", "group", "sau nguoi", "sau thanh vien")
-    ) or re.search(r"\b\d+\s+nguoi\b", folded):
-        topics.add("GROUP_MEMBERSHIP")
+
+    has_rubric_signal = (
+        any(token in folded for token in ("rubric", "tieu chi", "co cau diem", "cham diem", "diem"))
+        or "%" in text
+        or bool(re.search(r"\d+\s*%", folded))
+    )
+    if has_rubric_signal:
+        topics.add("GRADING_RUBRIC")
+
+    # In rubric contexts (percentages/grades), teamwork phrases like "hợp tác nhóm",
+    # "làm việc nhóm", "kỹ năng nhóm" are grading criteria, not group membership rules.
+    group_eval_text = re.sub(
+        r"\b(hop tac nhom|lam viec nhom|danh gia nhom|ky nang nhom)\b",
+        "",
+        folded,
+    )
+
+    if has_rubric_signal:
+        # If text has rubric signals, only add GROUP_MEMBERSHIP if there are actual group membership signals
+        # (e.g. mentions of members, group formation, limits, or group size).
+        if any(
+            token in group_eval_text
+            for token in (
+                "thanh vien",
+                "moi nhom",
+                "sinh vien",
+                "team",
+                "group",
+                "sau nguoi",
+                "sau thanh vien",
+                "so luong",
+                "lap nhom",
+                "chia nhom",
+                "doi nhom",
+                "ghep nhom",
+            )
+        ) or re.search(r"\b\d+\s+nguoi\b", group_eval_text):
+            topics.add("GROUP_MEMBERSHIP")
+    else:
+        if any(
+            token in group_eval_text
+            for token in ("thanh vien", "nhom", "team", "group", "sau nguoi", "sau thanh vien")
+        ) or re.search(r"\b\d+\s+nguoi\b", group_eval_text):
+            topics.add("GROUP_MEMBERSHIP")
+
     if any(
         token in folded
         for token in ("han nop", "deadline", "nop bai", "nop tre", "gia han", "tre han")
@@ -98,8 +142,6 @@ def policy_topics_in_text(text: str) -> set[str]:
         )
     ):
         topics.add("GRADE_APPEAL")
-    if any(token in folded for token in ("rubric", "tieu chi", "co cau diem", "cham diem", "diem")):
-        topics.add("GRADING_RUBRIC")
     if any(
         token in folded
         for token in ("ky tuc xa", "gui xe", "hoc phi", "can tin", "dich vu khuon vien")

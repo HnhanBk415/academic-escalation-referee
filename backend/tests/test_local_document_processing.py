@@ -418,4 +418,97 @@ async def test_base_document_conflict_detection_and_resolution(client):
     assert "70%" not in ans_after.json()["answer"]
 
 
+@pytest.mark.asyncio
+async def test_two_uploads_same_title_do_not_cause_conflict_and_rubric_does_not_hijack_group_membership(
+    client,
+):
+    # 1. Upload tài liệu 1 cùng title "Quy định học phần"
+    up1 = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Quy định học phần",
+            "version": "1.1",
+            "text_content": "Cập nhật nộp báo cáo đồ án: nộp qua hệ thống trực tuyến LMS.",
+        },
+    )
+    assert up1.status_code == 201
+    fin1 = await client.post(
+        f"/api/v1/documents/processing/{up1.json()['id']}/finalize",
+        json={"resolutions": []},
+    )
+    assert fin1.status_code == 200
+
+    # 2. Upload tài liệu 2 cùng title "Quy định học phần" chứa PolicyUpdate rubric 25/45
+    up2 = await client.post(
+        "/api/v1/documents/processing/text",
+        json={
+            "course_id": "CO3001",
+            "title": "Quy định học phần",
+            "version": "1.2",
+            "text_content": "Rubric cham diem do an CO3001: bao cao chiem 25%, san pham chiem 45%, trinh bay chiem 20%, hop tac nhom chiem 10%.",
+        },
+    )
+    assert up2.status_code == 201
+    fin2 = await client.post(
+        f"/api/v1/documents/processing/{up2.json()['id']}/finalize",
+        json={"resolutions": [{"new_chunk_index": 0, "action": "REPLACE"}]},
+    )
+    assert fin2.status_code == 200
+
+    # 3. Hỏi "Quy định số lượng sinh viên trong nhóm là gì?"
+    # -> Vẫn ANSWER (KHÔNG bị ESCALATE với CONFLICTING_ACTIVE_DOCUMENTS)
+    # -> Trả "3 đến 5" (KHÔNG trả nội dung rubric 25/45)
+    q_group = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Quy định số lượng sinh viên trong nhóm là gì?",
+        },
+    )
+    assert q_group.status_code == 201
+    res_group = q_group.json()
+    assert res_group["route"] == "ANSWER"
+    assert res_group["reason_code"] != "CONFLICTING_ACTIVE_DOCUMENTS"
+    assert res_group["reason_code"] != "ACTIVE_POLICY_UPDATE"
+    assert "3 đến 5" in res_group["answer"]
+    assert "25%" not in res_group["answer"]
+
+    # 4. Hỏi về số thành viên nhóm dạng khác
+    q_members = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Một nhóm đồ án được có bao nhiêu thành viên?",
+        },
+    )
+    assert q_members.status_code == 201
+    res_members = q_members.json()
+    assert res_members["route"] == "ANSWER"
+    assert "3 đến 5" in res_members["answer"]
+    assert "25%" not in res_members["answer"]
+
+    # 5. Hỏi "Rubric chấm điểm báo cáo và sản phẩm như thế nào?"
+    # -> Trả theo bản cập nhật 25%/45%
+    q_rubric = await client.post(
+        "/api/v1/questions",
+        json={
+            "actor_id": "student-a1",
+            "course_id": "CO3001",
+            "group_id": "group-a",
+            "text": "Rubric chấm điểm báo cáo và sản phẩm như thế nào?",
+        },
+    )
+    assert q_rubric.status_code == 201
+    res_rubric = q_rubric.json()
+    assert res_rubric["route"] == "ANSWER"
+    assert res_rubric["reason_code"] == "ACTIVE_POLICY_UPDATE"
+    assert "25%" in res_rubric["answer"] and "45%" in res_rubric["answer"]
+
+
+
 

@@ -37,6 +37,7 @@ from app.models import (
     Course,
     Document,
     DocumentChunk,
+    DocumentProcessing,
     EscalationCase,
     Group,
     GroupMembership,
@@ -116,6 +117,10 @@ async def _resolve_group(
 
 
 async def _load_evidence(session: AsyncSession, course_id: str) -> list[dict]:
+    uploaded_doc_ids = (
+        select(DocumentProcessing.document_id)
+        .where(DocumentProcessing.document_id.is_not(None))
+    )
     rows = (
         await session.execute(
             select(DocumentChunk, Document)
@@ -123,6 +128,7 @@ async def _load_evidence(session: AsyncSession, course_id: str) -> list[dict]:
             .where(
                 DocumentChunk.course_id == course_id,
                 Document.status == DocumentStatus.ACTIVE,
+                Document.id.not_in(uploaded_doc_ids),
             )
             .order_by(DocumentChunk.chunk_index)
             .limit(get_settings().rag_context_chunks)
@@ -276,16 +282,21 @@ def _applicable_policy_update(question: str, updates: list[dict]) -> dict | None
             continue
         update_topic = canonical_policy_topic(str(update.get("policy_topic", "GENERAL")))
         update_content = str(update.get("content", ""))
-        update_topics = policy_topics_in_text(update_content)
         if update_topic != "GENERAL":
-            update_topics.add(update_topic)
+            update_topics = {update_topic}
+        else:
+            update_topics = policy_topics_in_text(update_content)
 
         # Strict topic check:
         # A domain-specific question MUST find an update covering that topic.
         # A general policy update must not hijack specific questions.
         if topic != "GENERAL":
-            if topic not in update_topics and update_topic != topic:
-                continue
+            if update_topic != "GENERAL":
+                if update_topic != topic:
+                    continue
+            else:
+                if topic not in update_topics:
+                    continue
         else:
             # If the question is GENERAL, an update dedicated to a specific topic
             # (e.g. GROUP_MEMBERSHIP, SUBMISSION_DEADLINE) must not hijack it.
@@ -385,11 +396,16 @@ def _policy_update_decision(update: dict, evidence: list[dict]) -> RefereeDecisi
 
 async def _has_conflicting_documents(session: AsyncSession, course_id: str) -> bool:
     today = date.today()
+    uploaded_doc_ids_subquery = (
+        select(DocumentProcessing.document_id)
+        .where(DocumentProcessing.document_id.is_not(None))
+    )
     conflicting_title = await session.scalar(
         select(Document.title)
         .where(
             Document.course_id == course_id,
             Document.status == DocumentStatus.ACTIVE,
+            Document.id.not_in(uploaded_doc_ids_subquery),
             or_(Document.effective_from.is_(None), Document.effective_from <= today),
             or_(Document.effective_until.is_(None), Document.effective_until >= today),
         )
