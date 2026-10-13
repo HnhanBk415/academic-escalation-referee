@@ -1,72 +1,61 @@
-import React, { useEffect, useState } from "react";
-import { api, hasAccessToken, setAccessToken, setDemoActorId } from "./api/client";
-import { Sidebar, type ActiveTab, type Role } from "./components/Sidebar";
-import { AuditPage } from "./pages/AuditPage";
-import { ExceptionsView } from "./pages/ExceptionsView";
+import React, { useEffect, useState, useCallback } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { api, setDemoActorId } from "./api/client";
+import { AppHeader } from "./components/AppHeader";
+import { DEMO_ACCOUNTS, type DemoAccount } from "./components/AccountSwitcher";
 import { HomePage } from "./pages/HomePage";
-import { LecturerInboxView } from "./pages/LecturerInboxView";
-import { DocumentProcessingPage } from "./pages/DocumentProcessingPage";
-import { LoginPage, type AuthActor } from "./pages/LoginPage";
-import { OperationsPage } from "./pages/OperationsPage";
-import { StudentHistoryView } from "./pages/StudentHistoryView";
-import { StudentSubmitView } from "./pages/StudentSubmitView";
+import { WorkspacePage } from "./pages/WorkspacePage";
+import { AuditPage } from "./pages/AuditPage";
 import { VerifyPage } from "./pages/VerifyPage";
 import type { AIHealth, DashboardCounts, DemoCatalog } from "./types";
 
+const STORAGE_KEY = "aer_demo_account_id";
+
+function getInitialAccount(): DemoAccount {
+  try {
+    const savedId = localStorage.getItem(STORAGE_KEY);
+    if (savedId) {
+      const found = DEMO_ACCOUNTS.find((a) => a.id === savedId);
+      if (found) return found;
+    }
+  } catch {
+    // ignore localStorage errors
+  }
+  return DEMO_ACCOUNTS[0]; // student-a1 by default
+}
+
 export function App() {
-  const [role, setRole] = useState<Role>("student");
-  const [authenticatedActor, setAuthenticatedActor] = useState<AuthActor | null | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("home");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [currentAccount, setCurrentAccount] = useState<DemoAccount>(getInitialAccount);
+  const [catalog, setCatalog] = useState<DemoCatalog | null>(null);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>(currentAccount.courseId);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(currentAccount.groupId || "");
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | undefined>();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [queueCount, setQueueCount] = useState<number>(0);
   const [ai, setAi] = useState<AIHealth | null>(null);
 
-  // Global Demo Catalog & Course/Group Context
-  const [catalog, setCatalog] = useState<DemoCatalog | null>(null);
-  const [selectedCourseId, setSelectedCourseId] = useState<string>("");
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-
+  // Sync demo actor ID to client on startup and account change
   useEffect(() => {
-    setDemoActorId(
-      role === "student"
-        ? "demo-student"
-        : role === "lecturer"
-          ? "lecturer-01"
-          : "academic-affairs-01",
-    );
-  }, [role]);
-
-  useEffect(() => {
-    async function restoreSession() {
-      try {
-        const actor = await api<AuthActor>("/api/v1/auth/me");
-        setAuthenticatedActor(actor);
-        setRole(
-          actor.role === "STUDENT"
-            ? "student"
-            : actor.role === "LECTURER"
-              ? "lecturer"
-              : "academic_affairs",
-        );
-      } catch {
-        if (hasAccessToken()) setAccessToken(null);
-        setAuthenticatedActor(null);
-      }
+    setDemoActorId(currentAccount.id);
+    try {
+      localStorage.setItem(STORAGE_KEY, currentAccount.id);
+    } catch {
+      // ignore
     }
-    void restoreSession();
-  }, []);
+  }, [currentAccount]);
 
+  // Load demo catalog
   useEffect(() => {
     async function loadCatalog() {
-      if (!authenticatedActor) return;
       try {
         const data = await api<DemoCatalog>("/api/v1/demo/catalog");
         setCatalog(data);
         if (data.courses && data.courses.length > 0) {
-          setSelectedCourseId((prev) => prev || data.courses[0].id);
-          if (data.courses[0].groups && data.courses[0].groups.length > 0) {
-            setSelectedGroupId((prev) => prev || data.courses[0].groups[0].id);
+          if (!selectedCourseId) {
+            setSelectedCourseId(data.courses[0].id);
           }
         }
       } catch (err) {
@@ -74,20 +63,9 @@ export function App() {
       }
     }
     void loadCatalog();
-  }, [authenticatedActor]);
+  }, []);
 
-  const handleSelectCourse = (courseId: string) => {
-    setSelectedCourseId(courseId);
-    // Khi đổi môn thì xóa nhóm đã chọn và tải nhóm của môn mới
-    setSelectedGroupId("");
-  };
-
-  const handleSelectGroup = (groupId: string) => {
-    setSelectedGroupId(groupId);
-  };
-
-  // Fetch AI health and initial badges
-  const refreshCounts = async () => {
+  const refreshCounts = useCallback(async () => {
     try {
       const counts = await api<DashboardCounts>("/api/v1/questions/counts");
       setPendingCount(counts.pending_questions);
@@ -95,12 +73,13 @@ export function App() {
     } catch {
       // ignore
     }
-  };
+  }, []);
 
+  // Poll AI health and refresh counts
   useEffect(() => {
-    if (!authenticatedActor) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+
     const checkHealth = async () => {
       if (document.visibilityState === "hidden") {
         timer = setTimeout(checkHealth, 30000);
@@ -124,106 +103,144 @@ export function App() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [authenticatedActor]);
+  }, [refreshCounts]);
 
-  const handleSelectRole = (newRole: Role) => {
-    setRole(newRole);
-    setActiveTab("home");
+  // Handle switching account from the AccountSwitcher
+  const handleSelectAccount = (account: DemoAccount) => {
+    setCurrentAccount(account);
+    setDemoActorId(account.id);
+    setSelectedCourseId(account.courseId);
+    setSelectedGroupId(account.groupId || "");
+
+    const defaultFeature = account.role === "student" ? "ask" : "inbox";
+    navigate(`/workspace/${defaultFeature}`);
+    void refreshCounts();
   };
 
-  const handleLoggedIn = (actor: AuthActor) => {
-    setAuthenticatedActor(actor);
-    setRole(
-      actor.role === "STUDENT"
-        ? "student"
-        : actor.role === "LECTURER"
-          ? "lecturer"
-          : "academic_affairs",
-    );
+  const handleSelectCourse = (courseId: string) => {
+    setSelectedCourseId(courseId);
+    setSelectedGroupId("");
+  };
+
+  const handleSelectGroup = (groupId: string) => {
+    setSelectedGroupId(groupId);
   };
 
   const handleQuestionSubmitted = (questionId: string) => {
     setSelectedQuestionId(questionId);
-    refreshCounts();
+    void refreshCounts();
   };
 
-  const handleNavigateToHistory = (questionId: string) => {
-    setSelectedQuestionId(questionId);
-    setActiveTab("history");
+  const handleHomeNavigate = (destination: string) => {
+    if (destination === "submit") navigate("/workspace/ask");
+    else if (destination === "history") navigate("/workspace/history");
+    else if (destination === "inbox") navigate("/workspace/inbox");
+    else if (destination === "exceptions") navigate("/workspace/exceptions");
+    else if (destination === "audit") navigate("/audit");
+    else if (destination === "operations") navigate("/workspace/inbox");
   };
-
-  if (authenticatedActor === undefined) {
-    return <main className="grid h-screen place-items-center bg-slate-950 text-sm text-slate-300">Đang kiểm tra phiên đăng nhập...</main>;
-  }
-
-  if (authenticatedActor === null) {
-    return <LoginPage onLoggedIn={handleLoggedIn} />;
-  }
 
   return (
-    <div className="flex h-screen w-screen bg-[#F8FAFC] text-slate-900 overflow-hidden font-sans">
-      {/* Fixed 260px Left Sidebar */}
-      <Sidebar
-        role={role}
-        onSelectRole={handleSelectRole}
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        pendingCount={pendingCount}
-        queueCount={queueCount}
+    <div className="flex flex-col min-h-screen w-full bg-[var(--surface-dim)] text-[var(--on-surface)] overflow-x-hidden font-sans">
+      {/* Top Header */}
+      <AppHeader
+        currentAccountId={currentAccount.id}
+        currentRole={currentAccount.role}
         aiOnline={ai?.available ?? false}
-        allowRoleSwitch={!hasAccessToken()}
+        onSelectAccount={handleSelectAccount}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 h-screen overflow-hidden flex flex-col min-w-0 bg-[#F8FAFC]">
-        {activeTab === "home" && (
-          <HomePage
-            role={role}
-            catalog={catalog}
-            selectedCourseId={selectedCourseId}
-            aiOnline={ai?.available ?? false}
-            onNavigate={setActiveTab}
+      {/* Main Content View with Routes */}
+      <main className="flex-1 flex flex-col min-w-0">
+        <Routes>
+          {/* Home Route */}
+          <Route
+            path="/"
+            element={
+              <div className="flex-1 overflow-y-auto">
+                <HomePage
+                  role={currentAccount.role}
+                  catalog={catalog}
+                  selectedCourseId={selectedCourseId}
+                  aiOnline={ai?.available ?? false}
+                  onNavigate={handleHomeNavigate}
+                />
+              </div>
+            }
           />
-        )}
-        {activeTab === "submit" && (
-          <StudentSubmitView
-            catalog={catalog}
-            selectedCourseId={selectedCourseId}
-            selectedGroupId={selectedGroupId}
-            onSelectCourse={handleSelectCourse}
-            onSelectGroup={handleSelectGroup}
-            onSubmitted={handleQuestionSubmitted}
-            onViewHistory={handleNavigateToHistory}
+
+          {/* Workspace Routes */}
+          <Route
+            path="/workspace/:feature/:questionId"
+            element={
+              <WorkspacePage
+                actorId={currentAccount.id}
+                role={currentAccount.role}
+                catalog={catalog}
+                selectedCourseId={selectedCourseId}
+                selectedGroupId={selectedGroupId}
+                onSelectCourse={handleSelectCourse}
+                onSelectGroup={handleSelectGroup}
+                selectedQuestionId={selectedQuestionId}
+                onQuestionSubmitted={handleQuestionSubmitted}
+                onDecisionMade={refreshCounts}
+                pendingCount={pendingCount}
+                queueCount={queueCount}
+              />
+            }
           />
-        )}
-        {activeTab === "history" && (
-          <StudentHistoryView
-            initialSelectedId={selectedQuestionId}
-            catalog={catalog}
-            selectedCourseId={selectedCourseId}
-            selectedGroupId={selectedGroupId}
+          <Route
+            path="/workspace/:feature"
+            element={
+              <WorkspacePage
+                actorId={currentAccount.id}
+                role={currentAccount.role}
+                catalog={catalog}
+                selectedCourseId={selectedCourseId}
+                selectedGroupId={selectedGroupId}
+                onSelectCourse={handleSelectCourse}
+                onSelectGroup={handleSelectGroup}
+                selectedQuestionId={selectedQuestionId}
+                onQuestionSubmitted={handleQuestionSubmitted}
+                onDecisionMade={refreshCounts}
+                pendingCount={pendingCount}
+                queueCount={queueCount}
+              />
+            }
           />
-        )}
-        {activeTab === "inbox" && (
-          <LecturerInboxView onDecisionMade={refreshCounts} />
-        )}
-        {activeTab === "documents" && (
-          <div className="overflow-y-auto flex-1 p-8 bg-[#F8FAFC]">
-            <DocumentProcessingPage courseId={selectedCourseId} />
-          </div>
-        )}
-        {activeTab === "exceptions" && <ExceptionsView />}
-        {activeTab === "operations" && <OperationsPage onOpenAudit={() => setActiveTab("audit")} />}
-        {activeTab === "audit" && (
-          <div className="overflow-y-auto flex-1 p-8 bg-[#F8FAFC]">
-            <AuditPage />
-          </div>
-        )}
-        {activeTab === "verify" && (
-          <div className="overflow-y-auto flex-1 p-8 bg-[#F8FAFC]">
-            <VerifyPage />
-          </div>
-        )}
+          <Route
+            path="/workspace"
+            element={
+              <Navigate
+                to={`/workspace/${currentAccount.role === "student" ? "ask" : "inbox"}`}
+                replace
+              />
+            }
+          />
+
+          {/* Audit Log Route */}
+          <Route
+            path="/audit"
+            element={
+              <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
+                <AuditPage />
+              </div>
+            }
+          />
+
+          {/* Verify Harness Route */}
+          <Route
+            path="/verify"
+            element={
+              <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
+                <VerifyPage />
+              </div>
+            }
+          />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
     </div>
   );

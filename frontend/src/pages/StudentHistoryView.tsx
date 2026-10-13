@@ -1,26 +1,42 @@
-import React, { useEffect, useState } from "react";
-import { api } from "../api/client";
+import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
-  IconBookOpen,
-  IconCheck,
-  IconClock,
-  IconRotateCcw,
-  IconScroll,
-  IconSearch,
-  IconSparkle,
-  IconWarning,
-  IconX,
-} from "../components/Icons";
-import { StatusBadge, type CaseStatus } from "../components/StatusBadge";
+  Search,
+  ArrowLeft,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  Copy,
+  Check,
+  HelpCircle,
+  Clock,
+  BookOpen,
+  Sparkles,
+  Scroll,
+  AlertTriangle,
+  XCircle,
+  CheckCircle2,
+} from "lucide-react";
+import { api } from "../api/client";
+import { Badge } from "../components/ui/Badge";
 import { Stepper } from "../components/Stepper";
 import type { DemoCatalog, QuestionResponse } from "../types";
 
+export type CaseStatus =
+  | "auto_replied"
+  | "pending_lecturer"
+  | "approved"
+  | "clarify"
+  | "out_of_scope"
+  | "rejected";
+
 export interface StudentCaseItem {
   id: string;
-  rawId?: string;
+  rawId: string;
   title: string;
   topic: string;
   timestamp: string;
+  rawCreatedAt?: string;
   status: CaseStatus;
   question: string;
   group: string;
@@ -42,241 +58,283 @@ export interface StudentCaseItem {
   };
 }
 
-// Fallback demo cases if database is empty
-const INITIAL_DEMO_CASES: StudentCaseItem[] = [
-  {
-    id: "CASE_3F44",
-    title: "Tỷ lệ điểm giữa kỳ, quá trình, báo cáo tổng kết và demo",
-    topic: "Đồ án Đa ngành",
-    timestamp: "22/09/2026 · 14:32",
-    status: "auto_replied",
-    group: "DADN-HK242",
-    question: "Tỷ lệ điểm giữa kỳ, quá trình, báo cáo tổng kết và demo là bao nhiêu?",
-    aiResponse:
-      "Tỷ lệ điểm cho môn Đồ án Đa ngành cụ thể như sau: Giữa kỳ chiếm 10%, Quá trình chiếm 10%, Báo cáo tổng kết chiếm 40%, và Demo chiếm 40% [C1].",
-    policyRef: "Hướng dẫn chấm bài môn Đồ án Đa ngành HK242",
-    citations: [
-      {
-        label: "C1",
-        quote: "Tỷ lệ điểm: Giữa kỳ: 10%, Quá trình: 10%, Báo cáo tổng kết: 40%, Demo: 40%.",
-        document_title: "Hướng dẫn chấm bài môn Đồ án Đa ngành",
-      },
-    ],
-  },
-  {
-    id: "CASE_A1B2",
-    title: "Nhóm em xin phép có 6 thành viên được không?",
-    topic: "Đồ án Đa ngành",
-    timestamp: "22/09/2026 · 09:15",
-    status: "pending_lecturer",
-    group: "DADN-HK242",
-    question: "Nhóm em xin phép có 6 thành viên được không?",
-    escalationReason: "OUT_OF_POLICY",
-    escalationNote:
-      "Yêu cầu ngoại lệ quy chế số lượng thành viên (vượt quá 5 sinh viên) vượt thẩm quyền AI. Hồ sơ đã được chuyển tiếp lên Giảng viên phụ trách xem xét và quyết định.",
-  },
-  {
-    id: "CASE_9C7D",
-    title: "Miễn học phần Tiếng Anh học thuật cho sinh viên trao đổi",
-    topic: "Chương trình Quốc tế",
-    timestamp: "18/09/2026 · 16:45",
-    status: "approved",
-    group: "Học vụ · Miễn học phần",
-    question:
-      "Em là sinh viên trao đổi từ National University of Singapore với điểm IELTS 8.0 và đã hoàn thành 2 năm học hoàn toàn bằng tiếng Anh. Nhà trường có cho phép em được miễn học phần Tiếng Anh học thuật bắt buộc không?",
-    lecturerDecision: {
-      decision: "Phê duyệt — Miễn học phần",
-      reason:
-        "Sinh viên đáp ứng đủ điều kiện theo Thông tư 08/2024/TT-BGDĐT. Điểm IELTS 8.0 vượt ngưỡng yêu cầu tối thiểu (6.5) và lịch sử học thuật bằng tiếng Anh đã được xác minh qua hệ thống trao đổi sinh viên.",
-      policyRef: "Thông tư 08/2024/TT-BGDĐT, Điều 15 — Miễn học phần Ngoại ngữ",
-      reviewer: "TS. Trần Minh Tuấn",
-      date: "19/09/2026",
-    },
-  },
-];
-
 interface StudentHistoryViewProps {
-  initialSelectedId?: string;
+  actorId?: string;
   catalog?: DemoCatalog | null;
   selectedCourseId?: string;
   selectedGroupId?: string;
 }
 
+function formatGmailDate(dateStr?: string): string {
+  if (!dateStr) return "Hôm nay";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  if (isToday) {
+    return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  }
+  return `${d.getDate()} thg ${d.getMonth() + 1}`;
+}
+
 export function StudentHistoryView({
-  initialSelectedId,
+  actorId,
   catalog,
   selectedCourseId,
   selectedGroupId,
 }: StudentHistoryViewProps) {
-  const [cases, setCases] = useState<StudentCaseItem[]>(INITIAL_DEMO_CASES);
-  const [selectedId, setSelectedId] = useState<string>(initialSelectedId || INITIAL_DEMO_CASES[0].id);
+  const navigate = useNavigate();
+  const { questionId: currentQuestionId } = useParams<{ questionId?: string }>();
+
+  const [cases, setCases] = useState<StudentCaseItem[]>([]);
   const [filter, setFilter] = useState<"all" | CaseStatus>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        params.append("actor_id", "demo-student");
-        if (selectedCourseId) params.append("course_id", selectedCourseId);
-        if (selectedGroupId) params.append("group_id", selectedGroupId);
-        const queryStr = params.toString() ? `?${params.toString()}` : "";
-        const raw = await api<QuestionResponse[]>(`/api/v1/questions${queryStr}`);
-        if (Array.isArray(raw)) {
-          const mapped: StudentCaseItem[] = raw.map((q) => {
-            let status: CaseStatus = "auto_replied";
-            if (q.final_decision === "APPROVED") {
-              status = "approved";
-            } else if (q.final_decision === "REJECTED") {
-              status = "rejected";
-            } else if (q.route === "OUT_OF_SCOPE" || q.status === "OUT_OF_SCOPE") {
-              status = "out_of_scope";
-            } else if (q.route === "REJECT" || q.status === "REJECTED" || (q.status as string) === "REJECT") {
-              status = "rejected";
-            } else if (q.route === "ESCALATE" || q.status === "ESCALATED") {
-              status = "pending_lecturer";
-            } else if (q.route === "CLARIFY" || q.status === "CLARIFICATION_REQUIRED") {
-              status = "clarify";
-            } else {
-              status = "auto_replied";
-            }
-
-            const cleanDate = q.created_at
-              ? new Date(q.created_at).toLocaleString("vi-VN", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : "Hôm nay";
-
-            const displayTitle = q.text
-              ? q.text.length > 70
-                ? q.text.slice(0, 70) + "..."
-                : q.text
-              : q.clarifying_question || q.answer?.slice(0, 65) || "Yêu cầu quy chế học vụ";
-
-            const courseObj = catalog?.courses.find((c) => c.id === q.course_id);
-            const groupObj = courseObj?.groups.find((g) => g.id === q.group_id);
-
-            return {
-              id: q.case_id || q.question_id.replace(/^q_/, "CASE_").slice(0, 9).toUpperCase(),
-              rawId: q.question_id,
-              title: displayTitle,
-              topic: courseObj ? `${courseObj.code} · ${courseObj.name}` : (q.course_id || "Môn học"),
-              timestamp: cleanDate,
-              status,
-              question: q.text || (q.answer ? `Câu hỏi: ${q.question_id}` : "Yêu cầu học vụ từ sinh viên"),
-              group: groupObj?.name || q.group_id || "Chưa có nhóm",
-              aiResponse: q.answer || undefined,
-              policyRef: q.citations?.[0]?.document_title || "Quy chế môn học",
-              appliedExceptionId: q.applied_exception_id,
-              exceptionId: q.exception_id,
-              finalDecision: q.final_decision,
-              finalDecisionReason: q.final_decision_reason,
-              citations: q.citations?.map((c) => ({
-                label: c.label,
-                quote: c.quote,
-                document_title: c.document_title,
-                section: c.heading || (c.page_number ? `Trang ${c.page_number}` : undefined),
-              })),
-              escalationReason: q.reason_code,
-              escalationNote:
-                q.route === "ESCALATE"
-                  ? `Yêu cầu (${q.reason_code}) vượt thẩm quyền AI hoặc cần xem xét chuyên môn. Hồ sơ đã được chuyển tiếp lên Giảng viên phụ trách.`
-                  : undefined,
-              lecturerDecision: q.final_decision
-                ? {
-                    decision: q.final_decision === "APPROVED" ? "Phê duyệt yêu cầu" : "Từ chối yêu cầu",
-                    reason: q.final_decision_reason || "Giảng viên đã thẩm định và đưa ra quyết định.",
-                    policyRef: q.exception_id ? `Ngoại lệ: #${q.exception_id}` : "Quy chế đào tạo & ngoại lệ áp dụng",
-                    reviewer: catalog?.lecturer.display_name || "TS. Trần Minh Tuấn",
-                    date: cleanDate.split(" · ")[0],
-                  }
-                : undefined,
-            };
-          });
-
-          setCases(mapped);
-          if (initialSelectedId) {
-            const found = mapped.find(
-              (c) =>
-                c.id === initialSelectedId ||
-                c.rawId === initialSelectedId ||
-                c.id.includes(initialSelectedId) ||
-                (c.rawId && c.rawId.includes(initialSelectedId))
-            );
-            if (found) setSelectedId(found.id);
-          } else if (mapped.length > 0) {
-            setSelectedId(mapped[0].id);
-          } else {
-            setSelectedId("");
-          }
-        }
-      } catch (e) {
-        console.warn("Could not fetch questions from API, using demo data", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void loadData();
-  }, [initialSelectedId, selectedCourseId, selectedGroupId, catalog]);
-
-  async function handleRefreshCurrentCase() {
-    if (!selected?.rawId) return;
-    setRefreshing(true);
+  // Maximized state persisted in localStorage
+  const [isMaximized, setIsMaximized] = useState<boolean>(() => {
     try {
-      const q = await api<QuestionResponse>(`/api/v1/questions/${selected.rawId}`);
-      setCases((prev) =>
-        prev.map((c) => {
-          if (c.rawId !== q.question_id) return c;
-          let status: CaseStatus = c.status;
-          if (q.final_decision === "APPROVED") status = "approved";
-          else if (q.final_decision === "REJECTED") status = "rejected";
+      return localStorage.getItem("aer_history_maximized") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleMaximize = () => {
+    setIsMaximized((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("aer_history_maximized", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      // Use dynamic actor_id
+      params.append("actor_id", actorId || "student-a1");
+      if (selectedCourseId) params.append("course_id", selectedCourseId);
+      if (selectedGroupId) params.append("group_id", selectedGroupId);
+      const queryStr = params.toString() ? `?${params.toString()}` : "";
+      const raw = await api<QuestionResponse[]>(`/api/v1/questions${queryStr}`);
+      if (Array.isArray(raw)) {
+        const mapped: StudentCaseItem[] = raw.map((q) => {
+          let status: CaseStatus = "auto_replied";
+          if (q.final_decision === "APPROVED") {
+            status = "approved";
+          } else if (q.final_decision === "REJECTED") {
+            status = "rejected";
+          } else if (q.route === "OUT_OF_SCOPE" || q.status === "OUT_OF_SCOPE") {
+            status = "out_of_scope";
+          } else if (
+            q.route === "REJECT" ||
+            q.status === "REJECTED" ||
+            (q.status as string) === "REJECT"
+          ) {
+            status = "rejected";
+          } else if (q.route === "ESCALATE" || q.status === "ESCALATED") {
+            status = "pending_lecturer";
+          } else if (q.route === "CLARIFY" || q.status === "CLARIFICATION_REQUIRED") {
+            status = "clarify";
+          } else {
+            status = "auto_replied";
+          }
+
+          const cleanDate = q.created_at
+            ? new Date(q.created_at).toLocaleString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "Hôm nay";
+
+          const displayTitle = q.text
+            ? q.text.length > 75
+              ? q.text.slice(0, 75) + "..."
+              : q.text
+            : q.clarifying_question || q.answer?.slice(0, 65) || "Yêu cầu quy chế học vụ";
+
+          const courseObj = catalog?.courses.find((c) => c.id === q.course_id);
+          const groupObj = courseObj?.groups.find((g) => g.id === q.group_id);
+
           return {
-            ...c,
+            id: q.case_id || q.question_id.replace(/^q_/, "").slice(0, 6).toUpperCase(),
+            rawId: q.question_id,
+            title: displayTitle,
+            topic: courseObj
+              ? `${courseObj.code} · ${courseObj.name}`
+              : q.course_id || "Môn học",
+            timestamp: cleanDate,
+            rawCreatedAt: q.created_at,
             status,
+            question: q.text || "Yêu cầu học vụ từ sinh viên",
+            group: groupObj?.name || q.group_id || "Nhóm 01",
+            aiResponse: q.answer || undefined,
+            policyRef: q.citations?.[0]?.document_title || "Quy chế môn học",
             appliedExceptionId: q.applied_exception_id,
             exceptionId: q.exception_id,
             finalDecision: q.final_decision,
             finalDecisionReason: q.final_decision_reason,
+            citations: q.citations,
+            escalationReason: q.reason_code,
+            escalationNote: q.uncertainty_type
+              ? `Lý do chuyển tiếp: ${q.reason_code || q.uncertainty_type}. Hồ sơ đã chuyển tiếp lên Giảng viên phụ trách xem xét.`
+              : undefined,
             lecturerDecision: q.final_decision
               ? {
-                  decision: q.final_decision === "APPROVED" ? "Phê duyệt yêu cầu" : "Từ chối yêu cầu",
-                  reason: q.final_decision_reason || "Giảng viên đã thẩm định và đưa ra quyết định.",
-                  policyRef: q.exception_id ? `Ngoại lệ: #${q.exception_id}` : "Quy chế đào tạo",
-                  reviewer: catalog?.lecturer.display_name || "TS. Trần Minh Tuấn",
-                  date: new Date().toLocaleDateString("vi-VN"),
+                  decision:
+                    q.final_decision === "APPROVED"
+                      ? "Phê duyệt yêu cầu"
+                      : "Từ chối yêu cầu",
+                  reason:
+                    q.final_decision_reason ||
+                    "Đã được Giảng viên phụ trách thẩm định và phán quyết.",
+                  policyRef: q.citations?.[0]?.document_title || "Quy chế học phần",
+                  reviewer: "TS. Trần Minh Tuấn",
+                  date: cleanDate,
                 }
               : undefined,
           };
-        })
-      );
-    } catch (e) {
-      console.warn("Could not refresh question", e);
+        });
+        setCases(mapped);
+      } else {
+        setCases([]);
+      }
+    } catch (err) {
+      console.warn("Could not load questions history", err);
+      setCases([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+  }, [actorId, selectedCourseId, selectedGroupId]);
+
+  const handleRefreshCurrentCase = async () => {
+    if (!currentQuestionId) return;
+    setRefreshing(true);
+    try {
+      await loadData();
     } finally {
       setRefreshing(false);
     }
-  }
+  };
 
-  useEffect(() => {
-    if (initialSelectedId && cases.length > 0) {
-      const found = cases.find(
-        (c) =>
-          c.id === initialSelectedId ||
-          c.rawId === initialSelectedId ||
-          c.id.includes(initialSelectedId) ||
-          (c.rawId && c.rawId.includes(initialSelectedId))
-      );
-      if (found) setSelectedId(found.id);
+  const handleCopyId = (idToCopy: string) => {
+    void navigator.clipboard.writeText(idToCopy);
+    setCopiedId(idToCopy);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // Filtered cases
+  const filteredCases = useMemo(() => {
+    return cases.filter((c) => {
+      const matchFilter = filter === "all" || c.status === filter;
+      const matchSearch =
+        !search.trim() ||
+        c.title.toLowerCase().includes(search.toLowerCase()) ||
+        c.question.toLowerCase().includes(search.toLowerCase()) ||
+        c.id.toLowerCase().includes(search.toLowerCase()) ||
+        c.rawId.toLowerCase().includes(search.toLowerCase());
+      return matchFilter && matchSearch;
+    });
+  }, [cases, filter, search]);
+
+  const selectedCase = useMemo(() => {
+    if (!currentQuestionId) return null;
+    return (
+      cases.find((c) => c.rawId === currentQuestionId || c.id === currentQuestionId) || null
+    );
+  }, [cases, currentQuestionId]);
+
+  // Counts for filter chips
+  const filterCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: cases.length,
+      auto_replied: 0,
+      pending_lecturer: 0,
+      approved: 0,
+      out_of_scope: 0,
+      rejected: 0,
+      clarify: 0,
+    };
+    for (const c of cases) {
+      if (counts[c.status] !== undefined) {
+        counts[c.status]++;
+      }
     }
-  }, [initialSelectedId, cases]);
+    return counts;
+  }, [cases]);
 
-  const tabs: Array<{ key: "all" | CaseStatus; label: string }> = [
+  // Keyboard navigation shortcuts: j / k / Enter / Esc
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.key === "Escape") {
+        if (isMaximized) {
+          setIsMaximized(false);
+          try {
+            localStorage.setItem("aer_history_maximized", "false");
+          } catch {
+            // ignore
+          }
+        } else if (currentQuestionId) {
+          navigate("/workspace/history");
+        }
+        return;
+      }
+
+      if (filteredCases.length === 0) return;
+
+      const currentIndex = currentQuestionId
+        ? filteredCases.findIndex((c) => c.rawId === currentQuestionId)
+        : -1;
+
+      if (e.key === "j") {
+        e.preventDefault();
+        const nextIndex =
+          currentIndex < filteredCases.length - 1 ? currentIndex + 1 : 0;
+        navigate(`/workspace/history/${filteredCases[nextIndex].rawId}`);
+      } else if (e.key === "k") {
+        e.preventDefault();
+        const prevIndex =
+          currentIndex > 0 ? currentIndex - 1 : filteredCases.length - 1;
+        navigate(`/workspace/history/${filteredCases[prevIndex].rawId}`);
+      } else if (e.key === "Enter" && !currentQuestionId && filteredCases.length > 0) {
+        e.preventDefault();
+        navigate(`/workspace/history/${filteredCases[0].rawId}`);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentQuestionId, filteredCases, isMaximized, navigate]);
+
+  const filterTabs: Array<{ key: "all" | CaseStatus; label: string }> = [
     { key: "all", label: "Tất cả" },
     { key: "auto_replied", label: "AI phản hồi" },
     { key: "pending_lecturer", label: "Chờ giảng viên" },
@@ -286,407 +344,445 @@ export function StudentHistoryView({
     { key: "clarify", label: "Cần bổ sung" },
   ];
 
-  const filtered = cases.filter((c) => {
-    if (filter !== "all" && c.status !== filter) return false;
-    if (search && !c.title.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  // Empty state when database has 0 items
+  if (!loading && cases.length === 0) {
+    return (
+      <div className="flex-1 w-full bg-[var(--surface-dim)] flex flex-col items-center justify-center py-20 px-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--surface-container)] border border-[var(--outline)]/40 flex items-center justify-center text-[var(--on-surface-variant)] mb-4">
+          <HelpCircle size={32} />
+        </div>
+        <h2 className="text-lg font-medium text-[var(--on-surface)] mb-1">
+          Bạn chưa gửi câu hỏi nào
+        </h2>
+        <p className="text-xs text-[var(--on-surface-variant)] max-w-sm mb-6 leading-relaxed">
+          Mọi thắc mắc về quy định, thời hạn hoặc xin ngoại lệ sẽ được lưu lại trong hồ sơ để theo dõi tiến độ.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/workspace/ask")}
+          className="h-10 px-5 rounded-[var(--radius-xl)] bg-[var(--primary)] text-white hover:bg-[#0842A0] text-sm font-medium transition-colors shadow-xs"
+        >
+          Đặt câu hỏi đầu tiên
+        </button>
+      </div>
+    );
+  }
 
-  const selected = cases.find((c) => c.id === selectedId) || filtered[0] || cases[0];
+  // ── Render List Item Component ──
+  const renderListItem = (c: StudentCaseItem, isCompact: boolean) => {
+    const isSelected = selectedCase?.rawId === c.rawId;
+
+    if (isCompact) {
+      // 2-row layout in compact left column
+      return (
+        <button
+          key={c.rawId}
+          type="button"
+          onClick={() => navigate(`/workspace/history/${c.rawId}`)}
+          className={`w-full text-left p-3.5 rounded-[var(--radius-md)] border transition-all ${
+            isSelected
+              ? "bg-[var(--primary-container)]/50 border-[var(--primary)] shadow-xs"
+              : "bg-[var(--surface)] border-[var(--outline)]/30 hover:bg-[var(--surface-container-high)]"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <Badge route={c.status} className="text-[11px] py-0.5 px-2" />
+            <span className="text-[11px] text-[var(--on-surface-variant)] font-mono">
+              {formatGmailDate(c.rawCreatedAt || c.timestamp)}
+            </span>
+          </div>
+          <p
+            className={`text-xs leading-snug line-clamp-2 ${
+              isSelected
+                ? "font-semibold text-[var(--primary)]"
+                : "font-medium text-[var(--on-surface)]"
+            }`}
+          >
+            {c.title}
+          </p>
+          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-[var(--on-surface-variant)]">
+            <span className="truncate">{c.topic}</span>
+          </div>
+        </button>
+      );
+    }
+
+    // Single-line Gmail email style row (Mockup 3)
+    return (
+      <div
+        key={c.rawId}
+        onClick={() => navigate(`/workspace/history/${c.rawId}`)}
+        className="flex items-center h-14 px-4 border-b border-[var(--outline)]/20 hover:bg-[var(--surface-container-high)] transition-colors cursor-pointer select-none group"
+      >
+        <div className="shrink-0 w-36">
+          <Badge route={c.status} className="text-[11px] py-0.5 px-2" />
+        </div>
+        <div className="flex-1 min-w-0 pr-4">
+          <p className="text-sm font-medium text-[var(--on-surface)] truncate group-hover:text-[var(--primary)] transition-colors">
+            {c.title}
+          </p>
+        </div>
+        <div className="hidden sm:block shrink-0 w-44 text-xs text-[var(--on-surface-variant)] truncate text-right pr-6">
+          {c.topic}
+        </div>
+        <div className="shrink-0 text-xs font-mono text-[var(--on-surface-variant)] text-right w-16">
+          {formatGmailDate(c.rawCreatedAt || c.timestamp)}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC] overflow-hidden">
-      {/* Top Header */}
-      <div className="px-8 pt-6 pb-4 border-b border-slate-200 bg-white flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Hồ sơ câu hỏi học vụ</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Theo dõi tiến độ xử lý và phản hồi từ AI hoặc Giảng viên
-            </p>
-          </div>
-          <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-            {cases.length} hồ sơ
-          </span>
-        </div>
-
-        {/* Search & Filter bar */}
-        <div className="mt-4 flex items-center gap-3">
-          <div className="relative flex-shrink-0">
-            <IconSearch
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              size={14}
-            />
+    <div className="flex-1 w-full bg-[var(--surface-dim)] flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      {/* ── TOP TOOLBAR (SEARCH + FILTER CHIPS) ── */}
+      <div className="px-4 sm:px-6 py-3 bg-[var(--surface)] border-b border-[var(--outline)]/30 shrink-0 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Search bar like Gmail */}
+          <div className="relative flex-1 max-w-lg">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--on-surface-variant)]">
+              <Search size={16} />
+            </div>
             <input
+              type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm kiếm hồ sơ..."
-              className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#DC2626] focus:bg-white w-56 transition-all"
+              placeholder="Tìm kiếm nội dung thắc mắc, mã hồ sơ..."
+              className="w-full h-10 pl-10 pr-4 rounded-[var(--radius-xl)] bg-[var(--surface-container)] border border-[var(--outline)]/30 text-xs text-[var(--on-surface)] placeholder-[var(--on-surface-variant)]/60 focus:outline-none focus:border-[var(--primary)] focus:bg-[var(--surface)] transition-all"
             />
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-            {tabs.map((tab) => (
+
+          <div className="text-xs text-[var(--on-surface-variant)] font-mono">
+            {filteredCases.length} / {cases.length} hồ sơ
+          </div>
+        </div>
+
+        {/* Status Filter Chips with Counts */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {filterTabs.map((tab) => {
+            const count = filterCounts[tab.key] || 0;
+            const isSelected = filter === tab.key;
+            return (
               <button
-                type="button"
                 key={tab.key}
+                type="button"
                 onClick={() => setFilter(tab.key)}
-                className={`px-3 py-1 rounded text-xs font-semibold transition-all whitespace-nowrap ${
-                  filter === tab.key
-                    ? "bg-white text-slate-900 shadow-xs border border-slate-200/60"
-                    : "text-slate-500 hover:text-slate-800"
+                className={`h-7 px-3 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                  isSelected
+                    ? "bg-[var(--primary-container)] border-[var(--primary)] text-[var(--primary)] font-semibold shadow-xs"
+                    : "bg-[var(--surface)] border-[var(--outline)]/40 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)]"
                 }`}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    isSelected
+                      ? "bg-[var(--primary)] text-white"
+                      : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
+                  }`}
+                >
+                  {count}
+                </span>
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* 2-Column Layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Column (~38%) */}
-        <div className="w-[38%] border-r border-slate-200 overflow-y-auto bg-slate-50/50 p-3 space-y-2 flex-shrink-0">
-          {filtered.length === 0 && (
-            <div className="text-center py-16 text-slate-400 text-sm">
-              Không tìm thấy hồ sơ phù hợp
-            </div>
-          )}
-          {filtered.map((c) => (
-            <button
-              type="button"
-              key={c.id}
-              onClick={() => setSelectedId(c.id)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                selected?.id === c.id
-                  ? "bg-white border-[#DC2626] shadow-sm ring-1 ring-[#DC2626]/20"
-                  : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 shadow-xs"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <span className="font-mono text-[11px] font-bold text-slate-400">
-                  #{c.id}
-                </span>
-                <StatusBadge status={c.status} />
+      {/* ── MAIN WORKSPACE AREA ── */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* CASE 1: No question selected → Full-width Gmail email list (Mockup 3) */}
+        {!selectedCase && (
+          <div className="flex-1 overflow-y-auto bg-[var(--surface)]">
+            {filteredCases.length === 0 ? (
+              <div className="text-center py-20 text-xs text-[var(--on-surface-variant)]">
+                Không tìm thấy câu hỏi phù hợp với bộ lọc
               </div>
-              <p className="text-sm font-semibold text-slate-800 leading-snug mb-2 line-clamp-2">
-                {c.title}
-              </p>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
-                <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">
-                  {c.topic}
-                </span>
-                <span>{c.timestamp}</span>
-                {c.appliedExceptionId && (
-                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold rounded border border-indigo-200 inline-flex items-center gap-1">
-                    <IconSparkle size={11} />
-                    <span>Ngoại lệ #{c.appliedExceptionId}</span>
-                  </span>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
+            ) : (
+              <div>{filteredCases.map((c) => renderListItem(c, false))}</div>
+            )}
+          </div>
+        )}
 
-        {/* Right Column (~62% - Read Only) */}
-        <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
-          {selected ? (
-            <div className="space-y-6 max-w-3xl">
-              {/* Header & Refresh */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Chi tiết hồ sơ #{selected.id}</h2>
-                  {selected.rawId && (
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Mã câu hỏi: <span className="font-mono font-semibold text-slate-700">{selected.rawId}</span>
-                    </p>
+        {/* CASE 2: Question selected → 2-column layout or Maximized view (Mockup 4) */}
+        {selectedCase && (
+          <>
+            {/* Left compact list column (~380px), hidden when isMaximized */}
+            {!isMaximized && (
+              <div className="hidden md:flex w-[380px] shrink-0 border-r border-[var(--outline)]/30 flex-col bg-[var(--surface-dim)] overflow-y-auto p-3 space-y-2">
+                {filteredCases.map((c) => renderListItem(c, true))}
+              </div>
+            )}
+
+            {/* Right detail panel */}
+            <div className="flex-1 overflow-y-auto bg-[var(--surface)] p-6 md:p-8 flex flex-col">
+              <div
+                className={`w-full ${
+                  isMaximized ? "max-w-[760px] mx-auto" : "max-w-3xl"
+                } space-y-6 flex-1`}
+              >
+                {/* Detail Top Action Bar */}
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--outline)]/30">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/workspace/history")}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-xl)] bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-xs font-medium text-[var(--on-surface)] transition-colors"
+                      title="Quay lại danh sách (Esc)"
+                    >
+                      <ArrowLeft size={14} />
+                      <span>Quay lại</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleMaximize}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-xl)] bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-xs font-medium text-[var(--on-surface)] transition-colors"
+                      title={isMaximized ? "Thu nhỏ (Esc)" : "Phóng to"}
+                    >
+                      {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                      <span>{isMaximized ? "Thu nhỏ" : "Phóng to"}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRefreshCurrentCase}
+                      disabled={refreshing}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-xl)] bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-xs font-medium text-[var(--on-surface)] transition-colors disabled:opacity-40"
+                    >
+                      <RotateCcw size={13} className={refreshing ? "animate-spin" : ""} />
+                      <span>{refreshing ? "Đang làm mới..." : "Làm mới kết quả"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Case Title & Short ID with Copy Button */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge route={selectedCase.status} />
+                    <span className="font-mono text-xs font-bold text-[var(--on-surface-variant)]">
+                      #{selectedCase.id}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyId(selectedCase.rawId)}
+                      className="inline-flex items-center gap-1 text-[11px] text-[var(--primary)] hover:underline ml-1"
+                      title="Sao chép mã câu hỏi đầy đủ"
+                    >
+                      {copiedId === selectedCase.rawId ? (
+                        <>
+                          <Check size={12} className="text-[var(--success)]" />
+                          <span className="text-[var(--success)] font-medium">Đã chép</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>Mã đầy đủ</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <h2 className="text-lg font-normal text-[var(--on-surface)] leading-snug">
+                    {selectedCase.question}
+                  </h2>
+                </div>
+
+                {/* Stepper Progress */}
+                <div className="bg-[var(--surface)] border border-[var(--outline)]/40 rounded-[var(--radius-lg)] p-5 shadow-xs">
+                  <Stepper status={selectedCase.status} />
+                </div>
+
+                {/* 4 Metadata Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Mã Case", value: `#${selectedCase.id}`, mono: true },
+                    { label: "Nhóm", value: selectedCase.group },
+                    { label: "Ngày gửi", value: selectedCase.timestamp },
+                    {
+                      label: "Trạng thái",
+                      value:
+                        selectedCase.status === "auto_replied"
+                          ? "AI Phản hồi"
+                          : selectedCase.status === "pending_lecturer"
+                          ? "Chờ duyệt"
+                          : selectedCase.status === "approved"
+                          ? "Đã duyệt"
+                          : selectedCase.status === "rejected"
+                          ? "Từ chối"
+                          : selectedCase.status === "clarify"
+                          ? "Cần bổ sung"
+                          : "Ngoài phạm vi",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="bg-[var(--surface-container)] rounded-[var(--radius-md)] p-3 border border-[var(--outline)]/30"
+                    >
+                      <p className="text-[11px] text-[var(--on-surface-variant)] mb-0.5">
+                        {item.label}
+                      </p>
+                      <p
+                        className={`text-xs text-[var(--on-surface)] font-medium truncate ${
+                          item.mono ? "font-mono font-bold" : ""
+                        }`}
+                      >
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Applied Exception Banner if present */}
+                {selectedCase.appliedExceptionId && (
+                  <div className="p-4 bg-[#E8F5E9] border border-[#C8E6C9] rounded-[var(--radius-md)] flex items-start gap-3">
+                    <Sparkles size={18} className="text-[var(--success)] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-[#146C2E]">
+                        Đã tự động áp dụng ngoại lệ #{selectedCase.appliedExceptionId}
+                      </p>
+                      <p className="text-xs text-[#146C2E]/90 mt-0.5 leading-relaxed">
+                        Hồ sơ này thỏa mãn điều kiện ngoại lệ quy chế đã được Giảng viên phê duyệt trước đó cho môn học.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Processing Status Block */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-medium text-[var(--on-surface-variant)]">
+                    Nội dung phản hồi & Trạng thái xử lý
+                  </h3>
+
+                  {selectedCase.status === "auto_replied" && (
+                    <div className="p-4 rounded-[var(--radius-md)] bg-[#E8F5E9] border border-[#C8E6C9] space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#146C2E]">
+                        <CheckCircle2 size={16} />
+                        <span>AI phản hồi trực tiếp từ quy chế</span>
+                      </div>
+                      <p className="text-sm text-[#146C2E] leading-relaxed">
+                        {selectedCase.aiResponse}
+                      </p>
+                      {selectedCase.policyRef && (
+                        <p className="text-xs text-[#146C2E]/80 pt-1 flex items-center gap-1.5 border-t border-[#C8E6C9]">
+                          <BookOpen size={13} />
+                          <span>{selectedCase.policyRef}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedCase.status === "pending_lecturer" && (
+                    <div className="p-4 rounded-[var(--radius-md)] bg-[#FFF8E1] border border-[#FFE082] space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#8C5000]">
+                        <Clock size={16} />
+                        <span>Hồ sơ đang chờ Giảng viên thẩm định</span>
+                      </div>
+                      <p className="text-sm text-[#8C5000] leading-relaxed">
+                        {selectedCase.escalationNote ||
+                          "Yêu cầu vượt thẩm quyền tự động của AI. Hồ sơ đã được chuyển tiếp đến Giảng viên phụ trách để xem xét giải quyết."}
+                      </p>
+                      <p className="text-xs text-[#8C5000]/80">
+                        Thời gian phản hồi dự kiến: Trong vòng 48 giờ làm việc.
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedCase.status === "approved" && selectedCase.lecturerDecision && (
+                    <div className="p-4 rounded-[var(--radius-md)] bg-[#E3F2FD] border border-[#BBDEFB] space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[#0B57D0]">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={16} />
+                          <span>Quyết định chính thức của Giảng viên</span>
+                        </div>
+                        <span className="font-mono text-[11px]">
+                          {selectedCase.lecturerDecision.date}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-[#0B57D0]">
+                        {selectedCase.lecturerDecision.decision}
+                      </p>
+                      <p className="text-sm text-[var(--on-surface)] leading-relaxed">
+                        {selectedCase.lecturerDecision.reason}
+                      </p>
+                      <p className="text-xs text-[var(--on-surface-variant)] pt-1 border-t border-[#BBDEFB]">
+                        Ký duyệt bởi: {selectedCase.lecturerDecision.reviewer}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedCase.status === "rejected" && (
+                    <div className="p-4 rounded-[var(--radius-md)] bg-[#FFEBEE] border border-[#FFCDD2] space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#B3261E]">
+                        <XCircle size={16} />
+                        <span>Yêu cầu bị từ chối</span>
+                      </div>
+                      <p className="text-sm text-[#B3261E] leading-relaxed">
+                        {selectedCase.finalDecisionReason ||
+                          selectedCase.aiResponse ||
+                          "Yêu cầu không được chấp thuận theo quy chế hiện hành hoặc giảng viên đã từ chối."}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedCase.status === "clarify" && (
+                    <div className="p-4 rounded-[var(--radius-md)] bg-[var(--surface-container)] border border-[var(--outline)]/40 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--primary)]">
+                        <AlertTriangle size={16} />
+                        <span>Cần bổ sung thông tin</span>
+                      </div>
+                      <p className="text-sm text-[var(--on-surface)] leading-relaxed">
+                        Hệ thống đã gửi câu hỏi làm rõ đối với thắc mắc này. Bạn có thể quay lại trang Hỏi đáp để tiếp tục hội thoại.
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedCase.status === "out_of_scope" && (
+                    <div className="p-4 rounded-[var(--radius-md)] bg-[var(--surface-container)] border border-[var(--outline)]/40 space-y-2">
+                      <p className="text-xs font-semibold text-[var(--on-surface-variant)]">
+                        Ngoài phạm vi quy chế môn học
+                      </p>
+                      <p className="text-sm text-[var(--on-surface-variant)] leading-relaxed">
+                        Câu hỏi không thuộc phạm vi quy chế học vụ môn học được cấu hình.
+                      </p>
+                    </div>
                   )}
                 </div>
-                {selected.rawId && (
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshCurrentCase()}
-                    disabled={refreshing}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg shadow-xs transition-colors disabled:opacity-50"
-                  >
-                    <IconRotateCcw size={13} className={refreshing ? "animate-spin" : ""} />
-                    {refreshing ? "Đang làm mới..." : "Làm mới kết quả"}
-                  </button>
-                )}
-              </div>
 
-              {/* Applied Exception Banner */}
-              {selected.appliedExceptionId && (
-                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between text-xs shadow-xs">
-                  <div className="flex items-center gap-2.5 text-indigo-900">
-                    <IconSparkle size={18} className="text-indigo-600 flex-shrink-0" />
-                    <div>
-                      <p className="font-bold text-indigo-900">
-                        Đã áp dụng ngoại lệ: <span className="font-mono text-indigo-700">#{selected.appliedExceptionId}</span>
-                      </p>
-                      <p className="text-[11px] text-indigo-700 mt-0.5">
-                        Câu hỏi này được tự động bao phủ bởi ngoại lệ quy chế đã lưu trước đó của Giảng viên.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Exception Created Banner */}
-              {selected.exceptionId && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs shadow-xs">
-                  <IconScroll size={18} className="text-emerald-700 shrink-0" />
-                  <div>
-                    <p className="font-bold text-emerald-900">
-                      Đã lưu ngoại lệ mới: <span className="font-mono text-emerald-700">#{selected.exceptionId}</span>
-                    </p>
-                    <p className="text-[11px] text-emerald-700 mt-0.5">
-                      Giảng viên đã tạo tiền lệ ngoại lệ quy chế từ hồ sơ này cho các câu hỏi tương tự tiếp theo.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Stepper */}
-              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-                <Stepper status={selected.status} />
-              </div>
-
-              {/* 4 Metadata Cards */}
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: "Mã Case", value: `#${selected.id}`, mono: true },
-                  { label: "Nhóm", value: selected.group },
-                  { label: "Ngày gửi", value: selected.timestamp },
-                  {
-                    label: "Trạng thái phân luồng",
-                    value:
-                      selected.status === "auto_replied"
-                        ? "AI Xử lý · Hoàn tất"
-                        : selected.status === "pending_lecturer"
-                        ? "Chuyển tiếp · Chờ thẩm định"
-                        : selected.status === "approved"
-                        ? "Giảng viên phê duyệt"
-                        : selected.status === "rejected"
-                        ? "Bị từ chối"
-                        : selected.status === "clarify"
-                        ? "Cần bổ sung"
-                        : "Ngoài phạm vi",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs"
-                  >
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1">
-                      {item.label}
-                    </p>
-                    <p
-                      className={`text-sm text-slate-800 font-medium ${
-                        item.mono ? "font-mono font-bold" : ""
-                      }`}
-                    >
-                      {item.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Student Question Box */}
-              <div>
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                  Nội dung câu hỏi của sinh viên
-                </h3>
-                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-                  <p className="text-sm text-slate-800 leading-relaxed font-normal">
-                    {selected.question}
-                  </p>
-                </div>
-              </div>
-
-              {/* Processing Status Box */}
-              <div>
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                  Trạng thái xử lý
-                </h3>
-
-                {/* Case 1: AI Auto Replied */}
-                {selected.status === "auto_replied" && (
-                  <div className="p-5 rounded-xl bg-emerald-50/70 border border-emerald-200 shadow-xs space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-emerald-600 flex-shrink-0">
-                        <IconCheck size={18} />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1.5">
-                          AI Phản hồi tự động
-                        </p>
-                        <p className="text-sm text-emerald-950 leading-relaxed font-medium">
-                          {selected.aiResponse}
-                        </p>
-                        {selected.policyRef && (
-                          <div className="mt-3.5 flex items-center gap-1.5 text-xs text-emerald-700 font-medium pt-2 border-t border-emerald-200/60">
-                            <IconBookOpen size={13} />
-                            <span className="font-mono">{selected.policyRef}</span>
+                {/* Citations List if available */}
+                {selectedCase.citations && selectedCase.citations.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-medium text-[var(--on-surface-variant)]">
+                      Căn cứ pháp lý & Trích dẫn quy chế ({selectedCase.citations.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedCase.citations.map((c, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 bg-[var(--surface-container)] rounded-[var(--radius-sm)] border border-[var(--outline)]/30 text-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between text-[var(--on-surface)] font-medium">
+                            <span>
+                              [{c.label}] {c.document_title}
+                            </span>
+                            {c.section && (
+                              <span className="font-mono text-[11px] text-[var(--on-surface-variant)]">
+                                {c.section}
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Case 2: Pending Lecturer Escalate */}
-                {selected.status === "pending_lecturer" && (
-                  <div className="p-5 rounded-xl bg-amber-50/70 border border-amber-200 shadow-xs space-y-2">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-amber-600 flex-shrink-0">
-                        <IconWarning size={18} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">
-                          Đã chuyển tiếp lên Giảng viên (Đang chờ thẩm định)
-                        </p>
-                        <p className="text-sm text-amber-950 leading-relaxed">
-                          {selected.escalationNote ||
-                            "Yêu cầu vượt thẩm quyền AI. Hồ sơ đã được chuyển tiếp lên Giảng viên phụ trách xem xét."}
-                        </p>
-                        <p className="mt-2.5 text-xs text-amber-700 font-medium flex items-center gap-1.5">
-                          <IconClock size={13} className="flex-shrink-0" />
-                          <span>Thời gian phản hồi dự kiến: Trong vòng 48 giờ làm việc. (Bấm "Làm mới kết quả" ở góc trên để cập nhật khi giảng viên xử lý xong)</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Case 3: Lecturer Approved */}
-                {selected.status === "approved" && selected.lecturerDecision && (
-                  <div className="p-5 rounded-xl bg-sky-50/70 border border-sky-200 shadow-xs space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-sky-600 flex-shrink-0">
-                        <IconCheck size={18} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs font-bold text-sky-800 uppercase tracking-wider">
-                            Quyết định chính thức của Giảng viên
+                          <p className="text-[var(--on-surface-variant)] italic pl-2 border-l-2 border-[var(--outline)]">
+                            "{c.quote}"
                           </p>
-                          <span className="text-xs font-mono text-sky-600">
-                            {selected.lecturerDecision.date}
-                          </span>
                         </div>
-                        <p className="text-sm font-bold text-sky-950 mb-2">
-                          {selected.lecturerDecision.decision}
-                        </p>
-                        <p className="text-sm text-slate-700 leading-relaxed mb-3">
-                          {selected.lecturerDecision.reason}
-                        </p>
-                        <div className="flex items-center gap-1.5 text-xs text-sky-700 font-medium">
-                          <IconBookOpen size={13} />
-                          <span className="font-mono">{selected.lecturerDecision.policyRef}</span>
-                        </div>
-                        <div className="mt-3 pt-3 border-t border-sky-200/60 flex items-center gap-2 text-xs text-slate-500">
-                          <span>Ký duyệt bởi:</span>
-                          <span className="font-bold text-slate-800">
-                            {selected.lecturerDecision.reviewer}
-                          </span>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Case 4: Rejected */}
-                {selected.status === "rejected" && (
-                  <div className="p-5 rounded-xl bg-rose-50/70 border border-rose-200 shadow-xs space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-rose-600 flex-shrink-0">
-                        <IconX size={18} />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-1.5">
-                          Yêu cầu bị từ chối
-                        </p>
-                        <p className="text-sm text-rose-950 leading-relaxed font-medium">
-                          {selected.finalDecisionReason || selected.aiResponse || "Yêu cầu không được chấp thuận theo quy chế hiện hành hoặc giảng viên đã từ chối."}
-                        </p>
-                        {selected.lecturerDecision && (
-                          <div className="mt-3 pt-3 border-t border-rose-200/60 flex items-center gap-2 text-xs text-slate-500">
-                            <span>Người từ chối:</span>
-                            <span className="font-bold text-slate-800">
-                              {selected.lecturerDecision.reviewer}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Case 5: Clarify */}
-                {selected.status === "clarify" && (
-                  <div className="p-5 rounded-xl bg-purple-50/70 border border-purple-200 shadow-xs space-y-2">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-purple-600 flex-shrink-0">
-                        <IconWarning size={18} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-purple-800 uppercase tracking-wider mb-1">
-                          Cần bổ sung thông tin
-                        </p>
-                        <p className="text-sm text-purple-950 leading-relaxed">
-                          Hệ thống đã yêu cầu bổ sung thông tin chi tiết để xử lý câu hỏi này. Bạn có thể quay lại tab "Gửi câu hỏi" để tiếp tục hội thoại.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Case 6: Out of Scope */}
-                {selected.status === "out_of_scope" && (
-                  <div className="p-5 rounded-xl bg-slate-100 border border-slate-200 shadow-xs space-y-2">
-                    <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      Ngoài phạm vi học vụ môn học
-                    </p>
-                    <p className="text-sm text-slate-700 leading-relaxed">
-                      Câu hỏi không thuộc phạm vi quy chế học vụ môn học được cấu hình.
-                    </p>
                   </div>
                 )}
               </div>
-
-              {/* Citations List */}
-              {selected.citations && selected.citations.length > 0 && (
-                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Căn cứ pháp lý & Trích dẫn quy chế ({selected.citations.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {selected.citations.map((c, idx) => (
-                      <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-                        <div className="flex items-center justify-between text-slate-600 font-semibold mb-1">
-                          <span className="font-bold text-slate-800">
-                            [{c.label}] {c.document_title}
-                          </span>
-                          {c.section && (
-                            <span className="text-[11px] text-slate-500 font-mono bg-white px-2 py-0.5 rounded border border-slate-200">
-                              {c.section}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-slate-700 italic border-l-2 border-slate-300 pl-2 mt-1">
-                          "{c.quote}"
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          ) : (
-            <div className="text-center py-20 text-slate-400">Chọn một hồ sơ để xem chi tiết</div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

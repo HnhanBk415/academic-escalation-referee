@@ -21,10 +21,12 @@ import {
   IconWarning,
   IconX,
 } from "../components/Icons";
+import { Send } from "lucide-react";
 import { StudentWorkflowTracker } from "../components/StudentWorkflowTracker";
 import type { Citation, DemoCatalog, QuestionResponse } from "../types";
 
 interface StudentSubmitViewProps {
+  actorId?: string;
   catalog: DemoCatalog | null;
   selectedCourseId: string;
   selectedGroupId: string;
@@ -69,6 +71,7 @@ const QUICK_CHIPS = [
 ];
 
 export function StudentSubmitView({
+  actorId,
   catalog,
   selectedCourseId,
   selectedGroupId,
@@ -95,7 +98,8 @@ export function StudentSubmitView({
 
   const selectedCourse = catalog?.courses.find((c) => c.id === selectedCourseId);
   const availableGroups = selectedCourse?.groups ?? [];
-  const selectedGroup = availableGroups.find((g) => g.id === selectedGroupId);
+  const selectedGroup = availableGroups.find((g) => g.id === selectedGroupId) ||
+    availableGroups.find((g) => g.id === (actorId === "student-b1" ? "group-b" : "group-a"));
 
   function handleQueryChange(newQuery: string) {
     setQuery(newQuery);
@@ -111,8 +115,8 @@ export function StudentSubmitView({
 
   async function handleSubmit(e?: FormEvent) {
     if (e) e.preventDefault();
-    if (!selectedCourseId || !selectedGroupId) {
-      setError("Vui lòng chọn môn học và nhóm môn học trước khi gửi thắc mắc.");
+    if (!selectedCourseId) {
+      setError("Vui lòng chọn môn học trước khi gửi thắc mắc.");
       return;
     }
     if (!query.trim()) {
@@ -136,10 +140,16 @@ export function StudentSubmitView({
     });
     setSubmitTime(formattedSubmit);
 
+    const effectiveGroupId =
+      selectedGroupId ||
+      selectedGroup?.id ||
+      (actorId === "student-b1" ? "group-b" : "group-a");
+
     try {
       const res = await postJson<QuestionResponse>("/api/v1/questions", {
+        actor_id: actorId || "student-a1",
         course_id: selectedCourseId,
-        group_id: selectedGroupId,
+        group_id: effectiveGroupId,
         text: query.trim(),
       });
 
@@ -286,205 +296,103 @@ export function StudentSubmitView({
   };
 
   return (
-    <div className="flex-1 h-screen overflow-y-auto bg-[#F8FAFC]">
-      {/* ── TOP NAV BAR ── */}
-      <div className="px-6 lg:px-10 py-5 border-b border-slate-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between shadow-xs">
-        <div>
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#DC2626]">
-            <span>HỆ THỐNG PHÂN GIẢI & TRANH CHẤP HỌC VỤ</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-slate-500 font-semibold lowercase">Tự động hóa học vụ</span>
-          </div>
-          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight mt-0.5">
-            Hỏi đáp quy chế học vụ
+    <div className="flex-1 w-full bg-[var(--surface-dim)]">
+      <div className="max-w-[880px] mx-auto space-y-5">
+        {/* Title */}
+        <div className="flex items-center justify-between pb-1">
+          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">
+            Hỏi đáp quy chế
           </h1>
         </div>
 
-        {/* Right Context Profile Pill */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full transition-all shadow-xs">
-            <div className="w-6 h-6 rounded-full bg-[#DC2626] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-              <IconUser size={13} />
-            </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="font-bold text-slate-800">Chế độ demo</span>
-              <span className="text-slate-300">•</span>
-              <span className="font-semibold text-slate-700">
-                {selectedCourse ? `${selectedCourse.code} · ${selectedCourse.name}` : "Môn học"}
-              </span>
-              <span className="text-slate-300">•</span>
-              <span className="font-semibold text-slate-700">
-                {selectedGroup?.name || "Chưa chọn nhóm"}
-              </span>
-              <span className="text-slate-300">•</span>
-              <span className="font-medium text-slate-500">
-                GV: {catalog?.lecturer.display_name || "TS. Trần Minh Tuấn"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── MAIN CONTENT CONTAINER (CENTERED SINGLE-COLUMN WORKSPACE) ── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium flex items-center gap-2 shadow-xs">
+          <div className="p-4 bg-[#FFEBEE] border border-[#FFCDD2] rounded-[var(--radius-md)] text-sm text-[var(--error)] font-medium flex items-center gap-2 shadow-xs">
             <IconWarning size={16} />
             <span>{error}</span>
           </div>
         )}
 
-        {/* ── CARD 0: CHỌN MÔN HỌC VÀ NHÓM (MATCHING USER UI MOCKUP) ── */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left: Môn học yêu cầu */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                  <IconBookOpen size={15} className="text-slate-500" />
-                  <span>Môn học yêu cầu</span>
-                </label>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Đang mở tiếp nhận
-                </span>
-              </div>
-              <div className="relative">
-                <select
-                  value={selectedCourseId}
-                  onChange={(e) => {
-                    onSelectCourse(e.target.value);
-                    setResult(null);
-                    setError("");
-                    setSubmitTime("");
-                    setProcessTime("");
-                  }}
-                  className="w-full appearance-none px-4 py-2.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/10 transition-all shadow-xs pr-10 cursor-pointer"
-                >
-                  {catalog?.courses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.code} - {course.name} ({course.semester})
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                  <IconChevronRight size={14} className="rotate-90" />
-                </div>
-              </div>
+        {/* Hàng 1: pill "Chọn môn" + chip nhóm read-only */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <select
+              value={selectedCourseId}
+              onChange={(e) => {
+                onSelectCourse(e.target.value);
+                setResult(null);
+                setError("");
+                setSubmitTime("");
+                setProcessTime("");
+              }}
+              className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs"
+            >
+              {catalog?.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.code} - {course.name} ({course.semester})
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--on-surface-variant)]">
+              <IconChevronRight size={14} className="rotate-90" />
             </div>
+          </div>
 
-            {/* Right: Lớp / Nhóm môn học */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                  <IconUser size={15} className="text-slate-500" />
-                  <span>Lớp / Nhóm môn học</span>
-                </label>
-                <span className="text-xs font-medium text-slate-600">
-                  GV: {catalog?.lecturer.display_name || "TS. Trần Minh Tuấn"}
-                </span>
-              </div>
-              <div className="relative">
-                <select
-                  value={selectedGroupId}
-                  onChange={(e) => {
-                    onSelectGroup(e.target.value);
-                    setResult(null);
-                    setConversationTurns([]);
-                    setError("");
-                    setSubmitTime("");
-                    setProcessTime("");
-                  }}
-                  className="w-full appearance-none px-4 py-2.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/10 transition-all shadow-xs pr-10 cursor-pointer"
-                >
-                  <option value="">-- Chọn nhóm môn học --</option>
-                  {availableGroups.length > 0 ? (
-                    availableGroups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name} ({group.id})
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>Chưa có nhóm nào</option>
-                  )}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                  <IconChevronRight size={14} className="rotate-90" />
-                </div>
-              </div>
-            </div>
+          <div className="inline-flex items-center gap-1.5 h-10 px-4 rounded-[var(--radius-xl)] bg-[var(--surface-container)] border border-[var(--outline)]/40 text-xs text-[var(--on-surface-variant)] select-none">
+            <span>Nhóm:</span>
+            <span className="font-semibold text-[var(--on-surface)]">
+              {selectedGroup?.name || (actorId === "student-b1" ? "Nhóm 02 - CO3001" : "Nhóm 01 - CO3001")}
+            </span>
           </div>
         </div>
 
-        {/* ── CARD 1: NỘI DUNG THẮC MẮC QUY CHẾ (INPUT CARD) ── */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]" />
-              <div className="text-red-600">
-                <IconBookOpen size={16} />
-              </div>
-              <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-                Nội dung thắc mắc quy chế
-              </h2>
-            </div>
-            {selectedCourse && (
-              <div className="text-xs text-slate-500 font-medium">
-                {selectedCourse.code} · {selectedCourse.semester}
-              </div>
-            )}
-          </div>
-
-          {/* Search Input Row with Crimson Button */}
-          <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <IconSearch size={18} />
-              </div>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => handleQueryChange(e.target.value)}
-                placeholder="Nhập thắc mắc về quy định, số lượng nhóm, tỷ lệ điểm hoặc xin ngoại lệ..."
-                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/10 transition-all font-normal shadow-xs"
-              />
-            </div>
-
+        {/* Hàng 2: ô hỏi lớn với nút FAB nhỏ */}
+        <div className="rounded-[var(--radius-lg)] bg-[var(--surface-container)] border border-[var(--outline)]/40 focus-within:border-[var(--primary)] focus-within:bg-[var(--surface)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20 transition-all p-4 shadow-xs">
+          <textarea
+            value={query}
+            onChange={(e) => handleQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSubmit();
+              }
+            }}
+            rows={3}
+            placeholder="Nhập thắc mắc về quy định, số lượng nhóm, tỷ lệ điểm hoặc xin ngoại lệ... (Enter để gửi, Shift+Enter xuống dòng)"
+            className="w-full bg-transparent border-0 outline-none resize-none text-sm text-[var(--on-surface)] placeholder-[var(--on-surface-variant)]/60 leading-relaxed min-h-[75px]"
+          />
+          <div className="flex justify-end pt-2">
             <button
-              type="submit"
+              type="button"
+              onClick={() => void handleSubmit()}
               disabled={busy || !query.trim()}
-              className="px-6 py-3 bg-[#B91C1C] hover:bg-[#991B1B] text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 flex-shrink-0 disabled:opacity-50"
+              className="w-10 h-10 rounded-full bg-[var(--primary)] text-white hover:bg-[#0842A0] active:bg-[#073682] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] cursor-pointer"
+              title="Gửi câu hỏi (Enter)"
             >
               {busy ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  <span>Đang tra cứu…</span>
-                </>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <>
-                  <IconBookOpen size={15} />
-                  <span>Tra cứu quy chế</span>
-                </>
+                <Send size={18} />
               )}
             </button>
-          </form>
-
-          {/* Quick suggestions chips */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-xs font-semibold text-slate-400 mr-1 flex items-center gap-1">
-              <IconSparkle size={13} />
-              Gợi ý nhanh:
-            </span>
-            {QUICK_CHIPS.map((chip, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleQueryChange(chip.prompt)}
-                className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80 rounded-lg text-xs font-medium text-slate-600 transition-colors"
-              >
-                {chip.label}
-              </button>
-            ))}
           </div>
+        </div>
+
+        {/* Dưới ô hỏi: hàng filter-chip "Gợi ý nhanh" */}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <span className="text-xs text-[var(--on-surface-variant)] mr-1 flex items-center gap-1 font-medium select-none">
+            <IconSparkle size={13} />
+            Gợi ý nhanh:
+          </span>
+          {QUICK_CHIPS.map((chip, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleQueryChange(chip.prompt)}
+              className="px-3 py-1.5 rounded-[var(--radius-sm)] bg-[var(--surface)] border border-[var(--outline)]/50 text-xs font-medium text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)] hover:text-[var(--on-surface)] transition-colors cursor-pointer shadow-xs"
+            >
+              {chip.label}
+            </button>
+          ))}
         </div>
 
         {/* ── CARD 2: WORKFLOW TIẾN TRÌNH ── */}

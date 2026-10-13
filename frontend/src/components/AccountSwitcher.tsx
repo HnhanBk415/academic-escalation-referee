@@ -1,0 +1,245 @@
+import React, { useState, useRef, useEffect } from "react";
+import { ChevronDown, Check, RotateCcw } from "lucide-react";
+import { Modal, Button } from "./ui";
+import { api } from "../api/client";
+
+export interface DemoAccount {
+  id: string;
+  role: "student" | "lecturer";
+  name: string;
+  roleLabel: string;
+  groupLabel?: string;
+  groupId?: string;
+  courseId: string;
+  initials: string;
+  avatarBg: string;
+}
+
+export const DEMO_ACCOUNTS: DemoAccount[] = [
+  {
+    id: "student-a1",
+    role: "student",
+    name: "Nguyễn Văn A",
+    roleLabel: "Sinh viên",
+    groupLabel: "Nhóm 01",
+    groupId: "group-a",
+    courseId: "CO3001",
+    initials: "A",
+    avatarBg: "#0B57D0",
+  },
+  {
+    id: "student-b1",
+    role: "student",
+    name: "Trần Thị B",
+    roleLabel: "Sinh viên",
+    groupLabel: "Nhóm 02",
+    groupId: "group-b",
+    courseId: "CO3001",
+    initials: "B",
+    avatarBg: "#146C2E",
+  },
+  {
+    id: "lecturer-01",
+    role: "lecturer",
+    name: "TS. Trần Minh Tuấn",
+    roleLabel: "Giảng viên",
+    courseId: "CO3001",
+    initials: "TM",
+    avatarBg: "#8C5000",
+  },
+];
+
+interface AccountSwitcherProps {
+  currentAccountId: string;
+  aiOnline: boolean;
+  onSelectAccount: (account: DemoAccount) => void;
+}
+
+export function AccountSwitcher({
+  currentAccountId,
+  aiOnline,
+  onSelectAccount,
+}: AccountSwitcherProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const currentAccount =
+    DEMO_ACCOUNTS.find((acc) => acc.id === currentAccountId) || DEMO_ACCOUNTS[0];
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const handleResetConfirm = async () => {
+    setIsResetting(true);
+    try {
+      await api("/api/demo/reset", { method: "POST" });
+      setShowResetModal(false);
+      window.location.reload();
+    } catch (err) {
+      alert("Lỗi khi reset demo: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={menuRef}>
+      {/* Account Switcher Chip */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2.5 h-11 px-3 rounded-[var(--radius-xl)] bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] transition-colors border border-[var(--outline)]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+      >
+        {/* Avatar with AI dot */}
+        <div className="relative">
+          <div
+            className="w-7 h-7 rounded-full text-white font-semibold text-xs flex items-center justify-center shrink-0 shadow-sm"
+            style={{ backgroundColor: currentAccount.avatarBg }}
+          >
+            {currentAccount.initials}
+          </div>
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[var(--surface-dim)] ${
+              aiOnline ? "bg-[var(--success)]" : "bg-neutral-400"
+            }`}
+            title={aiOnline ? "AI Online" : "AI Offline"}
+          />
+        </div>
+
+        {/* Name and Role */}
+        <div className="text-left hidden sm:block">
+          <p className="text-xs font-medium text-[var(--on-surface)] leading-tight truncate max-w-[130px]">
+            {currentAccount.name}
+          </p>
+          <p className="text-[11px] text-[var(--on-surface-variant)] leading-none mt-0.5 truncate">
+            {currentAccount.roleLabel}
+            {currentAccount.groupLabel ? ` · ${currentAccount.groupLabel}` : ""}
+          </p>
+        </div>
+
+        <ChevronDown
+          size={16}
+          className={`text-[var(--on-surface-variant)] transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {/* Popover Menu */}
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-72 bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[var(--shadow-2)] border border-[var(--outline)]/40 py-2 z-50 animate-fade-in">
+          <div className="px-4 py-2 border-b border-[var(--outline)]/30">
+            <p className="text-[11px] font-semibold text-[var(--on-surface-variant)] uppercase tracking-wider">
+              Chọn tài khoản demo
+            </p>
+          </div>
+
+          <div className="py-1">
+            {DEMO_ACCOUNTS.map((acc) => {
+              const isSelected = acc.id === currentAccount.id;
+              return (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectAccount(acc);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--surface-container)] ${
+                    isSelected ? "bg-[var(--primary-container)]/40" : ""
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full text-white font-semibold text-xs flex items-center justify-center shrink-0 shadow-sm"
+                    style={{ backgroundColor: acc.avatarBg }}
+                  >
+                    {acc.initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-xs truncate ${
+                        isSelected
+                          ? "font-semibold text-[var(--primary)]"
+                          : "font-medium text-[var(--on-surface)]"
+                      }`}
+                    >
+                      {acc.name}
+                    </p>
+                    <p className="text-[11px] text-[var(--on-surface-variant)] truncate">
+                      {acc.roleLabel}
+                      {acc.groupLabel ? ` · ${acc.groupLabel}` : ""}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <Check size={16} className="text-[var(--primary)] shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-1 pt-1 border-t border-[var(--outline)]/30 px-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                setShowResetModal(true);
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-sm)] text-xs font-medium text-[var(--error)] hover:bg-[#FFEBEE] transition-colors"
+            >
+              <RotateCcw size={15} />
+              <span>Reset dữ liệu demo</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Reset Demo */}
+      <Modal
+        isOpen={showResetModal}
+        onClose={() => !isResetting && setShowResetModal(false)}
+        title="Xác nhận reset dữ liệu demo"
+        footer={
+          <>
+            <Button
+              variant="tonal"
+              size="sm"
+              disabled={isResetting}
+              onClick={() => setShowResetModal(false)}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              loading={isResetting}
+              onClick={handleResetConfirm}
+            >
+              Reset dữ liệu
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[var(--on-surface-variant)] leading-relaxed">
+          Bạn có chắc chắn muốn reset toàn bộ câu hỏi và đưa dữ liệu demo về trạng thái ban đầu không?
+          Hành động này sẽ làm sạch các câu hỏi đã hỏi và phục hồi lại dữ liệu mẫu gốc.
+        </p>
+      </Modal>
+    </div>
+  );
+}

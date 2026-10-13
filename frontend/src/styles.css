@@ -1,76 +1,97 @@
 /* ============================================================
-   AER System – Design System v2
-   Crimson-on-Navy premium theme
+   AER System – Design System v3 (Material 3 / Gmail Theme)
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap');
-
 :root {
-  /* Colour palette */
-  --crimson:       #c0392b;
-  --crimson-light: #e74c3c;
-  --crimson-dark:  #96281b;
-  --crimson-glow:  #c0392b28;
-  --crimson-soft:  #fdf2f2;
+  /* Material 3 / Gmail Theme Tokens */
+  --surface:               #FFFFFF;
+  --surface-dim:           #F6F8FC;
+  --surface-container:     #EAF1FB;
+  --surface-container-high:#DDE3EA;
+  --on-surface:            #1F1F1F;
+  --on-surface-variant:    #444746;
+  --outline:               #C4C7C5;
+  --primary:               #0B57D0;
+  --on-primary:            #FFFFFF;
+  --primary-container:     #D3E3FD;
+  --error:                 #B3261E;
+  --success:               #146C2E;
+  --warning:               #8C5000;
+  --bk-red:                #C51A1B;
 
-  --navy:          #0f172a;
-  --navy-mid:      #1e293b;
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+
+  /* Elevation (2 mức shadow nhẹ) */
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 3px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* Legacy aliases for backward compatibility */
+  --r-sm: var(--radius-sm);
+  --r-md: var(--radius-md);
+  --r-lg: var(--radius-lg);
+  --r-xl: var(--radius-xl);
+  --r-2xl: var(--radius-xl);
+  --paper: var(--surface);
+  --ink: var(--on-surface);
+  --muted: var(--on-surface-variant);
+  --line: var(--outline);
+
+  --crimson:       #C51A1B;
+  --crimson-light: #E03131;
+  --crimson-dark:  #9B111E;
+  --crimson-glow:  rgba(197, 26, 27, 0.15);
+  --crimson-soft:  #FFF5F5;
+
+  --navy:          #0F172A;
+  --navy-mid:      #1E293B;
   --navy-light:    #334155;
 
   --slate-700:     #334155;
   --slate-600:     #475569;
-  --slate-500:     #64748b;
-  --slate-400:     #94a3b8;
-  --slate-300:     #cbd5e1;
-  --slate-200:     #e2e8f0;
-  --slate-100:     #f1f5f9;
-  --slate-50:      #f8fafc;
+  --slate-500:     #64748B;
+  --slate-400:     #94A3B8;
+  --slate-300:     #CBD5E1;
+  --slate-200:     #E2E8F0;
+  --slate-100:     #F1F5F9;
+  --slate-50:      #F8FAFC;
 
-  --green:         #059669;
-  --green-light:   #ecfdf5;
-  --green-border:  #a7f3d0;
-  --amber:         #d97706;
-  --amber-light:   #fffbeb;
-  --amber-border:  #fcd34d;
-  --red:           #dc2626;
-  --red-light:     #fef2f2;
-  --red-border:    #fca5a5;
-  --blue:          #2563eb;
-  --blue-light:    #eff6ff;
-  --blue-border:   #93c5fd;
-
-  --paper:         #ffffff;
-  --ink:           #0f172a;
-  --muted:         #64748b;
-  --line:          #e2e8f0;
+  --green:         var(--success);
+  --green-light:   #E8F5E9;
+  --green-border:  #C8E6C9;
+  --amber:         var(--warning);
+  --amber-light:   #FFF8E1;
+  --amber-border:  #FFE082;
+  --red:           var(--error);
+  --red-light:     #FFEBEE;
+  --red-border:    #FFCDD2;
+  --blue:          var(--primary);
+  --blue-light:    var(--primary-container);
+  --blue-border:   #BBDEFB;
 
   /* Typography */
-  font-family: 'Be Vietnam Pro', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: var(--ink);
+  font-family: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--on-surface);
+  font-size: 14px;
+  line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.011em;
 
-  /* Shadows */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-
-  /* Radii */
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 18px;
-  --r-2xl: 24px;
+  --shadow-xs: var(--shadow-1);
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
+  --shadow-lg: var(--shadow-2);
+  --shadow-xl: var(--shadow-2);
 }
 
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { min-width: 320px; min-height: 100vh; background: var(--slate-100); }
+body { min-width: 320px; min-height: 100vh; background: var(--surface-dim); color: var(--on-surface); }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; border: none; background: none; }
 a { color: inherit; text-decoration: none; }
