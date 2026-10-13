@@ -1,8 +1,7 @@
-from typing import Annotated
-
+import uuid
 from datetime import date
 from pathlib import Path
-import uuid
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
@@ -28,8 +27,14 @@ from app.ingestion.local_processing import (
 )
 from app.ingestion.service import ingest_document
 from app.schemas.documents import (
-    ConflictItem, DocumentCreate, DocumentResponse, FinalizePayload,
-    IngestResponse, ProcessingCreate, ProcessingResponse, ReviewItemUpdate,
+    ConflictItem,
+    DocumentCreate,
+    DocumentResponse,
+    FinalizePayload,
+    IngestResponse,
+    ProcessingCreate,
+    ProcessingResponse,
+    ReviewItemUpdate,
 )
 from app.services.documents import (
     get_document_response,

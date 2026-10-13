@@ -7,7 +7,6 @@ Revises: 20261012_0008
 from alembic import op
 from sqlalchemy import inspect
 
-
 revision = "20261013_0009"
 down_revision = "20261012_0008"
 branch_labels = None

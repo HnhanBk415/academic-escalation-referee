@@ -32,7 +32,6 @@ from app.schemas.cases import (
     CaseSummary,
     DecisionResponse,
 )
-from app.schemas.questions import CitationResponse
 from app.services.audit import add_audit_event
 from app.services.ids import new_id
 from app.services.questions import _evidence_for_question, build_citations_for_question

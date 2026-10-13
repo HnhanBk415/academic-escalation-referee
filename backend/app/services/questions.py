@@ -1,6 +1,5 @@
-from datetime import UTC, date, datetime, timedelta
 import re
-import unicodedata
+from datetime import UTC, date, datetime, timedelta
 from time import perf_counter
 
 from sqlalchemy import and_, func, or_, select

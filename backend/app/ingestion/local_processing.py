@@ -18,7 +18,6 @@ from app.core.config import get_settings
 from app.core.enums import DocumentStatus, PolicyUpdateStatus
 from app.core.errors import AppError
 from app.core.policy_topics import (
-    canonical_policy_topic,
     infer_policy_topic,
     policy_match_tokens,
     policy_token_overlap,
@@ -35,8 +34,6 @@ from app.models import (
 )
 from app.schemas.documents import (
     ConflictItem,
-    ConflictResolutionItem,
-    DocumentResponse,
     ExistingConflictItem,
     FinalizePayload,
     FinalizeSummaryResponse,
