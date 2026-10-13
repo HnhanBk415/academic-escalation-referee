@@ -1,5 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Upload,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  ArrowRight,
+  ArrowLeft,
+  Trash2,
+  Download,
+  Check,
+  RefreshCw,
+} from "lucide-react";
 import { api, apiBlob, postJson } from "../api/client";
+import { Badge, Button, Card, Modal } from "../components/ui";
 import type {
   ConflictItem,
   ConflictResolutionAction,
@@ -55,7 +68,9 @@ function computeWordDiff(oldStr: string, newStr: string): DiffResult {
     commonOld.has(idx) ? (
       <span key={`old-${idx}`}>{word} </span>
     ) : (
-      <span key={`old-${idx}`} className="diff-removed">{word} </span>
+      <span key={`old-${idx}`} className="bg-rose-100 text-rose-800 line-through px-0.5 rounded">
+        {word}{" "}
+      </span>
     )
   ));
 
@@ -63,7 +78,9 @@ function computeWordDiff(oldStr: string, newStr: string): DiffResult {
     commonNew.has(idx) ? (
       <span key={`new-${idx}`}>{word} </span>
     ) : (
-      <span key={`new-${idx}`} className="diff-added">{word} </span>
+      <span key={`new-${idx}`} className="bg-emerald-100 text-emerald-800 font-medium px-0.5 rounded">
+        {word}{" "}
+      </span>
     )
   ));
 
@@ -100,7 +117,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
 
   const pending = useMemo(
     () => processing?.review_items.filter((item) => item.status === "PENDING") ?? [],
-    [processing],
+    [processing]
   );
 
   useEffect(() => {
@@ -147,11 +164,11 @@ export function DocumentProcessingPage({ courseId }: Props) {
     setError("");
     setNotice("");
     if (!title.trim() || !version.trim()) {
-      setError("Nhập tiêu đề và phiên bản quy định.");
+      setError("Vui lòng nhập tiêu đề và phiên bản quy định.");
       return;
     }
     if (!file && !text.trim()) {
-      setError("Tải file hoặc nhập nội dung quy định.");
+      setError("Vui lòng tải tệp hoặc nhập nội dung văn bản quy định.");
       return;
     }
     setBusy(true);
@@ -174,7 +191,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
           title,
           version,
           text_content: text,
-          confidence_threshold: 0.80,
+          confidence_threshold: 0.8,
         });
       }
       setProcessing(result);
@@ -206,7 +223,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
       try {
         await api(`/api/v1/documents/processing/${processing.id}/discard`, { method: "POST" });
       } catch {
-        // ignore error during cleanup
+        // ignore
       }
     }
     setProcessing(null);
@@ -230,7 +247,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
             confirmed_text: draft,
             keep_prediction: keepPrediction,
           }),
-        },
+        }
       );
       setProcessing(result);
       const next = result.review_items.find((item) => item.status === "PENDING") ?? null;
@@ -238,7 +255,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
         chooseReview(next);
       } else {
         setSelected(null);
-        setNotice("Đã xác nhận toàn bộ nội dung cần rà soát. Bạn có thể chuyển sang bước kiểm tra xung đột.");
+        setNotice("Đã hoàn tất rà soát. Bạn có thể chuyển sang bước kiểm tra xung đột.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể lưu xác nhận.");
@@ -253,7 +270,6 @@ export function DocumentProcessingPage({ courseId }: Props) {
     setError("");
     try {
       await api(`/api/v1/documents/processing/${processing.id}/discard`, { method: "POST" });
-      // Reset state về bước 1 với form trống
       setProcessing(null);
       setStep(1);
       setTitle("Quy định học phần");
@@ -323,12 +339,10 @@ export function DocumentProcessingPage({ courseId }: Props) {
           body: JSON.stringify({
             resolutions: payloadResolutions.length > 0 ? payloadResolutions : undefined,
           }),
-        },
+        }
       );
       setProcessing(result);
-      setNotice(
-        "Đã lưu cập nhật quy định thành công! Hệ thống đã tự động lập chỉ mục và điều chỉnh các lớp quy định tương ứng.",
-      );
+      setNotice("Đã lưu cập nhật quy định thành công! Hệ thống đã tự động lập chỉ mục.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể xuất bản quy định.");
     } finally {
@@ -370,432 +384,663 @@ export function DocumentProcessingPage({ courseId }: Props) {
 
   const isCompleted = processing?.status === "COMPLETED";
   const isFailed = processing?.status === "FAILED";
-  const allConflictsResolved = conflicts.length === 0 || conflicts.every((c) => resolutions[c.new_chunk_index] !== undefined);
+  const allConflictsResolved =
+    conflicts.length === 0 || conflicts.every((c) => resolutions[c.new_chunk_index] !== undefined);
 
   return (
-    <div className="doc-workspace">
-      {/* Intro Header */}
-      <section className="doc-intro">
-        <div>
-          <p className="eyebrow">GEMINI VISION · QUẢN LÝ TIẾP NHẬN QUY ĐỊNH</p>
-          <h1>Tiếp nhận quy định</h1>
-          <p>
-            Trích xuất tài liệu quy định học phần, rà soát nhận diện OCR tiếng Việt và phát hiện xung đột
-            trước khi xuất bản cập nhật.
-          </p>
-        </div>
-        <div className="offline-pill">
-          <span /> Gemini Vision
-        </div>
-      </section>
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-[22px] font-normal text-[var(--on-surface)]">Tiếp nhận quy định</h1>
+        <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
+          Trích xuất tài liệu học phần, rà soát OCR tiếng Việt và xử lý xung đột quy chế
+        </p>
+      </div>
 
-      {/* Stepper Bar */}
-      <div className="doc-stepper">
-        <div className={`doc-step-item ${step === 1 ? "active" : step > 1 || isCompleted ? "completed" : ""}`}>
-          <div className="doc-step-num">1</div>
-          <span>1. Nguồn tài liệu</span>
+      {/* Stepper Material ngang */}
+      <div className="flex items-center justify-between bg-[var(--surface-container-low)] p-3.5 rounded-[var(--radius-lg)] border border-[var(--outline)]/20">
+        {/* Step 1 */}
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+              step === 1
+                ? "bg-[var(--primary)] text-white shadow-xs"
+                : step > 1 || isCompleted
+                ? "bg-[#E8F5E9] text-[#146C2E]"
+                : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
+            }`}
+          >
+            {step > 1 || isCompleted ? <Check className="w-3.5 h-3.5" /> : "1"}
+          </div>
+          <span
+            className={`text-xs font-medium ${
+              step === 1 ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
+            }`}
+          >
+            Nguồn tài liệu
+          </span>
         </div>
-        <div className="doc-step-arrow">→</div>
-        <div className={`doc-step-item ${step === 2 ? "active" : step > 2 || isCompleted ? "completed" : ""}`}>
-          <div className="doc-step-num">2</div>
-          <span>2. Rà soát nhận dạng</span>
+
+        <div className="flex-1 h-[2px] bg-[var(--outline)]/20 mx-4" />
+
+        {/* Step 2 */}
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+              step === 2
+                ? "bg-[var(--primary)] text-white shadow-xs"
+                : step > 2 || isCompleted
+                ? "bg-[#E8F5E9] text-[#146C2E]"
+                : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
+            }`}
+          >
+            {step > 2 || isCompleted ? <Check className="w-3.5 h-3.5" /> : "2"}
+          </div>
+          <span
+            className={`text-xs font-medium ${
+              step === 2 ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
+            }`}
+          >
+            Rà soát nhận diện
+          </span>
         </div>
-        <div className="doc-step-arrow">→</div>
-        <div className={`doc-step-item ${step === 3 ? "active" : isCompleted ? "completed" : ""}`}>
-          <div className="doc-step-num">3</div>
-          <span>3. Kiểm tra xung đột & Lưu</span>
+
+        <div className="flex-1 h-[2px] bg-[var(--outline)]/20 mx-4" />
+
+        {/* Step 3 */}
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+              step === 3 && !isCompleted
+                ? "bg-[var(--primary)] text-white shadow-xs"
+                : isCompleted
+                ? "bg-[#E8F5E9] text-[#146C2E]"
+                : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
+            }`}
+          >
+            {isCompleted ? <Check className="w-3.5 h-3.5" /> : "3"}
+          </div>
+          <span
+            className={`text-xs font-medium ${
+              step === 3 ? "text-[var(--on-surface)]" : "text-[var(--on-surface-variant)]"
+            }`}
+          >
+            Kiểm tra xung đột & Lưu
+          </span>
         </div>
       </div>
 
-      {error && <div className="error-banner" role="alert">{error}</div>}
-      {notice && <div className="success-banner" role="status">{notice}</div>}
-
-      {/* FAILED State Retry Banner */}
-      {isFailed && (
-        <section className="doc-panel" style={{ marginBottom: 20, borderColor: "var(--red)" }}>
-          <div className="doc-panel-heading">
-            <div>
-              <h2 style={{ color: "var(--red)" }}>Xử lý tài liệu thất bại</h2>
-              <p>{processing.error_message || "Đã xảy ra lỗi trong quá trình trích xuất tài liệu."}</p>
-            </div>
-          </div>
-          <button className="primary-button" onClick={retryFailed}>
-            Thử lại (Quay về bước 1)
-          </button>
-        </section>
+      {/* Notifications */}
+      {error && (
+        <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--error)]/10 border border-[var(--error)]/30 text-[var(--error)] text-xs flex items-center gap-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      {notice && (
+        <div className="p-3.5 rounded-[var(--radius-md)] bg-[#E8F5E9] border border-[#C8E6C9] text-[#146C2E] text-xs flex items-center gap-2.5">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          <span>{notice}</span>
+        </div>
       )}
 
-      {/* COMPLETED State Result Summary Screen */}
+      {/* FAILED State */}
+      {isFailed && (
+        <Card className="p-6 border-[var(--error)]/30 bg-[var(--error)]/5">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-[var(--error)]">
+              <AlertTriangle className="w-5 h-5" />
+              <h2 className="text-base font-semibold">Xử lý tài liệu thất bại</h2>
+            </div>
+            <p className="text-xs text-[var(--on-surface-variant)]">
+              {processing.error_message || "Đã xảy ra lỗi trong quá trình trích xuất tài liệu."}
+            </p>
+            <div className="pt-2">
+              <Button variant="filled" onClick={retryFailed}>
+                Thử lại (Quay về bước 1)
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* COMPLETED State */}
       {isCompleted && (
-        <section className="doc-panel finalize-summary-panel">
-          <div className="doc-panel-heading">
+        <Card className="p-6 space-y-6">
+          <div className="flex items-center justify-between pb-4 border-b border-[var(--outline)]/20">
             <div>
-              <h2>Xuất bản quy định hoàn tất</h2>
-              <p>Phiên bản {processing.document.version} — {processing.document.title} đã có hiệu lực.</p>
+              <h2 className="text-base font-semibold text-[var(--on-surface)]">
+                Xuất bản quy định hoàn tất
+              </h2>
+              <p className="text-xs text-[var(--on-surface-variant)] mt-0.5">
+                Phiên bản {processing.document.version} — {processing.document.title} đã có hiệu lực.
+              </p>
             </div>
-            <strong style={{ background: "#ecfdf5", color: "#047857" }}>Đã xuất bản</strong>
+            <Badge tone="answer">Đã xuất bản</Badge>
           </div>
 
-          <div className="summary-stat-grid">
-            <div className="summary-stat-box">
-              <strong>{processing.finalize_summary?.added_count ?? 0}</strong>
-              <span>Đoạn thêm mới</span>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-4 bg-[var(--surface-container-low)] rounded-[var(--radius-md)] text-center">
+              <div className="text-xl font-semibold text-[var(--on-surface)]">
+                {processing.finalize_summary?.added_count ?? 0}
+              </div>
+              <span className="text-xs text-[var(--on-surface-variant)] mt-1 block">
+                Đoạn thêm mới
+              </span>
             </div>
-            <div className="summary-stat-box">
-              <strong>{processing.finalize_summary?.replaced_count ?? 0}</strong>
-              <span>Đoạn thay thế</span>
+            <div className="p-4 bg-[var(--surface-container-low)] rounded-[var(--radius-md)] text-center">
+              <div className="text-xl font-semibold text-[var(--on-surface)]">
+                {processing.finalize_summary?.replaced_count ?? 0}
+              </div>
+              <span className="text-xs text-[var(--on-surface-variant)] mt-1 block">
+                Đoạn thay thế
+              </span>
             </div>
-            <div className="summary-stat-box">
-              <strong>{processing.finalize_summary?.skipped_count ?? 0}</strong>
-              <span>Đoạn bỏ qua (giữ cũ)</span>
+            <div className="p-4 bg-[var(--surface-container-low)] rounded-[var(--radius-md)] text-center">
+              <div className="text-xl font-semibold text-[var(--on-surface)]">
+                {processing.finalize_summary?.skipped_count ?? 0}
+              </div>
+              <span className="text-xs text-[var(--on-surface-variant)] mt-1 block">
+                Đoạn giữ nguyên
+              </span>
             </div>
           </div>
 
-          <div className="clean-preview" style={{ marginTop: 20 }}>
-            <h3 style={{ fontSize: 13, marginBottom: 8, color: "var(--navy)" }}>Văn bản đã lập chỉ mục</h3>
-            <pre>{processing.clean_text ?? processing.raw_text}</pre>
+          <div>
+            <h3 className="text-xs font-medium text-[var(--on-surface)] mb-2">
+              Văn bản đã lập chỉ mục
+            </h3>
+            <pre className="p-4 bg-[var(--surface-container-lowest)] rounded-[var(--radius-md)] border border-[var(--outline)]/20 text-xs font-mono text-[var(--on-surface)] max-h-64 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+              {processing.clean_text ?? processing.raw_text}
+            </pre>
           </div>
 
-          <div className="export-actions" style={{ marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="secondary-button" onClick={() => void download("txt")}>
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex gap-2">
+              <Button variant="tonal" size="sm" onClick={() => void download("txt")} className="gap-1.5">
+                <Download className="w-3.5 h-3.5" />
                 Tải TXT
-              </button>
-              <button className="secondary-button" onClick={() => void download("json")}>
+              </Button>
+              <Button variant="tonal" size="sm" onClick={() => void download("json")} className="gap-1.5">
+                <Download className="w-3.5 h-3.5" />
                 Tải JSON
-              </button>
+              </Button>
             </div>
-            <button className="primary-button" onClick={resetAll}>
-              Tải tài liệu khác →
-            </button>
+            <Button variant="filled" onClick={resetAll} className="gap-1.5">
+              <span>Tải tài liệu khác</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
           </div>
-        </section>
+        </Card>
       )}
 
       {/* STEP 1: Upload Form */}
       {step === 1 && !isCompleted && !isFailed && (
-        <section className="doc-panel upload-panel">
-          <div className="doc-panel-heading">
+        <Card className="p-6 space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--outline)]/20">
             <div>
-              <h2>Nguồn quy định</h2>
-              <p>PDF, Word (.docx), PNG, JPG/JPEG hoặc nhập trực tiếp. Ảnh/PDF quét sẽ được gửi tới Gemini Vision.</p>
+              <h2 className="text-sm font-semibold text-[var(--on-surface)]">Nguồn quy định</h2>
+              <p className="text-xs text-[var(--on-surface-variant)] mt-0.5">
+                Hỗ trợ PDF, DOCX, ảnh chụp PNG/JPG hoặc dán văn bản trực tiếp.
+              </p>
             </div>
-            <strong>Ngưỡng: 80%</strong>
+            <span className="text-xs text-[var(--on-surface-variant)] bg-[var(--surface-container-high)] px-2.5 py-1 rounded-full">
+              Ngưỡng OCR: 80%
+            </span>
           </div>
-          <div className="doc-fields">
-            <label>
-              Học phần
-              <input value={courseId} disabled />
-            </label>
-            <label>
-              Tiêu đề
-              <input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </label>
-            <label>
-              Phiên bản
-              <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="VD: 2026.2" />
-            </label>
+
+          {/* Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-[var(--on-surface)] mb-1">
+                Mã học phần
+              </label>
+              <input
+                type="text"
+                value={courseId}
+                disabled
+                className="w-full rounded-[var(--radius-md)] border border-[var(--outline)]/30 bg-[var(--surface-container-low)] px-3 py-2 text-sm text-[var(--on-surface)] cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--on-surface)] mb-1">
+                Tiêu đề quy định <span className="text-[var(--error)]">*</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full rounded-[var(--radius-md)] border border-[var(--outline)]/40 bg-[var(--surface)] px-3 py-2 text-sm text-[var(--on-surface)] focus:border-[var(--primary)] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--on-surface)] mb-1">
+                Phiên bản <span className="text-[var(--error)]">*</span>
+              </label>
+              <input
+                type="text"
+                value={version}
+                onChange={(e) => setVersion(e.target.value)}
+                placeholder="VD: 2026.2"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--outline)]/40 bg-[var(--surface)] px-3 py-2 text-sm text-[var(--on-surface)] focus:border-[var(--primary)] focus:outline-none"
+              />
+            </div>
           </div>
-          <label className="upload-drop">
+
+          {/* Dropzone with outlined dashed bo --radius-lg */}
+          <label className="flex flex-col items-center justify-center p-8 rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--outline)]/40 hover:border-[var(--primary)]/60 bg-[var(--surface-container-lowest)]/50 hover:bg-[var(--surface-container-low)] cursor-pointer transition-colors text-center group">
             <input
               type="file"
               accept=".pdf,.docx,.png,.jpg,.jpeg"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="hidden"
             />
-            <strong>{file ? file.name : "Chọn file quy định"}</strong>
-            <small>PDF, DOCX, PNG, JPG/JPEG · tối đa theo cấu hình Local</small>
+            <div className="w-12 h-12 rounded-full bg-[var(--surface-container-high)] flex items-center justify-center text-[var(--on-surface-variant)] group-hover:text-[var(--primary)] mb-3 transition-colors">
+              <Upload className="w-5 h-5" />
+            </div>
+            <p className="text-sm font-medium text-[var(--on-surface)]">
+              {file ? file.name : "Tải lên tệp văn bản quy định"}
+            </p>
+            <p className="text-xs text-[var(--on-surface-variant)] mt-1">
+              PDF, DOCX, PNG, JPG/JPEG (kéo thả hoặc nhấn để duyệt tệp)
+            </p>
           </label>
-          <div className="or-divider">
-            <span>hoặc</span>
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-[1px] bg-[var(--outline)]/20" />
+            <span className="text-xs text-[var(--on-surface-variant)]">hoặc dán văn bản</span>
+            <div className="flex-1 h-[1px] bg-[var(--outline)]/20" />
           </div>
-          <label>
-            Nhập văn bản trực tiếp
+
+          <div>
             <textarea
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
                 if (e.target.value) setFile(null);
               }}
-              rows={9}
-              placeholder="Dán nội dung quy định tại đây..."
+              rows={6}
+              placeholder="Dán toàn văn nội dung quy định học phần tại đây..."
+              className="w-full rounded-[var(--radius-md)] border border-[var(--outline)]/40 bg-[var(--surface)] p-3 text-sm text-[var(--on-surface)] placeholder:text-[var(--on-surface-variant)]/50 focus:border-[var(--primary)] focus:outline-none leading-relaxed"
             />
-          </label>
-          <button className="primary-button" disabled={busy} onClick={start}>
-            {busy ? "Đang xử lý Local…" : "Trích xuất & rà soát →"}
-          </button>
-        </section>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button variant="filled" disabled={busy} onClick={start} className="gap-2">
+              {busy ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Đang trích xuất OCR...</span>
+                </>
+              ) : (
+                <>
+                  <span>Trích xuất & Rà soát</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
       )}
 
       {/* STEP 2: Review OCR items */}
       {step === 2 && processing && !isCompleted && !isFailed && (
-        <>
-          <div className="doc-nav-bar">
-            <button className="secondary-button" onClick={handleBackToStep1} disabled={busy}>
-              ← Quay lại
-            </button>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="danger-button" onClick={handleDiscardClick} disabled={busy}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="tonal"
+              size="sm"
+              onClick={handleBackToStep1}
+              disabled={busy}
+              className="gap-1.5"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Quay lại
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="text"
+                size="sm"
+                onClick={handleDiscardClick}
+                disabled={busy}
+                className="text-[var(--error)] hover:bg-[var(--error)]/10"
+              >
                 Hủy, không lưu
-              </button>
-              <button
-                className="primary-button"
+              </Button>
+              <Button
+                variant="filled"
+                size="sm"
                 onClick={goToStep3}
                 disabled={busy || pending.length > 0}
+                className="gap-1.5"
               >
-                Tiếp tục: Kiểm tra xung đột →
-              </button>
+                <span>Kiểm tra xung đột</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
             </div>
           </div>
 
-          <section className="doc-status-row">
-            <div>
-              <span className="status-kicker">Phiên bản {processing.document.version}</span>
-              <h2>{processing.document.title}</h2>
-              <p>
-                {processing.extraction_method} · nguồn:{" "}
-                {processing.original_filename ?? "Văn bản nhập trực tiếp"}
-              </p>
-            </div>
-            <div className={`processing-state ${processing.status.toLowerCase()}`}>
-              {pending.length === 0 ? "Đã rà soát xong" : `${pending.length} cần rà soát`}
-            </div>
-          </section>
-
-          <div className="doc-review-layout">
-            <section className="doc-panel review-list">
-              <div className="doc-panel-heading">
-                <div>
-                  <h2>Cần rà soát</h2>
-                  <p>Độ tin cậy thấp hơn ngưỡng 0.80.</p>
-                </div>
-                <strong>{pending.length}</strong>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* List */}
+            <Card className="p-4 md:col-span-1 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--outline)]/20">
+                <span className="text-xs font-semibold text-[var(--on-surface)]">
+                  Cần rà soát ({pending.length})
+                </span>
+                <span className="text-[11px] text-[var(--on-surface-variant)]">Độ tin cậy &lt; 80%</span>
               </div>
-              {pending.length ? (
-                pending.map((item) => (
-                  <button
-                    key={item.id}
-                    className={`review-row ${selected?.id === item.id ? "selected" : ""}`}
-                    onClick={() => chooseReview(item)}
-                  >
-                    <span>Cần rà soát</span>
-                    <strong>{item.predicted_text}</strong>
-                    <small>
-                      {Math.round(item.confidence * 100)}% · trang {item.page_number ?? "–"}
-                    </small>
-                  </button>
-                ))
-              ) : (
-                <div className="review-empty">
-                  Không còn vùng nào cần xác nhận. Bấm "Tiếp tục: Kiểm tra xung đột →" ở trên.
-                </div>
-              )}
-            </section>
+              <div className="space-y-2 max-h-[480px] overflow-y-auto">
+                {pending.length ? (
+                  pending.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => chooseReview(item)}
+                      className={`p-3 rounded-[var(--radius-md)] border text-xs cursor-pointer transition-colors ${
+                        selected?.id === item.id
+                          ? "border-[var(--primary)] bg-[var(--primary-container)]/30"
+                          : "border-[var(--outline)]/30 hover:bg-[var(--surface-container-low)]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[11px] text-[var(--on-surface-variant)] mb-1">
+                        <span>Trang {item.page_number ?? "—"}</span>
+                        <span className="font-mono">{Math.round(item.confidence * 100)}%</span>
+                      </div>
+                      <p className="font-medium text-[var(--on-surface)] line-clamp-2">
+                        {item.predicted_text}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-xs text-[var(--on-surface-variant)]">
+                    Đã hoàn tất rà soát toàn bộ vùng nghi vấn.
+                  </div>
+                )}
+              </div>
+            </Card>
 
-            <section className="doc-panel review-detail">
+            {/* Detail */}
+            <Card className="p-6 md:col-span-2 space-y-4">
               {selected ? (
                 <>
-                  <div className="doc-panel-heading">
-                    <div>
-                      <h2>Xác nhận nhận diện</h2>
-                      <p>Giữ nguyên dự đoán hoặc sửa trực tiếp.</p>
+                  <div className="flex items-center justify-between pb-3 border-b border-[var(--outline)]/20">
+                    <h3 className="text-sm font-semibold text-[var(--on-surface)]">
+                      Xác nhận nội dung nhận diện
+                    </h3>
+                    <span className="text-xs font-mono text-[var(--on-surface-variant)]">
+                      Độ tin cậy: {Math.round(selected.confidence * 100)}%
+                    </span>
+                  </div>
+
+                  {cropUrl && (
+                    <div className="p-2 bg-[var(--surface-container-lowest)] rounded-[var(--radius-md)] border border-[var(--outline)]/20 flex justify-center">
+                      <img
+                        src={cropUrl}
+                        alt="Crop hình ảnh"
+                        className="max-h-40 object-contain rounded"
+                      />
                     </div>
-                    <strong>{Math.round(selected.confidence * 100)}%</strong>
+                  )}
+
+                  <div className="p-3 bg-[var(--surface-container-low)] rounded-[var(--radius-md)] text-xs text-[var(--on-surface)] leading-relaxed">
+                    <span className="text-[var(--on-surface-variant)]">{selected.context_before || "…"} </span>
+                    <mark className="bg-amber-200 text-amber-900 px-1 py-0.5 rounded font-medium">
+                      {selected.predicted_text}
+                    </mark>
+                    <span className="text-[var(--on-surface-variant)]"> {selected.context_after || "…"}</span>
                   </div>
-                  {cropUrl && <img className="ocr-crop" src={cropUrl} alt="Vùng ảnh cần rà soát" />}
-                  <div className="ocr-context">
-                    <span>{selected.context_before || "…"}</span>
-                    <mark>{selected.predicted_text}</mark>
-                    <span>{selected.context_after || "…"}</span>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--on-surface)] mb-1.5">
+                      Nội dung xác nhận chuẩn
+                    </label>
+                    <textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-[var(--radius-md)] border border-[var(--outline)]/40 bg-[var(--surface)] p-3 text-sm text-[var(--on-surface)] focus:border-[var(--primary)] focus:outline-none"
+                    />
                   </div>
-                  <label>
-                    Nội dung xác nhận
-                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} />
-                  </label>
-                  <div className="review-actions">
-                    <button className="secondary-button" disabled={busy} onClick={() => saveReview(true)}>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="tonal"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => saveReview(true)}
+                    >
                       Giữ dự đoán
-                    </button>
-                    <button className="primary-button" disabled={busy} onClick={() => saveReview(false)}>
+                    </Button>
+                    <Button
+                      variant="filled"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => saveReview(false)}
+                    >
                       Lưu chỉnh sửa
-                    </button>
+                    </Button>
                   </div>
                 </>
               ) : (
-                <div className="review-empty">
-                  Chọn một vùng nghi vấn để xem crop và ngữ cảnh ba từ trước/sau.
+                <div className="flex flex-col items-center justify-center py-16 text-center text-[var(--on-surface-variant)]">
+                  <FileText className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-sm">Chọn một vùng từ danh sách để xem ảnh cắt và chỉnh sửa</p>
                 </div>
               )}
-            </section>
+            </Card>
           </div>
-        </>
+        </div>
       )}
 
       {/* STEP 3: Conflict Detection & Save */}
       {step === 3 && processing && !isCompleted && !isFailed && (
-        <>
-          <div className="doc-nav-bar">
-            <button
-              className="secondary-button"
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="tonal"
+              size="sm"
               onClick={() => {
                 if (processing.review_items.length > 0) setStep(2);
                 else handleBackToStep1();
               }}
               disabled={busy}
+              className="gap-1.5"
             >
-              ← Quay lại
-            </button>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="danger-button" onClick={handleDiscardClick} disabled={busy}>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Quay lại
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="text"
+                size="sm"
+                onClick={handleDiscardClick}
+                disabled={busy}
+                className="text-[var(--error)] hover:bg-[var(--error)]/10"
+              >
                 Hủy, không lưu
-              </button>
-              <button
-                className="primary-button"
+              </Button>
+              <Button
+                variant="filled"
+                size="sm"
                 onClick={finalize}
                 disabled={busy || !allConflictsResolved}
+                className="gap-1.5"
               >
-                {busy ? "Đang lập chỉ mục…" : "Lưu cập nhật quy định"}
-              </button>
+                {busy ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Lưu cập nhật quy định</span>
+                  </>
+                )}
+              </Button>
             </div>
           </div>
 
-          <section className="doc-status-row">
-            <div>
-              <span className="status-kicker">Bước 3 · Kiểm tra xung đột quy định</span>
-              <h2>{processing.document.title} ({processing.document.version})</h2>
-              <p>Hệ thống tự động so khớp các đoạn với quy định cùng chủ đề đang có hiệu lực.</p>
-            </div>
-            {conflicts.length > 0 && (
-              <div className="processing-state" style={{ background: "#fff7ed", color: "#c2410c" }}>
-                Đã xử lý {Object.keys(resolutions).length}/{conflicts.length} xung đột
-              </div>
-            )}
-          </section>
-
           {loadingConflicts ? (
-            <section className="doc-panel" style={{ padding: 32, textAlign: "center" }}>
-              <p>Đang phân tích và so khớp xung đột quy định...</p>
-            </section>
+            <Card className="p-8 text-center text-sm text-[var(--on-surface-variant)]">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[var(--primary)]" />
+              Đang phân tích và so khớp xung đột quy định...
+            </Card>
           ) : conflicts.length === 0 ? (
-            <section className="doc-panel" style={{ borderLeft: "4px solid var(--green)" }}>
-              <div className="doc-panel-heading">
-                <div>
-                  <h2 style={{ color: "var(--green)" }}>Không phát hiện xung đột với quy định đang hiệu lực</h2>
-                  <p>Tài liệu mới sẽ được thêm vào hệ thống dưới dạng các lớp cập nhật mới.</p>
-                </div>
+            <Card className="p-6 border-[#C8E6C9] bg-[#E8F5E9]/30 space-y-3">
+              <div className="flex items-center gap-2 text-[#146C2E]">
+                <CheckCircle2 className="w-5 h-5" />
+                <h3 className="text-sm font-semibold">
+                  Không phát hiện xung đột với quy định hiện hành
+                </h3>
               </div>
-              <div className="clean-preview" style={{ marginTop: 12 }}>
-                <pre>{processing.clean_text ?? processing.raw_text}</pre>
-              </div>
-            </section>
+              <p className="text-xs text-[var(--on-surface-variant)]">
+                Tài liệu mới sẽ được thêm vào hệ thống dưới dạng các lớp cập nhật mới.
+              </p>
+              <pre className="p-4 bg-[var(--surface)] rounded-[var(--radius-md)] border border-[var(--outline)]/20 text-xs font-mono text-[var(--on-surface)] max-h-56 overflow-y-auto whitespace-pre-wrap leading-relaxed mt-2">
+                {processing.clean_text ?? processing.raw_text}
+              </pre>
+            </Card>
           ) : (
-            <div className="conflict-section">
-              <div style={{ marginBottom: 14, fontSize: 13, color: "var(--slate-700)" }}>
-                Phát hiện <strong>{conflicts.length}</strong> đoạn có nội dung cùng chủ đề với quy định hiện hành.
-                Vui lòng chọn phương án xử lý cho từng đoạn:
+            <div className="space-y-4">
+              <div className="text-xs text-[var(--on-surface-variant)]">
+                Phát hiện <strong className="text-[var(--on-surface)]">{conflicts.length}</strong> đoạn có
+                nội dung cùng chủ đề với quy định hiện hành. Vui lòng chọn phương án giải quyết cho từng đoạn:
               </div>
 
               {conflicts.map((conflict) => {
                 const existing = conflict.existing[0];
-                const diff = existing ? computeWordDiff(existing.content, conflict.new_content) : null;
+                const diff = existing
+                  ? computeWordDiff(existing.content, conflict.new_content)
+                  : null;
                 const chosen = resolutions[conflict.new_chunk_index] || "REPLACE";
 
                 return (
-                  <div key={conflict.new_chunk_index} className="conflict-card">
-                    <div className="conflict-header">
-                      <strong>Xung đột #{conflict.new_chunk_index + 1} · Chủ đề: {conflict.policy_topic}</strong>
-                      <span style={{ color: "var(--muted)" }}>Đoạn {conflict.new_chunk_index + 1}</span>
+                  <Card key={conflict.new_chunk_index} className="p-5 space-y-4">
+                    {/* Conflict Title */}
+                    <div className="flex items-center justify-between pb-3 border-b border-[var(--outline)]/20">
+                      <span className="text-xs font-semibold text-[var(--on-surface)]">
+                        Xung đột #{conflict.new_chunk_index + 1} · Chủ đề: {conflict.policy_topic}
+                      </span>
+                      <span className="text-[11px] text-[var(--on-surface-variant)] font-mono">
+                        Đoạn {conflict.new_chunk_index + 1}
+                      </span>
                     </div>
 
-                    <div className="conflict-grid">
+                    {/* 2-Column Comparison Table / Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Left side: Đang hiệu lực */}
-                      <div className="conflict-col">
-                        <div className="conflict-col-title">
-                          <span>Đang hiệu lực</span>
-                          <span style={{ color: "var(--muted)" }}>{existing?.published_at ? new Date(existing.published_at).toLocaleDateString("vi-VN") : "Hiện hành"}</span>
-                        </div>
-                        <div className="conflict-col-meta">
-                          <span>Tài liệu: <strong>{existing?.source_document_title || "Quy định cũ"}</strong></span>
-                        </div>
-                        <div className="conflict-content-box">
-                          {diff ? diff.oldElements : existing?.content}
+                      <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1.5 font-medium text-[var(--on-surface)]">
+                            <span>Đang hiệu lực</span>
+                            <span className="text-[11px] text-[var(--on-surface-variant)] font-normal">
+                              {existing?.published_at
+                                ? new Date(existing.published_at).toLocaleDateString("vi-VN")
+                                : "Hiện hành"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[var(--on-surface-variant)] mb-2">
+                            Nguồn: {existing?.source_document_title || "Quy định cũ"}
+                          </p>
+                          <div className="text-xs text-[var(--on-surface)] leading-relaxed whitespace-pre-wrap">
+                            {diff ? diff.oldElements : existing?.content}
+                          </div>
                         </div>
                       </div>
 
                       {/* Right side: Bản mới tải lên */}
-                      <div className="conflict-col">
-                        <div className="conflict-col-title">
-                          <span style={{ color: "var(--crimson)" }}>Bản mới tải lên</span>
-                          <span>Phiên bản {processing.document.version}</span>
-                        </div>
-                        <div className="conflict-col-meta">
-                          <span>Tài liệu: <strong>{processing.document.title}</strong></span>
-                        </div>
-                        <div className="conflict-content-box">
-                          {diff ? diff.newElements : conflict.new_content}
+                      <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1.5 font-medium text-[var(--primary)]">
+                            <span>Bản mới tải lên</span>
+                            <span className="text-[11px] text-[var(--on-surface-variant)] font-normal">
+                              Phiên bản {processing.document.version}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[var(--on-surface-variant)] mb-2">
+                            Nguồn: {processing.document.title}
+                          </p>
+                          <div className="text-xs text-[var(--on-surface)] leading-relaxed whitespace-pre-wrap">
+                            {diff ? diff.newElements : conflict.new_content}
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="conflict-footer">
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--slate-700)" }}>
+                    {/* Resolution Choice (Segmented button) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--outline)]/15">
+                      <span className="text-xs font-medium text-[var(--on-surface)]">
                         Phương án áp dụng:
                       </span>
-                      <div className="segmented-control">
+                      <div className="inline-flex rounded-full bg-[var(--surface-container-high)] p-1 gap-1">
                         <button
                           type="button"
-                          className={`segmented-btn ${chosen === "REPLACE" ? "active" : ""}`}
                           onClick={() => setConflictResolution(conflict.new_chunk_index, "REPLACE")}
+                          className={`px-3 py-1 text-xs rounded-full transition-all ${
+                            chosen === "REPLACE"
+                              ? "bg-[var(--surface)] text-[var(--primary)] font-semibold shadow-xs"
+                              : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
+                          }`}
                         >
                           Dùng bản mới (thay thế)
                         </button>
                         <button
                           type="button"
-                          className={`segmented-btn ${chosen === "KEEP_OLD" ? "active" : ""}`}
                           onClick={() => setConflictResolution(conflict.new_chunk_index, "KEEP_OLD")}
+                          className={`px-3 py-1 text-xs rounded-full transition-all ${
+                            chosen === "KEEP_OLD"
+                              ? "bg-[var(--surface)] text-[var(--primary)] font-semibold shadow-xs"
+                              : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
+                          }`}
                         >
                           Giữ bản cũ
                         </button>
                         <button
                           type="button"
-                          className={`segmented-btn ${chosen === "KEEP_BOTH" ? "active" : ""}`}
                           onClick={() => setConflictResolution(conflict.new_chunk_index, "KEEP_BOTH")}
+                          className={`px-3 py-1 text-xs rounded-full transition-all ${
+                            chosen === "KEEP_BOTH"
+                              ? "bg-[var(--surface)] text-[var(--primary)] font-semibold shadow-xs"
+                              : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
+                          }`}
                         >
                           Giữ cả hai
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Confirmation Modal */}
-      {modal && modal.open && (
-        <div className="modal-backdrop">
-          <div className="modal-dialog">
-            <h3>{modal.title}</h3>
-            <p>{modal.message}</p>
-            <div className="modal-actions">
-              <button
-                className="secondary-button"
-                onClick={() => setModal(null)}
-                disabled={busy}
-              >
+      {modal && (
+        <Modal
+          isOpen={modal.open}
+          onClose={() => setModal(null)}
+          title={modal.title}
+          size="sm"
+          footer={
+            <>
+              <Button variant="text" onClick={() => setModal(null)} disabled={busy}>
                 Không, tiếp tục
-              </button>
-              <button
-                className="danger-button"
+              </Button>
+              <Button
+                variant="filled"
+                className="bg-[var(--error)] hover:bg-[var(--error)]/90 text-white"
                 onClick={() => void modal.onConfirm()}
                 disabled={busy}
               >
                 {modal.confirmText || "Đồng ý"}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-[var(--on-surface-variant)]">{modal.message}</p>
+        </Modal>
       )}
     </div>
   );

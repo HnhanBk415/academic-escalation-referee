@@ -3,12 +3,14 @@ import React from "react";
 export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean;
   icon?: React.ReactNode;
+  label?: React.ReactNode;
   onDelete?: () => void;
 }
 
 export function Chip({
   selected = false,
   icon,
+  label,
   onDelete,
   children,
   className = "",
@@ -26,7 +28,7 @@ export function Chip({
       {...props}
     >
       {icon && <span className="shrink-0">{icon}</span>}
-      <span>{children}</span>
+      <span>{label ?? children}</span>
       {onDelete && (
         <span
           role="button"

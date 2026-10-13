@@ -506,18 +506,18 @@ export function StudentSubmitView({
                       <IconTeacher size={18} />
                     )}
                   </span>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <h3 className="text-xs font-semibold text-slate-700">
                     {result.route === "ANSWER"
-                      ? "KẾT LUẬN QUY CHẾ CHÍNH THỨC"
+                      ? "Kết luận quy chế chính thức"
                       : result.route === "OUT_OF_SCOPE"
-                      ? "HƯỚNG DẪN HỌC VỤ NGOÀI PHẠM VI MÔN HỌC"
+                      ? "Hướng dẫn học vụ ngoài phạm vi môn học"
                       : result.route === "REJECT"
-                      ? "THÔNG BÁO TỪ CHỐI YÊU CẦU"
+                      ? "Thông báo từ chối yêu cầu"
                       : result.final_decision
-                      ? "QUYẾT ĐỊNH CHÍNH THỨC TỪ GIẢNG VIÊN"
+                      ? "Quyết định chính thức từ Giảng viên"
                       : result.route === "ESCALATE"
-                      ? "HỒ SƠ CHUYỂN TIẾP GIẢNG VIÊN PHỤ TRÁCH THỤ LÝ"
-                      : `YÊU CẦU LÀM RÕ TỪ HỆ THỐNG (LƯỢT ${result.clarification_round || 1}/2)`}
+                      ? "Hồ sơ chuyển tiếp Giảng viên phụ trách thụ lý"
+                      : `Yêu cầu làm rõ từ hệ thống (Lượt ${result.clarification_round || 1}/2)`}
                   </h3>
                 </div>
 
@@ -576,8 +576,8 @@ export function StudentSubmitView({
                       {result.final_decision ? (
                         <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs uppercase tracking-wider text-sky-900">
-                              Quyết định: {result.final_decision === "APPROVED" ? "ĐÃ PHÊ DUYỆT" : "ĐÃ TỪ CHỐI"}
+                            <span className="font-semibold text-xs text-sky-900">
+                              Quyết định: {result.final_decision === "APPROVED" ? "Đã phê duyệt" : "Đã từ chối"}
                             </span>
                             {result.exception_id && (
                               <span className="font-mono text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
@@ -646,7 +646,7 @@ export function StudentSubmitView({
                       {/* Conversation turns history if any */}
                       {conversationTurns.length > 0 && (
                         <div className="space-y-2 border-b border-slate-200/80 pb-3">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                          <div className="text-[11px] font-semibold text-slate-600">
                             Tiến trình đối thoại bổ sung (Tối đa 2 lượt)
                           </div>
                           {conversationTurns.map((turn, idx) => (
@@ -680,10 +680,10 @@ export function StudentSubmitView({
                       {result.clarifying_question && (
                         <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-sky-900 uppercase">
+                            <span className="text-xs font-semibold text-sky-900">
                               Câu hỏi làm rõ từ AI Referee:
                             </span>
-                            <span className="text-[11px] font-bold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
+                            <span className="text-[11px] font-medium text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
                               Lượt {result.clarification_round || 1}/2
                             </span>
                           </div>
@@ -721,7 +721,7 @@ export function StudentSubmitView({
                 </div>
               </div>
 
-              {/* 2. Citations Section (TRÍCH LỤC CĂN CỨ PHÁP LÝ & HỌC VỤ) */}
+              {/* 2. Citations Section */}
               {result.citations && result.citations.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -729,8 +729,8 @@ export function StudentSubmitView({
                       <span className="text-[#DC2626]">
                         <IconBookOpen size={16} />
                       </span>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                        TRÍCH LỤC CĂN CỨ PHÁP LÝ & HỌC VỤ
+                      <h4 className="text-xs font-semibold text-slate-700">
+                        Căn cứ trích dẫn học phần
                       </h4>
                     </div>
                     <span className="text-xs text-slate-400 font-medium">

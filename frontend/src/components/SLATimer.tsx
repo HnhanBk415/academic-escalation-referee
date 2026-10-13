@@ -7,6 +7,7 @@ interface SlaTimerProps {
   createdAt?: string;
   dueAt?: string;
   isOverdue?: boolean;
+  compact?: boolean;
   className?: string;
 }
 
@@ -23,6 +24,7 @@ export function SlaTimer({
   createdAt,
   dueAt,
   isOverdue = false,
+  compact = false,
   className = "",
 }: SlaTimerProps) {
   const computeInitial = (): string => {
@@ -62,6 +64,32 @@ export function SlaTimer({
     return () => clearInterval(id);
   }, [remaining, createdAt, dueAt, totalSeconds, isOverdue]);
 
+  const [h] = time.split(":").map(Number);
+  const isUrgent = !isNaN(h) && h < 12;
+
+  if (compact) {
+    if (isOverdue) {
+      return (
+        <span
+          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-mono font-medium bg-rose-100 text-rose-800 ${className}`}
+        >
+          <IconWarning size={13} className="text-rose-600 inline" />
+          <span>Quá hạn</span>
+        </span>
+      );
+    }
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-mono font-medium ${
+          isUrgent ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"
+        } ${className}`}
+      >
+        <IconClock size={13} />
+        <span>{time}</span>
+      </span>
+    );
+  }
+
   if (isOverdue) {
     return (
       <div
@@ -72,7 +100,7 @@ export function SlaTimer({
             <IconClock size={18} />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+            <p className="text-xs font-semibold text-rose-800 flex items-center gap-1.5">
               <IconWarning size={14} className="text-rose-600 inline" /> Đã quá hạn SLA 48 giờ
             </p>
             <p className="text-[11px] text-rose-700 mt-0.5">
@@ -86,10 +114,6 @@ export function SlaTimer({
       </div>
     );
   }
-
-  const [h] = time.split(":").map(Number);
-  const isUrgent = !isNaN(h) && h < 12;
-
   return (
     <div
       className={`flex items-center justify-between p-4 rounded-xl border transition-all ${

@@ -97,7 +97,7 @@ export interface DecisionResponse {
   decision_id: string;
   case_id: string;
   status: string;
-  decision: "APPROVED" | "REJECTED";
+  decision: "APPROVED" | "REJECTED" | "NEED_MORE_INFO" | "FORWARDED";
   exception_id: string | null;
 }
 
@@ -113,7 +113,7 @@ export interface ExceptionCreatePayload {
 
 export interface CaseDecisionCreate {
   reviewer_id: string;
-  decision: "APPROVED" | "REJECTED";
+  decision: "APPROVED" | "REJECTED" | "NEED_MORE_INFO" | "FORWARDED";
   reason: string;
   create_exception?: boolean;
   exception?: ExceptionCreatePayload | null;

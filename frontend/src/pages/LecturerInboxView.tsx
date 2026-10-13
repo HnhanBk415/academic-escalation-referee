@@ -1,18 +1,25 @@
-import React, { useEffect, useState } from "react";
-import { api, postJson } from "../api/client";
+import React, { useEffect, useState, useMemo } from "react";
 import {
-  IconAlertCircle,
-  IconArrowUpRight,
-  IconBookOpen,
-  IconCheck,
-  IconCheckCircle,
-  IconClock,
-  IconInfo,
-  IconSparkle,
-  IconX,
-} from "../components/Icons";
+  Inbox,
+  ArrowLeft,
+  Maximize2,
+  Minimize2,
+  Check,
+  X,
+  HelpCircle,
+  Forward,
+  Clock,
+  Sparkles,
+  BookOpen,
+  CheckCircle2,
+  AlertCircle,
+  Copy,
+  ChevronDown,
+} from "lucide-react";
+import { api, postJson } from "../api/client";
 import { SlaTimer } from "../components/SLATimer";
-import { EscalationTagBadge, type EscalationTag } from "../components/StatusBadge";
+import { Badge } from "../components/ui/Badge";
+import { Card } from "../components/ui/Card";
 import type { CaseDecisionCreate, CaseDetail, CaseSummary, Citation, DecisionResponse } from "../types";
 
 export interface LecturerQueueItem {
@@ -27,19 +34,36 @@ export interface LecturerQueueItem {
   escalationTarget?: string | null;
   title: string;
   topic: string;
-  escalationTag: EscalationTag;
+  escalationTag: string;
   submittedAt: string;
+  rawCreatedAt?: string;
   slaDueAt?: string | null;
   slaOverdue: boolean;
   question: string;
   citations: Citation[];
 }
 
-type DecisionType = "APPROVED" | "REJECTED" | null;
+export type DecisionType = "APPROVED" | "REJECTED" | "NEED_MORE_INFO" | "FORWARDED";
 
 interface LecturerInboxViewProps {
   reviewerId?: string;
   onDecisionMade?: () => void;
+}
+
+function formatGmailDate(dateStr?: string): string {
+  if (!dateStr) return "Hôm nay";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  if (isToday) {
+    return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  }
+  return `${d.getDate()} thg ${d.getMonth() + 1}`;
 }
 
 export function LecturerInboxView({
@@ -49,7 +73,8 @@ export function LecturerInboxView({
   const [queue, setQueue] = useState<LecturerQueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [filterTarget, setFilterTarget] = useState<"ALL" | "COURSE_LECTURER">("ALL");
-  const [decision, setDecision] = useState<DecisionType>(null);
+  const [loading, setLoading] = useState(false);
+  const [decision, setDecision] = useState<DecisionType | null>(null);
   const [reason, setReason] = useState("");
   const [createException, setCreateException] = useState(false);
   const [exceptionScope, setExceptionScope] = useState<"GROUP" | "STUDENT" | "COURSE">("GROUP");
@@ -62,111 +87,138 @@ export function LecturerInboxView({
   });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Maximize state persisted in localStorage
+  const [isMaximized, setIsMaximized] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("aer_lecturer_maximized") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleMaximize = () => {
+    setIsMaximized((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("aer_lecturer_maximized", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const loadCases = async () => {
+    setLoading(true);
+    try {
+      const summaries = await api<CaseSummary[]>("/api/v1/cases?status=UNDER_REVIEW");
+      if (Array.isArray(summaries) && summaries.length > 0) {
+        const detailList = await Promise.all(
+          summaries.map(async (s) => {
+            try {
+              const d = await api<CaseDetail>(`/api/v1/cases/${s.id}`);
+              const studentDisplayName = d.group_name
+                ? `Sinh viên · ${d.group_name}`
+                : d.group_id
+                ? `Sinh viên · ${d.group_id}`
+                : "Sinh viên";
+              const item: LecturerQueueItem = {
+                id: d.id,
+                questionId: d.question_id,
+                studentId: d.actor_id || "demo-student",
+                studentName: studentDisplayName,
+                courseId: d.course_id || "CO3001",
+                groupId: d.group_id,
+                groupName: d.group_name,
+                policyTopic: d.policy_topic,
+                escalationTarget: d.escalation_target || "COURSE_LECTURER",
+                title: d.decision_question || d.original_question.slice(0, 60),
+                topic: d.course_id === "CO3001" ? "Đồ án chuyên ngành" : "Đồ án Đa ngành",
+                escalationTag: d.uncertainty_type || "OUT_OF_POLICY",
+                submittedAt: new Date(d.created_at).toLocaleString("vi-VN", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                rawCreatedAt: d.created_at,
+                slaDueAt: d.sla_due_at,
+                slaOverdue: d.sla_due_at ? new Date() > new Date(d.sla_due_at) : false,
+                question: d.original_question,
+                citations: d.citations ?? [],
+              };
+              return item;
+            } catch {
+              return null;
+            }
+          })
+        );
+        const validItems = detailList.filter((item): item is LecturerQueueItem => item !== null);
+        setQueue(validItems);
+      } else {
+        setQueue([]);
+      }
+    } catch {
+      setQueue([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadCases() {
-      try {
-        const summaries = await api<CaseSummary[]>("/api/v1/cases?status=UNDER_REVIEW");
-        if (Array.isArray(summaries) && summaries.length > 0) {
-          const detailList = await Promise.all(
-            summaries.map(async (s) => {
-              try {
-                const d = await api<CaseDetail>(`/api/v1/cases/${s.id}`);
-                const studentDisplayName = d.group_name
-                  ? `Sinh viên demo · ${d.group_name}`
-                  : d.group_id
-                  ? `Sinh viên demo · ${d.group_id}`
-                  : "Sinh viên demo";
-                return {
-                  id: d.id,
-                  questionId: d.question_id,
-                  studentId: d.actor_id || "demo-student",
-                  studentName: studentDisplayName,
-                  courseId: d.course_id || "CO3001",
-                  groupId: d.group_id,
-                  groupName: d.group_name,
-                  policyTopic: d.policy_topic || "GROUP_MEMBERSHIP",
-                  escalationTarget: d.escalation_target || "COURSE_LECTURER",
-                  title: d.decision_question || d.original_question.slice(0, 60),
-                  topic: d.course_id === "CO3001" ? "Đồ án chuyên ngành" : "Đồ án Đa ngành",
-                  escalationTag: (d.uncertainty_type as EscalationTag) || "OUT_OF_POLICY",
-                  submittedAt: new Date(d.created_at).toLocaleString("vi-VN", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
-                  slaDueAt: d.sla_due_at,
-                  slaOverdue: d.sla_overdue ?? false,
-                  question: d.original_question,
-                  citations: d.citations || [],
-                } as LecturerQueueItem;
-              } catch {
-                return null;
-              }
-            })
-          );
-          const valid = detailList.filter(Boolean) as LecturerQueueItem[];
-          setQueue(valid);
-          if (valid.length > 0) {
-            setSelectedId(valid[0].id);
-          } else {
-            setSelectedId("");
-          }
-        } else {
-          setQueue([]);
-          setSelectedId("");
-        }
-      } catch (err) {
-        console.warn("Could not load lecturer queue", err);
-        setQueue([]);
-        setSelectedId("");
-      }
-    }
     void loadCases();
   }, []);
 
-  const filteredQueue = queue.filter((c) => {
-    if (filterTarget === "ALL") return true;
-    return c.escalationTarget === filterTarget;
-  });
+  const handleCopyId = (idToCopy: string) => {
+    void navigator.clipboard.writeText(idToCopy);
+    setCopiedId(idToCopy);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
-  const selected =
-    filteredQueue.find((c) => c.id === selectedId) ||
-    filteredQueue[0] ||
-    queue.find((c) => c.id === selectedId) ||
-    queue[0];
+  const filteredQueue = useMemo(() => {
+    return queue.filter((c) => {
+      if (filterTarget === "ALL") return true;
+      return c.escalationTarget === filterTarget;
+    });
+  }, [queue, filterTarget]);
+
+  const selectedCase = useMemo(() => {
+    if (!selectedId) return null;
+    return filteredQueue.find((c) => c.id === selectedId) || queue.find((c) => c.id === selectedId) || null;
+  }, [filteredQueue, queue, selectedId]);
 
   async function handleConfirmDecision() {
-    if (!decision || !selected) return;
+    if (!decision || !selectedCase) return;
+    if (!reason.trim()) {
+      setMessage("Lỗi: Vui lòng nhập lý do quyết định.");
+      return;
+    }
     setSubmitting(true);
     setMessage("");
 
     try {
-      let scopeId = selected.groupId || "group-a";
+      let scopeId = selectedCase.groupId || "group-a";
       if (exceptionScope === "STUDENT") {
-        scopeId = selected.studentId || "demo-student";
+        scopeId = selectedCase.studentId || "demo-student";
       } else if (exceptionScope === "COURSE") {
-        scopeId = selected.courseId || "CO3001";
+        scopeId = selectedCase.courseId || "CO3001";
       }
 
       const payload: CaseDecisionCreate = {
         reviewer_id: reviewerId,
         decision,
-        reason:
-          reason.trim() ||
-          (decision === "APPROVED"
-            ? "Giảng viên phụ trách đã phê duyệt yêu cầu."
-            : "Giảng viên từ chối yêu cầu do không đáp ứng quy chuẩn."),
+        reason: reason.trim(),
         create_exception: createException && decision === "APPROVED",
         exception:
           createException && decision === "APPROVED"
             ? {
                 scope_type: exceptionScope,
                 scope_id: scopeId,
-                course_id: selected.courseId,
-                policy_topic: selected.policyTopic || "GROUP_MEMBERSHIP",
+                course_id: selectedCase.courseId,
+                policy_topic: selectedCase.policyTopic || "GROUP_MEMBERSHIP",
                 content:
                   exceptionContent.trim() ||
                   reason.trim() ||
@@ -178,23 +230,24 @@ export function LecturerInboxView({
       };
 
       const res = await postJson<DecisionResponse>(
-        `/api/v1/cases/${selected.id}/decision`,
+        `/api/v1/cases/${selectedCase.id}/decision`,
         payload,
-        { "Idempotency-Key": `decision-${selected.id}-${Date.now()}` }
+        { "Idempotency-Key": `decision-${selectedCase.id}-${Date.now()}` }
       );
 
       if (res?.exception_id) {
-        setMessage(
-          `Đã phê duyệt và lưu ngoại lệ thành công! Mã ngoại lệ: #${res.exception_id}`
-        );
+        setMessage(`Đã phê duyệt và lưu ngoại lệ thành công! Mã ngoại lệ: #${res.exception_id}`);
       } else if (decision === "APPROVED") {
         setMessage("Đã phê duyệt một lần thành công (không lưu ngoại lệ).");
-      } else {
+      } else if (decision === "REJECTED") {
         setMessage("Đã gửi thông báo từ chối yêu cầu.");
+      } else {
+        setMessage("Đã cập nhật trạng thái hồ sơ thành công.");
       }
 
       // Remove from active queue
-      setQueue((prev) => prev.filter((item) => item.id !== selected.id));
+      setQueue((prev) => prev.filter((item) => item.id !== selectedCase.id));
+      setSelectedId("");
       setDecision(null);
       setReason("");
       setCreateException(false);
@@ -207,525 +260,502 @@ export function LecturerInboxView({
     }
   }
 
-  const decisionButtons: Array<{
+  // Segmented control items for decision
+  const decisionOptions: Array<{
     key: DecisionType;
     label: string;
-    icon: React.ReactNode;
-    activeColor: string;
+    icon: React.ComponentType<{ size?: number }>;
+    activeBg: string;
+    activeText: string;
+    activeBorder: string;
   }> = [
     {
       key: "APPROVED",
-      label: "Phê duyệt (Duyệt)",
-      icon: <IconCheck size={15} />,
-      activeColor: "bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold",
+      label: "Phê duyệt",
+      icon: Check,
+      activeBg: "bg-[#E8F5E9]",
+      activeText: "text-[#146C2E]",
+      activeBorder: "border-[#C8E6C9]",
     },
     {
       key: "REJECTED",
       label: "Từ chối",
-      icon: <IconX size={15} />,
-      activeColor: "bg-rose-600 border-rose-600 text-white shadow-xs font-bold",
+      icon: X,
+      activeBg: "bg-[#FFEBEE]",
+      activeText: "text-[#B3261E]",
+      activeBorder: "border-[#FFCDD2]",
+    },
+    {
+      key: "NEED_MORE_INFO",
+      label: "Cần thêm thông tin",
+      icon: HelpCircle,
+      activeBg: "bg-[#FFF8E1]",
+      activeText: "text-[#8C5000]",
+      activeBorder: "border-[#FFE082]",
+    },
+    {
+      key: "FORWARDED",
+      label: "Chuyển tiếp",
+      icon: Forward,
+      activeBg: "bg-[#E3F2FD]",
+      activeText: "text-[#0B57D0]",
+      activeBorder: "border-[#BBDEFB]",
     },
   ];
 
+  // Empty state
+  if (!loading && queue.length === 0) {
+    return (
+      <div className="flex-1 w-full bg-[var(--surface-dim)] flex flex-col items-center justify-center py-20 px-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--surface-container)] border border-[var(--outline)]/40 flex items-center justify-center text-[var(--on-surface-variant)] mb-4">
+          <Inbox size={32} />
+        </div>
+        <h2 className="text-lg font-normal text-[var(--on-surface)] mb-1">
+          Hàng đợi thẩm định đang trống
+        </h2>
+        <p className="text-xs text-[var(--on-surface-variant)] max-w-sm mb-6 leading-relaxed">
+          Hiện tại không có hồ sơ sinh viên nào cần phê duyệt hoặc xử lý ngoại lệ.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC] overflow-hidden">
-      {/* Top Header */}
-      <div className="px-8 pt-6 pb-4 border-b border-slate-200 bg-white flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Hồ sơ học vụ giảng viên</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Review câu hỏi, scope actor và policy evidence trước khi quyết định
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-xs text-amber-800 font-bold">
-              {queue.length} chờ thẩm định
-            </span>
-          </div>
+    <div className="flex-1 w-full bg-[var(--surface-dim)] flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      {/* ── TOP TOOLBAR (FILTER PILLS + STATS) ── */}
+      <div className="px-4 sm:px-6 py-3 bg-[var(--surface)] border-b border-[var(--outline)]/30 shrink-0 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setFilterTarget("ALL")}
+            className={`h-7 px-3 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors cursor-pointer ${
+              filterTarget === "ALL"
+                ? "bg-[var(--primary-container)] border-[var(--primary)] text-[var(--primary)] font-semibold"
+                : "bg-[var(--surface)] border-[var(--outline)]/40 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)]"
+            }`}
+          >
+            Tất cả ({queue.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTarget("COURSE_LECTURER")}
+            className={`h-7 px-3 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors cursor-pointer ${
+              filterTarget === "COURSE_LECTURER"
+                ? "bg-[var(--primary-container)] border-[var(--primary)] text-[var(--primary)] font-semibold"
+                : "bg-[var(--surface)] border-[var(--outline)]/40 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)]"
+            }`}
+          >
+            Giảng viên phụ trách ({queue.filter((q) => q.escalationTarget === "COURSE_LECTURER").length})
+          </button>
+        </div>
+
+        <div className="text-xs text-[var(--on-surface-variant)] font-mono">
+          {queue.length} hồ sơ chờ duyệt
         </div>
       </div>
 
-      {/* 2-Column Layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Column (~33%) */}
-        <div className="w-[33%] border-r border-slate-200 overflow-y-auto bg-slate-50/50 p-3 space-y-2 flex-shrink-0 flex flex-col">
-          {/* Target Filter Pills */}
-          <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-lg text-xs font-medium mb-1">
-            <button
-              type="button"
-              onClick={() => setFilterTarget("ALL")}
-              className={`flex-1 py-1 px-1 rounded text-center transition-all ${
-                filterTarget === "ALL"
-                  ? "bg-white text-slate-900 shadow-xs font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Tất cả ({queue.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTarget("COURSE_LECTURER")}
-              className={`flex-1 py-1 px-1 rounded text-center transition-all ${
-                filterTarget === "COURSE_LECTURER"
-                  ? "bg-white text-amber-900 shadow-xs font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Giảng viên ({queue.filter((q) => q.escalationTarget === "COURSE_LECTURER").length})
-            </button>
+      {/* ── MAIN WORKSPACE AREA ── */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* CASE 1: No case selected → Full-width Gmail list view */}
+        {!selectedCase && (
+          <div className="flex-1 overflow-y-auto bg-[var(--surface)]">
+            {filteredQueue.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => {
+                  setSelectedId(c.id);
+                  setDecision(null);
+                  setReason("");
+                  setCreateException(false);
+                  setExceptionScope(c.groupId ? "GROUP" : "STUDENT");
+                  setExceptionContent("");
+                  setMessage("");
+                }}
+                className="flex items-center h-14 px-4 border-b border-[var(--outline)]/20 hover:bg-[var(--surface-container-high)] transition-colors cursor-pointer select-none group"
+              >
+                <div className="shrink-0 w-32 flex items-center gap-2">
+                  <Badge route={c.escalationTag} className="text-[11px] py-0.5 px-2" />
+                </div>
+                <div className="flex-1 min-w-0 pr-4">
+                  <p className="text-sm font-medium text-[var(--on-surface)] truncate group-hover:text-[var(--primary)] transition-colors">
+                    {c.title}
+                  </p>
+                </div>
+                <div className="hidden sm:block shrink-0 w-44 text-xs text-[var(--on-surface-variant)] truncate text-right pr-6">
+                  {c.studentName}
+                </div>
+                <div className="shrink-0 text-xs font-mono text-[var(--on-surface-variant)] text-right w-16">
+                  {formatGmailDate(c.rawCreatedAt || c.submittedAt)}
+                </div>
+              </div>
+            ))}
           </div>
+        )}
 
-          {filteredQueue.length === 0 && (
-            <div className="text-center py-16 text-slate-400 text-sm font-medium">
-              Không có hồ sơ nào phù hợp với bộ lọc
-            </div>
-          )}
-          {filteredQueue.map((c) => (
-            <button
-              type="button"
-              key={c.id}
-              onClick={() => {
-                setSelectedId(c.id);
-                setDecision(null);
-                setReason("");
-                setCreateException(false);
-                setExceptionScope(c.groupId ? "GROUP" : "STUDENT");
-                setExceptionContent("");
-                setMessage("");
-              }}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                selected?.id === c.id
-                  ? "bg-white border-[#DC2626] shadow-sm ring-1 ring-[#DC2626]/20"
-                  : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 shadow-xs"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[10px] font-bold text-slate-400">
-                    #{c.id}
-                  </span>
-                  {c.escalationTarget === "POLICY_VIOLATION" ? (
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
-                      Vi phạm
-                    </span>
-                  ) : c.escalationTarget === "ACADEMIC_AFFAIRS" ? (
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      P. Đào tạo
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
-                      Giảng viên
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                  {c.slaOverdue ? (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                      QUÁ HẠN SLA
-                    </span>
-                  ) : (
-                    <>
-                      <IconClock size={12} />
-                      <span className="font-mono text-[10px]">
-                        {c.slaDueAt ? new Date(c.slaDueAt).toLocaleDateString("vi-VN") : "48h"}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <p className="text-sm font-semibold text-slate-800 leading-snug mb-2.5 line-clamp-2">
-                {c.title}
-              </p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-mono font-medium">{c.studentId}</span>
-                <span className="text-[11px] text-slate-500">{c.groupName || c.groupId || "Chưa có nhóm"}</span>
-                <EscalationTagBadge tag={c.escalationTag} />
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* Right Column (~67%) */}
-        <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
-          {selected ? (
-            <div className="space-y-5 max-w-3xl">
-              {/* SLA 48h Timer */}
-              <SlaTimer
-                isOverdue={selected.slaOverdue}
-                dueAt={selected.slaDueAt || undefined}
-                key={selected.id}
-              />
-
-              {/* Case Summary Card */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-slate-400">
-                      #{selected.id}
-                    </span>
-                    {selected.slaOverdue && (
-                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-rose-100 text-rose-800 border border-rose-300">
-                        ĐÃ QUÁ HẠN SLA
-                      </span>
-                    )}
-                    {selected.escalationTarget === "POLICY_VIOLATION" ? (
-                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-rose-100 text-rose-800 border border-rose-300">
-                        Cảnh báo: Vi phạm quy chế (Auditor / Thanh tra)
-                      </span>
-                    ) : selected.escalationTarget === "ACADEMIC_AFFAIRS" ? (
-                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-indigo-100 text-indigo-800 border border-indigo-300">
-                        Thẩm quyền: Phòng Đào tạo & CTSV
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-amber-100 text-amber-800 border border-amber-300">
-                        Thẩm quyền: Giảng viên phụ trách môn học
-                      </span>
-                    )}
-                  </div>
-                  <EscalationTagBadge tag={selected.escalationTag} />
-                </div>
-                <h2 className="text-base font-bold text-slate-900 leading-snug mb-3">
-                  {selected.title}
-                </h2>
-                <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                  <div className="flex items-center gap-1 font-medium text-slate-700">
-                    <span>{selected.studentName}</span>
-                    <span>·</span>
-                    <span className="font-mono">{selected.studentId}</span>
-                  </div>
-                  <span>·</span>
-                  <span className="font-medium text-slate-600">{selected.topic}</span>
-                  <span>·</span>
-                  <span>{selected.groupName || selected.groupId || "Chưa có nhóm"}</span>
-                  <span>·</span>
-                  <span>{selected.submittedAt}</span>
-                </div>
-              </div>
-
-              {/* Question Content */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                  Nội dung câu hỏi
-                </h3>
-                <p className="text-sm text-slate-800 leading-relaxed font-normal">
-                  {selected.question}
-                </p>
-              </div>
-
-              {/* AI Referee Insights */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-                <div className="flex items-center gap-2 mb-3.5">
-                  <span className="text-sky-600">
-                    <IconSparkle size={15} />
-                  </span>
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    AI Referee Insights
-                  </h3>
-                </div>
-
-                <div className="space-y-3.5">
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-slate-500 font-medium">Lý do leo thang:</span>
-                    <EscalationTagBadge tag={selected.escalationTag} />
-                  </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-slate-500 font-medium">Chủ đề quy chế (policy_topic):</span>
-                    <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                      {selected.policyTopic || "GROUP_MEMBERSHIP"}
-                    </span>
-                  </div>
-
-                  {selected.citations && selected.citations.length > 0 ? (
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600 mb-2">
-                        Trích dẫn quy chế liên quan (RAG Citations):
-                      </p>
-                      <div className="space-y-2">
-                        {selected.citations.map((cite, i) => (
-                          <div
-                            key={i}
-                            className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg"
-                          >
-                            <div className="flex items-center justify-between text-xs font-semibold text-sky-700 mb-1">
-                              <div className="flex items-center gap-1.5">
-                                <IconBookOpen size={13} />
-                                <span>
-                                  {cite.document_title} · {cite.heading || cite.label}
-                                </span>
-                              </div>
-                              {cite.page_number !== null && cite.page_number !== undefined && (
-                                <span className="text-[11px] text-slate-500 font-mono">
-                                  Trang {cite.page_number}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-600 italic leading-relaxed">
-                              "{cite.quote}"
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 italic">
-                      Không tìm thấy điều khoản liên quan trực tiếp trong cơ sở dữ liệu quy chế.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Lecturer Decision Form */}
-              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Quyết định của Giảng viên
-                  </h3>
-                  <span className="text-xs text-slate-400 font-mono font-medium">
-                    Hồ sơ #{selected.id}
-                  </span>
-                </div>
-
-                {/* 2 Decision Buttons: APPROVED & REJECTED */}
-                <div className="grid grid-cols-2 gap-3">
-                  {decisionButtons.map((btn) => (
+        {/* CASE 2: Case selected → 2-column or Maximized view */}
+        {selectedCase && (
+          <>
+            {/* Left compact list (~380px) */}
+            {!isMaximized && (
+              <div className="hidden md:flex w-[380px] shrink-0 border-r border-[var(--outline)]/30 flex-col bg-[var(--surface-dim)] overflow-y-auto p-3 space-y-2">
+                {filteredQueue.map((c) => {
+                  const isSelected = selectedCase.id === c.id;
+                  return (
                     <button
+                      key={c.id}
                       type="button"
-                      key={btn.key}
                       onClick={() => {
-                        setDecision(btn.key);
-                        if (btn.key === "REJECTED") {
-                          setCreateException(false);
-                        }
+                        setSelectedId(c.id);
+                        setDecision(null);
+                        setReason("");
+                        setCreateException(false);
+                        setExceptionScope(c.groupId ? "GROUP" : "STUDENT");
+                        setExceptionContent("");
+                        setMessage("");
                       }}
-                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border text-sm transition-all ${
-                        decision === btn.key
-                          ? btn.activeColor
-                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                      className={`w-full text-left p-3.5 rounded-[var(--radius-md)] border transition-all ${
+                        isSelected
+                          ? "bg-[var(--primary-container)]/50 border-[var(--primary)] shadow-xs"
+                          : "bg-[var(--surface)] border-[var(--outline)]/30 hover:bg-[var(--surface-container-high)]"
                       }`}
                     >
-                      {btn.icon}
-                      <span>{btn.label}</span>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <Badge route={c.escalationTag} className="text-[11px] py-0.5 px-2" />
+                        <span className="text-[11px] text-[var(--on-surface-variant)] font-mono">
+                          {formatGmailDate(c.rawCreatedAt || c.submittedAt)}
+                        </span>
+                      </div>
+                      <p
+                        className={`text-xs leading-snug line-clamp-2 ${
+                          isSelected
+                            ? "font-semibold text-[var(--primary)]"
+                            : "font-medium text-[var(--on-surface)]"
+                        }`}
+                      >
+                        {c.title}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2 text-[10px] text-[var(--on-surface-variant)]">
+                        <span className="truncate">{c.studentName}</span>
+                      </div>
                     </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Right detail & decision panel */}
+            <div className="flex-1 overflow-y-auto bg-[var(--surface)] p-6 md:p-8 flex flex-col">
+              <div
+                className={`w-full ${
+                  isMaximized ? "max-w-[760px] mx-auto" : "max-w-3xl"
+                } space-y-6 flex-1`}
+              >
+                {/* Detail Toolbar */}
+                <div className="flex items-center justify-between pb-3 border-b border-[var(--outline)]/30">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId("")}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-xl)] bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-xs font-medium text-[var(--on-surface)] transition-colors cursor-pointer"
+                      title="Quay lại danh sách"
+                    >
+                      <ArrowLeft size={14} />
+                      <span>Quay lại</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleMaximize}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-xl)] bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-xs font-medium text-[var(--on-surface)] transition-colors cursor-pointer"
+                      title={isMaximized ? "Thu nhỏ" : "Phóng to"}
+                    >
+                      {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                      <span>{isMaximized ? "Thu nhỏ" : "Phóng to"}</span>
+                    </button>
+                  </div>
+
+                  {selectedCase.slaDueAt && (
+                    <div className="text-xs">
+                      <SlaTimer dueAt={selectedCase.slaDueAt} compact />
+                    </div>
+                  )}
+                </div>
+
+                {/* Case Info Header */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge route={selectedCase.escalationTag} />
+                    <span className="font-mono text-xs font-bold text-[var(--on-surface-variant)]">
+                      #{selectedCase.id.slice(0, 8)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyId(selectedCase.id)}
+                      className="inline-flex items-center gap-1 text-[11px] text-[var(--primary)] hover:underline ml-1 cursor-pointer"
+                      title="Sao chép ID đầy đủ"
+                    >
+                      {copiedId === selectedCase.id ? (
+                        <>
+                          <Check size={12} className="text-[var(--success)]" />
+                          <span className="text-[var(--success)] font-medium">Đã chép</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>Mã đầy đủ</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <h2 className="text-base font-normal text-[var(--on-surface)] leading-relaxed">
+                    {selectedCase.question}
+                  </h2>
+                </div>
+
+                {/* Metadata cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Môn học", value: selectedCase.topic },
+                    { label: "Sinh viên / Nhóm", value: selectedCase.studentName },
+                    { label: "Ngày gửi", value: selectedCase.submittedAt },
+                    { label: "Chủ đề quy định", value: selectedCase.policyTopic || "Chung" },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="bg-[var(--surface-container)] rounded-[var(--radius-md)] p-3 border border-[var(--outline)]/30"
+                    >
+                      <p className="text-[11px] text-[var(--on-surface-variant)] mb-0.5">
+                        {item.label}
+                      </p>
+                      <p className="text-xs text-[var(--on-surface)] font-medium truncate">
+                        {item.value}
+                      </p>
+                    </div>
                   ))}
                 </div>
 
-                {/* APPROVED Options: Duyệt 1 lần vs Duyệt và lưu ngoại lệ */}
-                {decision === "APPROVED" && (
-                  <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-xl space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Hình thức phê duyệt
+                {/* Citations List if available */}
+                {selectedCase.citations && selectedCase.citations.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-[var(--on-surface-variant)]">
+                      Căn cứ điều khoản liên quan ({selectedCase.citations.length})
                     </p>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setCreateException(false)}
-                        className={`p-3 rounded-lg border text-left transition-all ${
-                          !createException
-                            ? "bg-white border-emerald-600 ring-2 ring-emerald-500/20 shadow-xs"
-                            : "bg-white border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="text-xs font-bold text-slate-900">Duyệt một lần</div>
-                        <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                          Không lưu ngoại lệ. Quyết định không được dùng tự động cho câu hỏi sau.
-                        </p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setCreateException(true)}
-                        className={`p-3 rounded-lg border text-left transition-all ${
-                          createException
-                            ? "bg-white border-emerald-600 ring-2 ring-emerald-500/20 shadow-xs"
-                            : "bg-white border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                          <span>Duyệt và lưu ngoại lệ</span>
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">Tự động áp dụng</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                          Lưu ngoại lệ vào hệ thống để tự động chấp thuận cho các câu hỏi sau cùng phạm vi.
-                        </p>
-                      </button>
-                    </div>
-
-                    {/* Detailed exception inputs if createException */}
-                    {createException && (
-                      <div className="pt-3 border-t border-slate-200/80 space-y-3">
-                        {/* Scope Selector: GROUP, STUDENT, COURSE */}
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Phạm vi áp dụng ngoại lệ (Scope Type)
-                          </label>
-                          <div className="grid grid-cols-3 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setExceptionScope("GROUP")}
-                              className={`py-2 px-2.5 rounded-lg border text-xs font-semibold text-center transition-all ${
-                                exceptionScope === "GROUP"
-                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                              }`}
-                            >
-                              Theo Nhóm ({selected.groupName || selected.groupId || "Nhóm"})
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setExceptionScope("STUDENT")}
-                              className={`py-2 px-2.5 rounded-lg border text-xs font-semibold text-center transition-all ${
-                                exceptionScope === "STUDENT"
-                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                              }`}
-                            >
-                              Theo Sinh viên ({selected.studentId})
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setExceptionScope("COURSE")}
-                              className={`py-2 px-2.5 rounded-lg border text-xs font-semibold text-center transition-all ${
-                                exceptionScope === "COURSE"
-                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                              }`}
-                            >
-                              Toàn môn ({selected.courseId})
-                            </button>
+                    <div className="space-y-2">
+                      {selectedCase.citations.map((c, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 bg-[var(--surface-container)] rounded-[var(--radius-sm)] border border-[var(--outline)]/30 text-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between text-[var(--on-surface)] font-medium">
+                            <span>{c.document_title}</span>
+                            {c.heading && (
+                              <span className="font-mono text-[11px] text-[var(--on-surface-variant)]">
+                                {c.heading}
+                              </span>
+                            )}
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-1.5 font-mono">
-                            Mã phạm vi áp dụng (scope_id):{" "}
-                            <span className="font-bold text-slate-800">
-                              {exceptionScope === "GROUP"
-                                ? selected.groupId || "group-a"
-                                : exceptionScope === "STUDENT"
-                                ? selected.studentId || "demo-student"
-                                : selected.courseId}
-                            </span>{" "}
-                            · Chủ đề:{" "}
-                            <span className="font-bold text-slate-800">
-                              {selected.policyTopic || "GROUP_MEMBERSHIP"}
-                            </span>
+                          <p className="text-[var(--on-surface-variant)] italic pl-2 border-l-2 border-[var(--outline)]">
+                            "{c.quote}"
                           </p>
                         </div>
-
-                        {/* Date Validity */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">
-                              Hiệu lực từ ngày (valid_from)
-                            </label>
-                            <input
-                              type="date"
-                              value={validFrom}
-                              onChange={(e) => setValidFrom(e.target.value)}
-                              className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-emerald-600"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">
-                              Hiệu lực đến ngày (valid_until)
-                            </label>
-                            <input
-                              type="date"
-                              value={validUntil}
-                              min={validFrom}
-                              onChange={(e) => setValidUntil(e.target.value)}
-                              className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-emerald-600"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Exception Content */}
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">
-                            Nội dung ngoại lệ quy chế (content)
-                          </label>
-                          <textarea
-                            rows={2}
-                            value={exceptionContent}
-                            onChange={(e) => setExceptionContent(e.target.value)}
-                            placeholder="Ví dụ: Nhóm được phép có tối đa 6 thành viên."
-                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-emerald-600"
-                          />
-                        </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {/* Reason Textarea */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                    {decision === "REJECTED" ? "Lý do từ chối (bắt buộc)" : "Căn cứ quyết định / Ghi chú (reason)"}
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder={
-                      decision === "REJECTED"
-                        ? "Nhập lý do từ chối yêu cầu (ví dụ: Không đáp ứng điều kiện ngoại lệ của môn học)..."
-                        : "Nhập căn cứ chấp thuận (ví dụ: Đồng ý cho nhóm này có tối đa 6 thành viên)..."
-                    }
-                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#DC2626] resize-none leading-relaxed"
-                  />
-                </div>
+                {/* ── FORM QUYẾT ĐỊNH (MATERIAL SEGMENTED CONTROL) ── */}
+                <div className="pt-4 border-t border-[var(--outline)]/30 space-y-4">
+                  <h3 className="text-xs font-medium text-[var(--on-surface-variant)]">
+                    Quyết định của Giảng viên (Thẩm định)
+                  </h3>
 
-                {/* Feedback message */}
-                {message && (
-                  <div
-                    className={`p-3 rounded-lg text-xs font-semibold flex items-center gap-2 ${
-                      message.startsWith("Lỗi")
-                        ? "bg-rose-50 border border-rose-200 text-rose-800"
-                        : "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                  {/* 4-way Segmented Button */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {decisionOptions.map((opt) => {
+                      const IconComponent = opt.icon;
+                      const isSelected = decision === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => {
+                            setDecision(opt.key);
+                            if (opt.key !== "APPROVED") {
+                              setCreateException(false);
+                            }
+                          }}
+                          className={`flex items-center justify-center gap-2 h-11 px-3 rounded-[var(--radius-md)] border text-xs font-medium transition-all cursor-pointer ${
+                            isSelected
+                              ? `${opt.activeBg} ${opt.activeText} ${opt.activeBorder} font-semibold shadow-xs`
+                              : "bg-[var(--surface-container)] border-[var(--outline)]/40 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--on-surface)]"
+                          }`}
+                        >
+                          <IconComponent size={15} />
+                          <span>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Collapsible Card: Tạo ngoại lệ (chỉ khi APPROVED) */}
+                  {decision === "APPROVED" && (
+                    <Card variant="filled" className="space-y-3 bg-[var(--surface-container)]">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={createException}
+                            onChange={(e) => setCreateException(e.target.checked)}
+                            className="w-4 h-4 text-[var(--primary)] rounded focus:ring-[var(--primary)] cursor-pointer"
+                          />
+                          <span className="text-xs font-medium text-[var(--on-surface)]">
+                            Lưu tiền lệ ngoại lệ quy chế cho môn học
+                          </span>
+                        </label>
+                        {createException && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#146C2E] border border-[#C8E6C9] font-medium">
+                            Tự động áp dụng sau này
+                          </span>
+                        )}
+                      </div>
+
+                      {createException && (
+                        <div className="pt-3 border-t border-[var(--outline)]/30 space-y-3">
+                          <div>
+                            <label className="block text-[11px] font-medium text-[var(--on-surface-variant)] mb-1">
+                              Phạm vi áp dụng ngoại lệ
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { scope: "GROUP", label: `Nhóm (${selectedCase.groupName || selectedCase.groupId || "Nhóm"})` },
+                                { scope: "STUDENT", label: `Sinh viên (${selectedCase.studentId})` },
+                                { scope: "COURSE", label: `Toàn môn (${selectedCase.courseId})` },
+                              ].map((item) => (
+                                <button
+                                  key={item.scope}
+                                  type="button"
+                                  onClick={() => setExceptionScope(item.scope as "GROUP" | "STUDENT" | "COURSE")}
+                                  className={`py-1.5 px-2 rounded-[var(--radius-sm)] border text-xs font-medium text-center transition-all cursor-pointer ${
+                                    exceptionScope === item.scope
+                                      ? "bg-[var(--primary)] text-white border-[var(--primary)]"
+                                      : "bg-[var(--surface)] text-[var(--on-surface-variant)] border-[var(--outline)]/40 hover:bg-[var(--surface-container-high)]"
+                                  }`}
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-medium text-[var(--on-surface-variant)] mb-1">
+                                Hiệu lực từ
+                              </label>
+                              <input
+                                type="date"
+                                value={validFrom}
+                                onChange={(e) => setValidFrom(e.target.value)}
+                                className="w-full h-9 px-3 rounded-[var(--radius-sm)] bg-[var(--surface)] border border-[var(--outline)]/40 text-xs text-[var(--on-surface)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-medium text-[var(--on-surface-variant)] mb-1">
+                                Hiệu lực đến
+                              </label>
+                              <input
+                                type="date"
+                                value={validUntil}
+                                min={validFrom}
+                                onChange={(e) => setValidUntil(e.target.value)}
+                                className="w-full h-9 px-3 rounded-[var(--radius-sm)] bg-[var(--surface)] border border-[var(--outline)]/40 text-xs text-[var(--on-surface)]"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-medium text-[var(--on-surface-variant)] mb-1">
+                              Nội dung ngoại lệ
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={exceptionContent}
+                              onChange={(e) => setExceptionContent(e.target.value)}
+                              placeholder="Ví dụ: Nhóm được phép có tối đa 6 thành viên."
+                              className="w-full p-2.5 rounded-[var(--radius-sm)] bg-[var(--surface)] border border-[var(--outline)]/40 text-xs text-[var(--on-surface)] focus:border-[var(--primary)] focus:outline-none resize-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
+                  {/* Reason Textarea (Bắt buộc) */}
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--on-surface-variant)] mb-1">
+                      Lý do / Căn cứ phán quyết <span className="text-[var(--error)]">*</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder={
+                        decision === "REJECTED"
+                          ? "Nhập lý do từ chối yêu cầu (bắt buộc)..."
+                          : decision === "APPROVED"
+                          ? "Nhập căn cứ phê duyệt (bắt buộc)..."
+                          : "Nhập thông tin cần làm rõ hoặc chuyển tiếp (bắt buộc)..."
+                      }
+                      className="w-full p-3 rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--outline)]/40 text-xs text-[var(--on-surface)] placeholder-[var(--on-surface-variant)]/60 focus:border-[var(--primary)] focus:outline-none resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Message Banner */}
+                  {message && (
+                    <div
+                      className={`p-3 rounded-[var(--radius-sm)] text-xs font-medium flex items-center gap-2 ${
+                        message.startsWith("Lỗi")
+                          ? "bg-[#FFEBEE] border border-[#FFCDD2] text-[var(--error)]"
+                          : "bg-[#E8F5E9] border border-[#C8E6C9] text-[var(--success)]"
+                      }`}
+                    >
+                      {message.startsWith("Lỗi") ? (
+                        <AlertCircle size={15} className="shrink-0" />
+                      ) : (
+                        <CheckCircle2 size={15} className="shrink-0" />
+                      )}
+                      <span>{message}</span>
+                    </div>
+                  )}
+
+                  {/* Submit Button */}
+                  <button
+                    type="button"
+                    onClick={handleConfirmDecision}
+                    disabled={!decision || submitting || !reason.trim()}
+                    className={`w-full h-11 rounded-[var(--radius-xl)] text-xs font-medium transition-colors flex items-center justify-center ${
+                      decision && reason.trim() && !submitting
+                        ? "bg-[var(--primary)] text-white hover:bg-[#0842A0] cursor-pointer shadow-xs"
+                        : "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]/50 cursor-not-allowed border border-[var(--outline)]/30"
                     }`}
                   >
-                    {message.startsWith("Lỗi") ? (
-                      <IconAlertCircle size={15} className="shrink-0 text-rose-600" />
-                    ) : (
-                      <IconCheckCircle size={15} className="shrink-0 text-emerald-600" />
-                    )}
-                    <span>{message}</span>
-                  </div>
-                )}
-
-                {/* Submit button */}
-                <button
-                  type="button"
-                  onClick={handleConfirmDecision}
-                  disabled={!decision || submitting || (decision === "REJECTED" && !reason.trim())}
-                  className={`w-full py-3 px-4 rounded-xl text-sm font-bold transition-all shadow-sm ${
-                    decision && !(decision === "REJECTED" && !reason.trim())
-                      ? decision === "APPROVED"
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
-                        : "bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
-                      : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
-                  }`}
-                >
-                  {submitting
-                    ? "Đang gửi quyết định lên hệ thống..."
-                    : decision === "APPROVED"
-                    ? createException
-                      ? "Xác nhận Phê duyệt & Lưu ngoại lệ quy chế"
-                      : "Xác nhận Phê duyệt một lần"
-                    : decision === "REJECTED"
-                    ? "Xác nhận Từ chối yêu cầu"
-                    : "Chọn hình thức quyết định"}
-                </button>
+                    {submitting ? (
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                    ) : null}
+                    <span>
+                      {submitting
+                        ? "Đang gửi quyết định..."
+                        : decision
+                        ? `Xác nhận: ${decisionOptions.find((d) => d.key === decision)?.label}`
+                        : "Chọn một hình thức quyết định"}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="text-center py-20 text-slate-400 font-medium">
-              Không có hồ sơ nào trong hàng chờ thẩm định.
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
-

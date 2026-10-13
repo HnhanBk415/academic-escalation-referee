@@ -54,8 +54,8 @@ export function StudentWorkflowTracker({
       <div className="flex items-center justify-between pb-5 mb-5 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] animate-pulse"></span>
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Tiến trình Thẩm định & Phân luồng Học vụ
+          <span className="text-xs font-semibold text-slate-700">
+            Tiến trình thẩm định & phân luồng học vụ
           </span>
         </div>
 

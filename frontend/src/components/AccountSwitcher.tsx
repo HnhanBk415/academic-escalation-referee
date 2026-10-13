@@ -63,6 +63,7 @@ export function AccountSwitcher({
   const [isOpen, setIsOpen] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const currentAccount =
@@ -84,12 +85,13 @@ export function AccountSwitcher({
 
   const handleResetConfirm = async () => {
     setIsResetting(true);
+    setResetError(null);
     try {
       await api("/api/demo/reset", { method: "POST" });
       setShowResetModal(false);
       window.location.reload();
     } catch (err) {
-      alert("Lỗi khi reset demo: " + (err instanceof Error ? err.message : String(err)));
+      setResetError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsResetting(false);
     }
@@ -144,7 +146,7 @@ export function AccountSwitcher({
       {isOpen && (
         <div className="absolute right-0 mt-2 w-72 bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[var(--shadow-2)] border border-[var(--outline)]/40 py-2 z-50 animate-fade-in">
           <div className="px-4 py-2 border-b border-[var(--outline)]/30">
-            <p className="text-[11px] font-semibold text-[var(--on-surface-variant)] uppercase tracking-wider">
+            <p className="text-[11px] font-medium text-[var(--on-surface-variant)]">
               Chọn tài khoản demo
             </p>
           </div>
@@ -239,6 +241,11 @@ export function AccountSwitcher({
           Bạn có chắc chắn muốn reset toàn bộ câu hỏi và đưa dữ liệu demo về trạng thái ban đầu không?
           Hành động này sẽ làm sạch các câu hỏi đã hỏi và phục hồi lại dữ liệu mẫu gốc.
         </p>
+        {resetError && (
+          <div className="mt-3 p-3 bg-[#FFEBEE] border border-[#FFCDD2] rounded-[var(--radius-sm)] text-xs text-[var(--error)]">
+            {resetError}
+          </div>
+        )}
       </Modal>
     </div>
   );

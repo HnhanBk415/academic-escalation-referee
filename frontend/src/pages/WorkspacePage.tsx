@@ -99,7 +99,7 @@ export function WorkspacePage({
         )}
 
         {role === "lecturer" && feature === "exceptions" && (
-          <ExceptionsView />
+          <ExceptionsView actorId={actorId} />
         )}
 
         {role === "lecturer" && feature === "documents" && (

@@ -1,13 +1,33 @@
-import { useEffect, useState } from "react";
-
+import React, { useEffect, useState } from "react";
+import { ShieldAlert, RefreshCw, AlertCircle, FileText } from "lucide-react";
 import { api, postJson } from "../api/client";
-import { IconScale } from "../components/Icons";
+import { Badge, Button, Chip, Modal } from "../components/ui";
 import type { CourseExceptionOverview, PolicyException } from "../types";
 
-export function ExceptionsView() {
+interface FlattenedException extends PolicyException {
+  courseCode: string;
+  courseName: string;
+  groupName?: string;
+}
+
+interface ExceptionsViewProps {
+  actorId?: string;
+}
+
+export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps) {
   const [courses, setCourses] = useState<CourseExceptionOverview[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Filters
+  const [scopeFilter, setScopeFilter] = useState<"ALL" | "COURSE" | "GROUP" | "STUDENT">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "REVOKED">("ALL");
+
+  // Revoke modal state
+  const [revokingItem, setRevokingItem] = useState<FlattenedException | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [isRevoking, setIsRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState("");
 
   async function loadExceptions() {
     setLoading(true);
@@ -26,122 +46,324 @@ export function ExceptionsView() {
     void loadExceptions();
   }, []);
 
-  async function revoke(item: PolicyException) {
-    const reason = window.prompt("Lý do thu hồi ngoại lệ:");
-    if (!reason) return;
-    try {
-      await postJson(`/api/v1/exceptions/${item.id}/revoke`, {
-        actor_id: "lecturer-01",
-        reason,
+  // Flatten all exceptions across courses
+  const allExceptions: FlattenedException[] = [];
+  courses.forEach((c) => {
+    c.course_exceptions.forEach((e) => {
+      allExceptions.push({ ...e, courseCode: c.course_code, courseName: c.course_name });
+    });
+    c.groups.forEach((g) => {
+      g.exceptions.forEach((e) => {
+        allExceptions.push({
+          ...e,
+          courseCode: c.course_code,
+          courseName: c.course_name,
+          groupName: g.group_name,
+        });
       });
+    });
+    c.student_exceptions.forEach((e) => {
+      allExceptions.push({ ...e, courseCode: c.course_code, courseName: c.course_name });
+    });
+  });
+
+  const filteredExceptions = allExceptions.filter((item) => {
+    if (scopeFilter !== "ALL" && item.scope_type !== scopeFilter) return false;
+    if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
+    return true;
+  });
+
+  function handleOpenRevoke(item: FlattenedException) {
+    setRevokingItem(item);
+    setRevokeReason("");
+    setRevokeError("");
+  }
+
+  async function handleConfirmRevoke() {
+    if (!revokingItem || !revokeReason.trim()) return;
+    setIsRevoking(true);
+    setRevokeError("");
+    try {
+      await postJson(`/api/v1/exceptions/${revokingItem.id}/revoke`, {
+        actor_id: actorId,
+        reason: revokeReason.trim(),
+      });
+      setRevokingItem(null);
       await loadExceptions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể thu hồi ngoại lệ.");
+      setRevokeError(err instanceof Error ? err.message : "Không thể thu hồi ngoại lệ.");
+    } finally {
+      setIsRevoking(false);
     }
   }
 
-  function exceptionCard(item: PolicyException) {
-    return (
-      <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="font-mono text-slate-500">{item.scope_type} · {item.scope_id}</span>
-          <span className={`rounded px-2 py-0.5 font-bold ${item.is_effective ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-            {item.effective_status}
-          </span>
-        </div>
-        <p className="text-sm font-medium leading-relaxed text-slate-800">{item.content}</p>
-        <p className="mt-1 font-mono text-[11px] font-semibold text-sky-700">{item.policy_topic}</p>
-        <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 text-slate-500">
-          <span>{item.valid_from} → {item.valid_until}</span>
-          {item.status === "ACTIVE" && (
-            <button type="button" onClick={() => revoke(item)} className="font-semibold text-rose-700">
-              Thu hồi
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-[#F8FAFC]">
-      <div className="flex-shrink-0 border-b border-slate-200 bg-white px-8 pb-4 pt-6">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Ngoại lệ quy chế</h1>
-        <p className="mt-0.5 text-sm text-slate-500">
-          Theo dõi theo môn và tên nhóm, bao gồm cả nhóm chưa có ngoại lệ
-        </p>
+    <div className="flex flex-col gap-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">Ngoại lệ quy chế</h1>
+          <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
+            Theo dõi và quản lý ngoại lệ quy chế đã cấp theo môn học và nhóm lớp
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="tonal"
+            size="sm"
+            onClick={() => void loadExceptions()}
+            disabled={loading}
+            className="gap-2"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Làm mới
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-8">
+      {/* Filter Chips Bar */}
+      <div className="flex flex-wrap items-center gap-2 bg-[var(--surface)] p-3 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs">
+        <span className="text-[12px] font-medium text-[var(--on-surface-variant)] mr-1">Phạm vi:</span>
+        <Chip
+          label="Tất cả"
+          selected={scopeFilter === "ALL"}
+          onClick={() => setScopeFilter("ALL")}
+        />
+        <Chip
+          label="Toàn môn"
+          selected={scopeFilter === "COURSE"}
+          onClick={() => setScopeFilter("COURSE")}
+        />
+        <Chip
+          label="Theo nhóm"
+          selected={scopeFilter === "GROUP"}
+          onClick={() => setScopeFilter("GROUP")}
+        />
+        <Chip
+          label="Cá nhân"
+          selected={scopeFilter === "STUDENT"}
+          onClick={() => setScopeFilter("STUDENT")}
+        />
+
+        <div className="h-4 w-[1px] bg-[var(--outline)]/30 mx-1 hidden sm:block" />
+
+        <span className="text-[12px] font-medium text-[var(--on-surface-variant)] mr-1">Trạng thái:</span>
+        <Chip
+          label="Tất cả"
+          selected={statusFilter === "ALL"}
+          onClick={() => setStatusFilter("ALL")}
+        />
+        <Chip
+          label="Đang hiệu lực"
+          selected={statusFilter === "ACTIVE"}
+          onClick={() => setStatusFilter("ACTIVE")}
+        />
+        <Chip
+          label="Đã thu hồi"
+          selected={statusFilter === "REVOKED"}
+          onClick={() => setStatusFilter("REVOKED")}
+        />
+      </div>
+
+      {/* Main Content / Table */}
+      {error && (
+        <div className="rounded-[var(--radius-md)] border border-[var(--error)]/30 bg-[var(--error)]/10 p-4 text-sm text-[var(--error)] flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-            Đang tải dữ liệu ngoại lệ quy chế...
+          <div className="p-6 space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-[52px] bg-[var(--surface-container-low)] rounded animate-pulse w-full"
+              />
+            ))}
           </div>
-        ) : error ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>
-        ) : courses.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center">
-            <div className="py-16 text-center">
-              <div className="mx-auto mb-3.5 flex h-14 w-14 items-center justify-center rounded-full border border-slate-300/80 bg-slate-100 text-slate-500 shadow-xs">
-                <IconScale size={24} />
-              </div>
-              <p className="text-sm font-medium text-slate-500">Chưa có dữ liệu môn và nhóm</p>
+        ) : filteredExceptions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+            <div className="w-12 h-12 rounded-full bg-[var(--surface-container-high)] flex items-center justify-center text-[var(--on-surface-variant)] mb-3">
+              <ShieldAlert className="w-6 h-6" />
             </div>
+            <p className="text-sm font-medium text-[var(--on-surface)]">
+              Không có ngoại lệ quy chế nào
+            </p>
+            <p className="text-xs text-[var(--on-surface-variant)] mt-1">
+              {allExceptions.length > 0
+                ? "Không tìm thấy kết quả phù hợp với bộ lọc hiện tại."
+                : "Chưa có ngoại lệ nào được ban hành cho các môn học."}
+            </p>
           </div>
         ) : (
-          <div className="grid max-w-5xl gap-5">
-            {courses.map((course) => (
-              <section key={course.course_id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
-                <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-                  <h2 className="font-bold text-slate-900">{course.course_code} · {course.course_name}</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Học kỳ {course.semester}</p>
-                </div>
-                <div className="grid gap-4 p-5">
-                  {course.course_exceptions.length > 0 && (
-                    <div>
-                      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Áp dụng toàn môn</h3>
-                      <div className="grid gap-2 md:grid-cols-2">{course.course_exceptions.map(exceptionCard)}</div>
-                    </div>
-                  )}
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {course.groups.map((group) => {
-                      const activeCount = group.exceptions.filter((item) => item.is_effective).length;
-                      return (
-                        <article key={group.group_id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <div>
-                              <h3 className="font-bold text-slate-800">{group.group_name}</h3>
-                              <p className="font-mono text-[11px] text-slate-500">{group.group_id}</p>
-                            </div>
-                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${activeCount ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
-                              {activeCount ? `${activeCount} ngoại lệ hiệu lực` : "Không có ngoại lệ"}
-                            </span>
-                          </div>
-                          <div className="grid gap-2">
-                            {group.exceptions.length ? group.exceptions.map(exceptionCard) : (
-                              <p className="rounded-lg border border-dashed border-slate-300 bg-white p-3 text-xs text-slate-500">
-                                Nhóm này đang áp dụng quy định chung của môn.
-                              </p>
-                            )}
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                  {course.student_exceptions.length > 0 && (
-                    <details>
-                      <summary className="cursor-pointer text-xs font-bold text-slate-600">
-                        Ngoại lệ cá nhân ({course.student_exceptions.length})
-                      </summary>
-                      <div className="mt-2 grid gap-2 md:grid-cols-2">{course.student_exceptions.map(exceptionCard)}</div>
-                    </details>
-                  )}
-                </div>
-              </section>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)]">
+                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                    Môn học · Phạm vi
+                  </th>
+                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                    Chủ đề quy chế
+                  </th>
+                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)]">
+                    Nội dung ngoại lệ
+                  </th>
+                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                    Thời hạn hiệu lực
+                  </th>
+                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                    Trạng thái
+                  </th>
+                  <th className="px-4 py-3 text-[12px] font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
+                    Thao tác
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredExceptions.map((item) => {
+                  const isEffective = item.is_effective && item.status === "ACTIVE";
+                  const isRevoked = item.status === "REVOKED";
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className="h-[52px] border-b border-[var(--outline)]/15 hover:bg-[var(--surface-container-low)]/50 transition-colors"
+                    >
+                      {/* Course / Scope */}
+                      <td className="px-4 py-2.5 text-sm">
+                        <div className="font-medium text-[var(--on-surface)]">
+                          {item.courseCode}
+                        </div>
+                        <div className="text-xs text-[var(--on-surface-variant)]">
+                          {item.scope_type === "COURSE" && "Toàn môn"}
+                          {item.scope_type === "GROUP" && (item.groupName || item.scope_id)}
+                          {item.scope_type === "STUDENT" && `SV: ${item.scope_id}`}
+                        </div>
+                      </td>
+
+                      {/* Topic */}
+                      <td className="px-4 py-2.5 text-xs">
+                        <span className="font-medium text-[var(--primary)] bg-[var(--primary-container)] px-2 py-0.5 rounded-[var(--radius-sm)]">
+                          {item.policy_topic}
+                        </span>
+                      </td>
+
+                      {/* Content */}
+                      <td className="px-4 py-2.5 text-sm text-[var(--on-surface)] max-w-md">
+                        <p className="line-clamp-2 leading-snug">{item.content}</p>
+                      </td>
+
+                      {/* Validity */}
+                      <td className="px-4 py-2.5 text-xs text-[var(--on-surface-variant)] whitespace-nowrap font-mono">
+                        {item.valid_from} → {item.valid_until}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {isRevoked ? (
+                          <Badge tone="neutral">Đã thu hồi</Badge>
+                        ) : isEffective ? (
+                          <Badge tone="answer">Đang hiệu lực</Badge>
+                        ) : (
+                          <Badge tone="neutral">{item.effective_status || "Hết hạn"}</Badge>
+                        )}
+                      </td>
+
+                      {/* Action */}
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        {item.status === "ACTIVE" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRevoke(item)}
+                            className="text-[13px] font-medium text-[var(--error)] hover:underline hover:bg-[var(--error)]/10 px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors"
+                          >
+                            Thu hồi
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[var(--on-surface-variant)]/60">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {/* Revoke Modal */}
+      <Modal
+        isOpen={Boolean(revokingItem)}
+        onClose={() => !isRevoking && setRevokingItem(null)}
+        title="Thu hồi ngoại lệ quy chế"
+        size="md"
+        footer={
+          <>
+            <Button
+              variant="text"
+              onClick={() => setRevokingItem(null)}
+              disabled={isRevoking}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="filled"
+              className="bg-[var(--error)] hover:bg-[var(--error)]/90 text-white"
+              onClick={() => void handleConfirmRevoke()}
+              disabled={!revokeReason.trim() || isRevoking}
+            >
+              {isRevoking ? "Đang xử lý..." : "Xác nhận thu hồi"}
+            </Button>
+          </>
+        }
+      >
+        {revokingItem && (
+          <div className="space-y-4">
+            <div className="p-3 bg-[var(--surface-container)] rounded-[var(--radius-md)] border border-[var(--outline)]/20 text-xs space-y-1.5">
+              <div className="flex items-center justify-between text-[var(--on-surface-variant)]">
+                <span>
+                  {revokingItem.courseCode} ·{" "}
+                  {revokingItem.scope_type === "COURSE"
+                    ? "Toàn môn"
+                    : revokingItem.groupName || revokingItem.scope_id}
+                </span>
+                <span className="font-mono">{revokingItem.policy_topic}</span>
+              </div>
+              <p className="text-sm font-medium text-[var(--on-surface)] leading-relaxed">
+                {revokingItem.content}
+              </p>
+            </div>
+
+            {revokeError && (
+              <div className="p-2.5 rounded-[var(--radius-sm)] bg-[var(--error)]/10 text-[var(--error)] text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{revokeError}</span>
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="revoke-reason"
+                className="block text-xs font-medium text-[var(--on-surface)] mb-1.5"
+              >
+                Lý do thu hồi <span className="text-[var(--error)]">*</span>
+              </label>
+              <textarea
+                id="revoke-reason"
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                placeholder="Nhập lý do thu hồi ngoại lệ này (bắt buộc)..."
+                rows={3}
+                className="w-full rounded-[var(--radius-md)] border border-[var(--outline)]/40 bg-[var(--surface)] px-3 py-2 text-sm text-[var(--on-surface)] placeholder:text-[var(--on-surface-variant)]/50 focus:border-[var(--primary)] focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

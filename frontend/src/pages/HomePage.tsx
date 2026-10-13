@@ -1,20 +1,16 @@
+import React from "react";
 import {
-  IconArrowUpRight,
-  IconBookOpen,
-  IconCheck,
-  IconCheckCircle,
-  IconChevronRight,
-  IconClipboard,
-  IconClock,
-  IconHelp,
-  IconMessageSquare,
-  IconScale,
-  IconShield,
-  IconSparkle,
-  IconTarget,
-  IconTeacher,
-  IconZap,
-} from "../components/Icons";
+  Zap,
+  HelpCircle,
+  GraduationCap,
+  Scale,
+  CheckCircle2,
+  MessageSquare,
+  ClipboardList,
+  ChevronRight,
+  ArrowRight,
+} from "lucide-react";
+import { Badge, Button, Card } from "../components/ui";
 import type { DemoCatalog } from "../types";
 
 type Role = "student" | "lecturer" | "academic_affairs";
@@ -30,31 +26,25 @@ interface HomePageProps {
 
 const routeGuidance = [
   {
-    icon: IconZap,
-    tag: "Tự động 100%",
+    icon: Zap,
+    tag: "Tự động",
     title: "Trả lời trực tiếp",
-    detail: "Hệ thống trích xuất và trả lời ngay kèm căn cứ điều khoản cụ thể từ tài liệu học phần.",
-    badgeTone: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    iconTone: "bg-emerald-50 text-emerald-700 border-emerald-200/80",
-    borderHover: "hover:border-emerald-300",
+    detail: "Hệ thống trích xuất và giải đáp ngay kèm điều khoản cụ thể từ tài liệu học phần.",
+    tone: "answer" as const,
   },
   {
-    icon: IconHelp,
-    tag: "Hội thoại bổ sung",
+    icon: HelpCircle,
+    tag: "Hội thoại",
     title: "Cần làm rõ",
-    detail: "AI tương tác hỏi thêm sinh viên khi câu hỏi còn thiếu dữ kiện (mã nhóm, thời hạn hoặc ngữ cảnh cụ thể).",
-    badgeTone: "bg-amber-100 text-amber-800 border-amber-200",
-    iconTone: "bg-amber-50 text-amber-700 border-amber-200/80",
-    borderHover: "hover:border-amber-300",
+    detail: "AI tương tác hỏi thêm sinh viên khi câu hỏi còn thiếu dữ kiện (mã nhóm, thời hạn hoặc ngữ cảnh).",
+    tone: "clarify" as const,
   },
   {
-    icon: IconTeacher,
+    icon: GraduationCap,
     tag: "SLA 48 giờ",
     title: "Chuyển tiếp Giảng viên",
-    detail: "Các yêu cầu ngoại lệ vượt thẩm quyền được lập hồ sơ thẩm định kèm bằng chứng gửi tới Giảng viên phụ trách.",
-    badgeTone: "bg-indigo-100 text-indigo-800 border-indigo-200",
-    iconTone: "bg-indigo-50 text-indigo-700 border-indigo-200/80",
-    borderHover: "hover:border-indigo-300",
+    detail: "Yêu cầu ngoại lệ hoặc vượt thẩm quyền được lập hồ sơ thẩm định gửi tới Giảng viên phụ trách.",
+    tone: "escalate" as const,
   },
 ];
 
@@ -65,285 +55,290 @@ export function HomePage({
   aiOnline,
   onNavigate,
 }: HomePageProps) {
-  const course = catalog?.courses.find((item) => item.id === selectedCourseId);
   const isStudent = role === "student";
   const isOperations = role === "academic_affairs";
-  const primaryAction = isStudent ? "submit" : isOperations ? "operations" : "inbox";
-  const primaryLabel = isStudent ? "Bắt đầu gửi câu hỏi" : isOperations ? "Mở trung tâm vận hành" : "Mở hàng chờ thẩm định";
+  const primaryAction: Destination = isStudent ? "submit" : isOperations ? "operations" : "inbox";
+  const primaryLabel = isStudent
+    ? "Bắt đầu gửi câu hỏi"
+    : isOperations
+    ? "Mở trung tâm vận hành"
+    : "Mở hàng chờ thẩm định";
 
   return (
-    <div className="flex-1 h-screen overflow-y-auto bg-[#F8FAFC]">
-      {/* Sticky Header */}
-      <header className="px-6 lg:px-10 py-4 border-b border-slate-200/80 bg-white/95 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between gap-4">
+    <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-8 py-6 space-y-6">
+      {/* Page Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#DC2626]">
-            <span>Academic Escalation Referee</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-slate-500 font-medium">Hướng dẫn sử dụng</span>
-          </div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight mt-0.5">
-            Bắt đầu đúng luồng học vụ
+          <h1 className="text-[22px] font-normal text-[var(--on-surface)]">
+            Hướng dẫn sử dụng học vụ
           </h1>
+          <p className="text-[13px] text-[var(--on-surface-variant)] mt-0.5">
+            Quy trình tra cứu quy chế, phân luồng tự động và thẩm định học vụ tại AER
+          </p>
         </div>
-
-        {/* Live Status Badge */}
-        <div
-          className={`hidden sm:inline-flex items-center gap-2.5 rounded-full px-3.5 py-1.5 text-xs font-semibold border shadow-2xs transition-all ${aiOnline
-              ? "border-emerald-200/80 bg-emerald-50/80 text-emerald-800"
-              : "border-amber-200/80 bg-amber-50/80 text-amber-900"
-            }`}
-        >
-          <span className="relative flex h-2 w-2">
-            {aiOnline && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            )}
-            <span
-              className={`relative inline-flex rounded-full h-2 w-2 ${aiOnline ? "bg-emerald-500 shadow-xs" : "bg-amber-500"
-                }`}
-            />
-          </span>
-          <span className="tracking-tight font-semibold text-[11px]">
-            {aiOnline ? "Hệ thống sẵn sàng" : "AI đang cần kiểm tra"}
-          </span>
+        <div className="flex items-center gap-2">
+          <Badge tone={aiOnline ? "answer" : "neutral"}>
+            {aiOnline ? "Hệ thống sẵn sàng" : "AI đang kiểm tra"}
+          </Badge>
         </div>
-      </header>
+      </div>
 
-      <div className="mx-auto w-full max-w-6xl px-6 lg:px-10 py-8 lg:py-10 space-y-8">
-        {/* Hero Section */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#111C35] to-[#1E293B] px-6 py-8 sm:px-9 sm:py-10 text-white shadow-xl shadow-slate-900/10 border border-slate-800">
-          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-red-600/20 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 h-40 w-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+      {/* Hero Section - Clean Flat Material Surface */}
+      <Card className="p-6 sm:p-8 bg-[var(--surface)] border border-[var(--outline)]/30">
+        <div className="max-w-3xl space-y-3">
+          <div className="inline-flex items-center gap-2">
+            <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-[var(--primary-container)] text-[var(--primary)]">
+              {isStudent
+                ? "Dành cho sinh viên"
+                : isOperations
+                ? "Dành cho Phòng Đào tạo"
+                : "Dành cho giảng viên"}
+            </span>
+          </div>
 
-          <div className="relative max-w-3xl">
-            {/* Role badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1">
-              <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isStudent ? "bg-red-400" : isOperations ? "bg-sky-400" : "bg-amber-400"}`} />
-              <span className="text-xs font-semibold text-slate-200">
-                {isStudent ? "Dành cho sinh viên" : isOperations ? "Dành cho Phòng Đào tạo" : "Dành cho giảng viên"}
-              </span>
+          <h2 className="text-xl sm:text-2xl font-normal text-[var(--on-surface)] leading-snug">
+            {isStudent
+              ? "Hỏi đúng quy chế, nhận đúng hướng xử lý."
+              : isOperations
+              ? "Giám sát dòng chảy học vụ từ một điểm kiểm soát."
+              : "Xem nhanh hồ sơ cần thẩm định và ra quyết định có căn cứ."}
+          </h2>
+
+          <p className="text-sm text-[var(--on-surface-variant)] leading-relaxed">
+            {isStudent
+              ? "Sinh viên đặt câu hỏi về quy chế, bổ sung thông tin khi cần và theo dõi quyết định học vụ dựa trên tài liệu học phần."
+              : isOperations
+              ? "Theo dõi toàn bộ luồng xử lý học vụ, phân công và kiểm soát tiến độ trên một giao diện tập trung."
+              : "Xem xét hồ sơ sinh viên, tra cứu quy chế và ra quyết định có căn cứ văn bản rõ ràng."}
+          </p>
+
+          <div className="pt-3">
+            <Button
+              variant="filled"
+              size="md"
+              onClick={() => onNavigate(primaryAction)}
+              className="gap-2"
+            >
+              <span>{primaryLabel}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* 3 Step Recommendation */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-[var(--on-surface)]">
+          Quy trình thực hiện trong 3 bước
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            {
+              index: "1",
+              title: "Chọn đúng học phần",
+              detail:
+                "Chọn môn học và nhóm lớp liên quan để hệ thống áp dụng đúng tài liệu và quy định.",
+              action: null,
+            },
+            {
+              index: "2",
+              title: "Nêu rõ tình huống",
+              detail:
+                "Ghi mốc thời gian, nhóm và yêu cầu cụ thể; tránh câu hỏi mơ hồ để có kết quả chính xác.",
+              action: null,
+            },
+            {
+              index: "3",
+              title: "Theo dõi kết quả",
+              detail:
+                "Đọc trích dẫn quy chế, bổ sung thông tin khi được yêu cầu hoặc theo dõi ca duyệt.",
+              action: isStudent
+                ? { label: "Xem hồ sơ của tôi", nav: "history" as Destination }
+                : null,
+            },
+          ].map((item) => (
+            <Card key={item.index} className="p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2.5 mb-2.5">
+                  <span className="w-6 h-6 rounded-full bg-[var(--surface-container-high)] text-[var(--primary)] text-xs font-semibold flex items-center justify-center">
+                    {item.index}
+                  </span>
+                  <h3 className="text-sm font-medium text-[var(--on-surface)]">
+                    {item.title}
+                  </h3>
+                </div>
+                <p className="text-xs text-[var(--on-surface-variant)] leading-relaxed">
+                  {item.detail}
+                </p>
+              </div>
+              {item.action && (
+                <div className="pt-3 mt-3 border-t border-[var(--outline)]/15">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(item.action!.nav)}
+                    className="text-xs font-medium text-[var(--primary)] hover:underline flex items-center gap-1"
+                  >
+                    <span>{item.action.label}</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* 2 Main Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Phân luồng */}
+        <Card className="p-5 sm:p-6 space-y-4">
+          <div className="flex items-center gap-3 pb-2 border-b border-[var(--outline)]/20">
+            <div className="w-9 h-9 rounded-full bg-[var(--primary-container)] text-[var(--primary)] flex items-center justify-center">
+              <Scale className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--on-surface)]">
+                Cơ chế phân luồng xử lý
+              </h2>
+              <p className="text-xs text-[var(--on-surface-variant)]">
+                Phân luồng tự động dựa trên quy chế và thẩm quyền
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {routeGuidance.map((item) => {
+              const IconComp = item.icon;
+              return (
+                <div
+                  key={item.title}
+                  className="p-3.5 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 flex flex-col gap-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <IconComp className="w-4 h-4 text-[var(--primary)]" />
+                      <h3 className="text-xs font-semibold text-[var(--on-surface)]">
+                        {item.title}
+                      </h3>
+                    </div>
+                    <Badge tone={item.tone}>{item.tag}</Badge>
+                  </div>
+                  <p className="text-xs text-[var(--on-surface-variant)] leading-relaxed">
+                    {item.detail}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Right: Nguyên tắc tiếp nhận & Quick Actions */}
+        <Card className="p-5 sm:p-6 flex flex-col justify-between gap-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 pb-2 border-b border-[var(--outline)]/20">
+              <div className="w-9 h-9 rounded-full bg-[#E8F5E9] text-[#146C2E] flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--on-surface)]">
+                  Nguyên tắc tiếp nhận
+                </h2>
+                <p className="text-xs text-[var(--on-surface-variant)]">
+                  3 điều cần lưu ý để đạt kết quả chính xác
+                </p>
+              </div>
             </div>
 
-            <h2 className="mt-4 text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight text-white">
-              {isStudent
-                ? "Hỏi đúng quy chế, nhận đúng hướng xử lý."
-                : isOperations
-                  ? "Giám sát dòng chảy học vụ từ một điểm kiểm soát."
-                  : "Xem nhanh hồ sơ cần thẩm định và ra quyết định có căn cứ."}
-            </h2>
+            <div className="space-y-3">
+              <div className="p-3 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 text-xs">
+                <span className="font-semibold text-[var(--on-surface)] block mb-0.5">
+                  1. Đọc kỹ trích dẫn quy chế
+                </span>
+                <p className="text-[var(--on-surface-variant)] leading-relaxed">
+                  Câu trả lời luôn kèm trích dẫn văn bản chính thức của trường và khoa để đối chiếu.
+                </p>
+              </div>
 
-            <p className="mt-3 text-sm leading-relaxed text-slate-300 sm:text-base">
-              {isStudent
-                ? "Sinh viên hỏi về quy chế, bổ sung thông tin khi cần và theo dõi quyết định học vụ dựa trên tài liệu học phần."
-                : isOperations
-                  ? "Theo dõi toàn bộ luồng xử lý học vụ, phân công và kiểm soát tiến độ trên một giao diện tập trung."
-                  : "Xem xét hồ sơ sinh viên, tra cứu quy chế và ra quyết định có căn cứ văn bản rõ ràng."}
-            </p>
+              <div className="p-3 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 text-xs">
+                <span className="font-semibold text-[var(--on-surface)] block mb-0.5">
+                  2. Bảo mật thông tin cá nhân
+                </span>
+                <p className="text-[var(--on-surface-variant)] leading-relaxed">
+                  Chỉ cung cấp tình huống học vụ cần thiết; không gửi mật khẩu, CCCD hay dữ liệu nhạy cảm.
+                </p>
+              </div>
 
+              <div className="p-3 rounded-[var(--radius-md)] bg-[var(--surface-container-low)] border border-[var(--outline)]/20 text-xs">
+                <span className="font-semibold text-[var(--on-surface)] block mb-0.5">
+                  3. Theo dõi tiến độ thẩm định
+                </span>
+                <p className="text-[var(--on-surface-variant)] leading-relaxed">
+                  Khi yêu cầu ngoại lệ được gửi lên Giảng viên, bạn có thể theo dõi hạn SLA và trạng thái tại mục Hồ sơ.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="pt-3 border-t border-[var(--outline)]/15 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => onNavigate(primaryAction)}
-              className="mt-6 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-red-900/30 transition-all hover:shadow-red-900/50 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-900"
+              className="p-3 rounded-[var(--radius-md)] border border-[var(--outline)]/30 bg-[var(--surface-container-lowest)] hover:bg-[var(--surface-container-low)] transition-colors flex items-center justify-between text-left"
             >
-              {primaryLabel}
+              <div className="flex items-center gap-2.5">
+                <MessageSquare className="w-4 h-4 text-[var(--primary)]" />
+                <div>
+                  <div className="text-xs font-semibold text-[var(--on-surface)]">
+                    {isStudent
+                      ? "Hỏi đáp quy chế"
+                      : isOperations
+                      ? "Trung tâm vận hành"
+                      : "Hàng chờ thẩm định"}
+                  </div>
+                  <div className="text-[11px] text-[var(--on-surface-variant)]">
+                    {isStudent
+                      ? "Gửi tình huống học vụ"
+                      : isOperations
+                      ? "Theo dõi hồ sơ & SLA"
+                      : "Xử lý hồ sơ cần quyết định"}
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[var(--on-surface-variant)]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                onNavigate(isStudent ? "history" : isOperations ? "audit" : "exceptions")
+              }
+              className="p-3 rounded-[var(--radius-md)] border border-[var(--outline)]/30 bg-[var(--surface-container-lowest)] hover:bg-[var(--surface-container-low)] transition-colors flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-2.5">
+                <ClipboardList className="w-4 h-4 text-[var(--on-surface-variant)]" />
+                <div>
+                  <div className="text-xs font-semibold text-[var(--on-surface)]">
+                    {isStudent
+                      ? "Xem hồ sơ"
+                      : isOperations
+                      ? "Nhật ký kiểm toán"
+                      : "Xem ngoại lệ"}
+                  </div>
+                  <div className="text-[11px] text-[var(--on-surface-variant)]">
+                    {isStudent
+                      ? "Lịch sử & ngoại lệ"
+                      : isOperations
+                      ? "Truy vết hệ thống"
+                      : "Danh sách phê duyệt"}
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[var(--on-surface-variant)]" />
             </button>
           </div>
-        </section>
-
-        {/* 3 Step Recommendation */}
-        <section className="space-y-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-[#DC2626]">Quy trình khuyến nghị</p>
-            <h2 className="mt-1 text-xl font-black text-slate-900 tracking-tight">Hoàn thành trong 3 bước</h2>
-          </div>
-
-          {/* Step cards with connector */}
-          <div className="relative grid gap-4 md:grid-cols-3">
-            {/* Connector line on desktop */}
-            <div className="hidden md:block absolute top-[1.125rem] left-[calc(33.3%+18px)] right-[calc(33.3%+18px)] h-px bg-slate-200 pointer-events-none" />
-
-            {([
-              {
-                index: "01",
-                title: "Chọn đúng học phần",
-                detail: "Chọn môn và nhóm liên quan để hệ thống chỉ dùng đúng tài liệu và quy định áp dụng.",
-                action: null,
-              },
-              {
-                index: "02",
-                title: "Nêu rõ tình huống",
-                detail: "Ghi mốc thời gian, nhóm và yêu cầu cụ thể; tránh câu hỏi chung chung để có kết quả chính xác.",
-                action: null,
-              },
-              {
-                index: "03",
-                title: "Theo dõi kết quả",
-                detail: "Đọc trích dẫn quy chế, bổ sung thông tin khi được hỏi hoặc theo dõi case chuyển giảng viên.",
-                action: isStudent ? { label: "Xem hồ sơ của tôi →", nav: "history" as Destination } : null,
-              },
-            ] as Array<{ index: string; title: string; detail: string; action: { label: string; nav: Destination } | null }>).map((step) => (
-              <article
-                key={step.index}
-                className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs hover:border-red-200 hover:shadow-sm transition-all duration-200 flex flex-col gap-3"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 font-mono text-sm font-black text-[#DC2626] border border-red-100">
-                    {step.index}
-                  </span>
-                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">{step.title}</h3>
-                </div>
-                <p className="pl-12 text-xs leading-relaxed text-slate-500">{step.detail}</p>
-                {step.action && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate(step.action!.nav)}
-                    className="pl-12 text-xs font-bold text-[#DC2626] hover:underline cursor-pointer text-left"
-                  >
-                    {step.action.label}
-                  </button>
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
-
-        {/* 2 Main Cards: Guidance & Action Checklist */}
-        <section className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          {/* Left Card: 3 Routes */}
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-[#DC2626] flex items-center justify-center shrink-0 shadow-2xs">
-                  <IconScale size={18} />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 tracking-tight">AER sẽ xử lý câu hỏi như thế nào?</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Phân luồng tự động dựa trên quy chế và thẩm quyền</p>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {routeGuidance.map((item) => {
-                  const RouteIcon = item.icon;
-                  return (
-                    <div
-                      key={item.title}
-                      className={`p-4 rounded-xl border border-slate-200/80 bg-white ${item.borderHover} transition-all duration-200 shadow-2xs hover:shadow-xs`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 ${item.iconTone}`}>
-                            <RouteIcon size={16} />
-                          </div>
-                          <h3 className="text-sm font-bold text-slate-900">{item.title}</h3>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${item.badgeTone}`}>
-                          {item.tag}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 mt-2.5 leading-relaxed pl-10.5">
-                        {item.detail}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Card: Checklist & Quick Actions */}
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
-                  <IconCheckCircle size={18} />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 tracking-tight">Bạn cần làm gì?</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">3 nguyên tắc để nhận kết quả chính xác nhất</p>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-100/90 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
-                    1
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">Đọc kỹ trích dẫn quy chế</p>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      Câu trả lời luôn kèm trích dẫn văn bản chính thức của trường và khoa để bạn đối chiếu.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
-                  <div className="w-6 h-6 rounded-lg bg-blue-100/90 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
-                    2
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">Bảo mật thông tin cá nhân</p>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      Chỉ cung cấp tình huống học vụ cần thiết; không gửi mật khẩu, CCCD hay dữ liệu nhạy cảm.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/70">
-                  <div className="w-6 h-6 rounded-lg bg-amber-100/90 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
-                    3
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">Theo dõi tiến độ thẩm định</p>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      Khi yêu cầu ngoại lệ được gửi lên Giảng viên, bạn có thể theo dõi hạn SLA và trạng thái tại mục Hồ sơ.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Action Navigation Cards */}
-            <div className="mt-6 pt-5 border-t border-slate-200/80 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => onNavigate(primaryAction)}
-                className="group p-3 rounded-xl border border-slate-200 bg-white hover:border-red-300 hover:shadow-xs transition-all flex items-center justify-between text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 text-[#DC2626] flex items-center justify-center shrink-0 group-hover:bg-[#DC2626] group-hover:text-white transition-colors">
-                    <IconMessageSquare size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900 group-hover:text-[#DC2626] transition-colors">{isStudent ? "Hỏi đáp quy chế" : isOperations ? "Trung tâm vận hành" : "Hàng chờ thẩm định"}</p>
-                    <p className="text-[11px] text-slate-500">{isStudent ? "Gửi tình huống học vụ" : isOperations ? "Theo dõi hồ sơ và SLA" : "Xử lý hồ sơ cần quyết định"}</p>
-                  </div>
-                </div>
-                <IconChevronRight size={15} className="text-slate-400 group-hover:text-[#DC2626] group-hover:translate-x-0.5 transition-all" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onNavigate(isStudent ? "history" : isOperations ? "audit" : "exceptions")}
-                className="group p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-400 hover:shadow-xs transition-all flex items-center justify-between text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 group-hover:bg-slate-900 group-hover:text-white transition-colors">
-                    <IconClipboard size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900 group-hover:text-slate-950 transition-colors">
-                      {isStudent ? "Xem hồ sơ" : isOperations ? "Xem Audit Trail" : "Xem ngoại lệ"}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {isStudent ? "Lịch sử & ngoại lệ" : isOperations ? "Nhật ký kiểm toán" : "Danh sách phê duyệt"}
-                    </p>
-                  </div>
-                </div>
-                <IconChevronRight size={15} className="text-slate-400 group-hover:text-slate-900 group-hover:translate-x-0.5 transition-all" />
-              </button>
-            </div>
-          </div>
-        </section>
+        </Card>
       </div>
     </div>
   );
