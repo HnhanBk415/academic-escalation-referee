@@ -319,13 +319,16 @@ export function ReadingToolbar({
 export function ReadingModeTriggerButton({
   onClick,
   className = "",
+  "data-tour": dataTour,
 }: {
   onClick: () => void;
   className?: string;
+  "data-tour"?: string;
 }) {
   return (
     <button
       type="button"
+      data-tour={dataTour}
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-xl)] bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-xs font-medium text-[var(--on-surface)] transition-colors cursor-pointer ${className}`}
       title="Chế độ đọc tập trung (Esc để thoát)"

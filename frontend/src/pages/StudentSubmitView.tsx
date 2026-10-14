@@ -349,7 +349,7 @@ export function StudentSubmitView({
         {/* Hàng 1: pill "Chọn môn" + dropdown "Nhóm" */}
         <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
+            <div data-tour="ask-course" className="relative">
               <select
                 value={selectedCourseId}
                 disabled={!catalog || !catalog.courses || catalog.courses.length === 0}
@@ -380,7 +380,7 @@ export function StudentSubmitView({
             </div>
 
             {/* Dropdown chọn nhóm */}
-            <div className="relative">
+            <div data-tour="ask-group" className="relative">
               <select
                 value={effectiveGroupId}
                 disabled={availableGroups.length === 0}
@@ -427,8 +427,9 @@ export function StudentSubmitView({
         </div>
 
         {/* Hàng 2: ô hỏi lớn với nút FAB nhỏ */}
-        <div className="rounded-[var(--radius-lg)] bg-[var(--surface-container)] border border-[var(--outline)]/40 focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:bg-[var(--surface)] transition-all p-4 shadow-xs">
+        <div data-tour="ask-input" className="rounded-[var(--radius-lg)] bg-[var(--surface-container)] border border-[var(--outline)]/40 focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:bg-[var(--surface)] transition-all p-4 shadow-xs">
           <textarea
+            data-tour="ask-try"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onKeyDown={(e) => {
@@ -464,7 +465,7 @@ export function StudentSubmitView({
         </div>
 
         {/* Dưới ô hỏi: hàng filter-chip "Gợi ý nhanh" */}
-        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+        <div data-tour="ask-suggestions" className="flex flex-wrap items-center gap-2 pt-0.5">
           <span className="text-xs text-[var(--on-surface-variant)] mr-1 flex items-center gap-1 font-medium select-none">
             <IconSparkle size={13} />
             Gợi ý nhanh:
@@ -482,16 +483,18 @@ export function StudentSubmitView({
         </div>
 
         {/* ── CARD 2: WORKFLOW TIẾN TRÌNH ── */}
-        <StudentWorkflowTracker
-          busy={busy}
-          result={result}
-          submitTime={submitTime}
-          processTime={processTime}
-        />
+        <div data-tour="ask-progress">
+          <StudentWorkflowTracker
+            busy={busy}
+            result={result}
+            submitTime={submitTime}
+            processTime={processTime}
+          />
+        </div>
 
         {/* ── CARD 3: KẾT QUẢ ĐỐI SOÁT & TRÍCH LỤC QUY CHẾ ── */}
         {result && (
-          <div className="bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] shadow-xs overflow-hidden transition-all">
+          <div data-tour="ask-result" className="bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] shadow-xs overflow-hidden transition-all">
             {/* Header: 1 line with Badge + sentence case text + subtle case ID */}
             <div className="px-5 py-3.5 border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)] flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">

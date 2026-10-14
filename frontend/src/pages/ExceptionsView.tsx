@@ -118,7 +118,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
       />
 
       {/* Filter Chips Bar */}
-      <div className="flex flex-wrap items-center gap-2 bg-[var(--surface)] p-3 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs">
+      <div data-tour="exceptions-filters" className="flex flex-wrap items-center gap-2 bg-[var(--surface)] p-3 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs">
         <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">Phạm vi:</span>
         <Chip
           label="Tất cả"
@@ -169,7 +169,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
         </div>
       )}
 
-      <div className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
+      <div data-tour="exceptions-table" className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -219,72 +219,76 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
                 </tr>
               </thead>
               <tbody>
-                {filteredExceptions.map((item) => {
-                  const isEffective = item.is_effective && item.status === "ACTIVE";
-                  const isRevoked = item.status === "REVOKED";
+                {(() => {
+                  const firstActiveIndex = filteredExceptions.findIndex((item) => item.status === "ACTIVE");
+                  return filteredExceptions.map((item, idx) => {
+                    const isEffective = item.is_effective && item.status === "ACTIVE";
+                    const isRevoked = item.status === "REVOKED";
 
-                  return (
-                    <tr
-                      key={item.id}
-                      className="h-[3.25rem] border-b border-[var(--outline)]/15 hover:bg-[var(--surface-container-low)]/50 transition-colors"
-                    >
-                      {/* Course / Scope */}
-                      <td className="px-4 py-2.5 text-sm">
-                        <div className="font-medium text-[var(--on-surface)]">
-                          {item.courseCode}
-                        </div>
-                        <div className="text-xs text-[var(--on-surface-variant)]">
-                          {item.scope_type === "COURSE" && "Toàn môn"}
-                          {item.scope_type === "GROUP" && (item.groupName || groupLabel(item.scope_id))}
-                          {item.scope_type === "STUDENT" && `SV: ${item.scope_id}`}
-                        </div>
-                      </td>
+                    return (
+                      <tr
+                        key={item.id}
+                        className="h-[3.25rem] border-b border-[var(--outline)]/15 hover:bg-[var(--surface-container-low)]/50 transition-colors"
+                      >
+                        {/* Course / Scope */}
+                        <td className="px-4 py-2.5 text-sm">
+                          <div className="font-medium text-[var(--on-surface)]">
+                            {item.courseCode}
+                          </div>
+                          <div className="text-xs text-[var(--on-surface-variant)]">
+                            {item.scope_type === "COURSE" && "Toàn môn"}
+                            {item.scope_type === "GROUP" && (item.groupName || groupLabel(item.scope_id))}
+                            {item.scope_type === "STUDENT" && `SV: ${item.scope_id}`}
+                          </div>
+                        </td>
 
-                      {/* Topic */}
-                      <td className="px-4 py-2.5 text-xs">
-                        <span className="font-medium text-[var(--primary)] bg-[var(--primary-container)] px-2 py-0.5 rounded-[var(--radius-sm)]">
-                          {policyTopicLabel(item.policy_topic)}
-                        </span>
-                      </td>
+                        {/* Topic */}
+                        <td className="px-4 py-2.5 text-xs">
+                          <span className="font-medium text-[var(--primary)] bg-[var(--primary-container)] px-2 py-0.5 rounded-[var(--radius-sm)]">
+                            {policyTopicLabel(item.policy_topic)}
+                          </span>
+                        </td>
 
-                      {/* Content */}
-                      <td className="px-4 py-2.5 text-sm text-[var(--on-surface)] max-w-md">
-                        <p className="line-clamp-2 leading-snug">{item.content}</p>
-                      </td>
+                        {/* Content */}
+                        <td className="px-4 py-2.5 text-sm text-[var(--on-surface)] max-w-md">
+                          <p className="line-clamp-2 leading-snug">{item.content}</p>
+                        </td>
 
-                      {/* Validity */}
-                      <td className="px-4 py-2.5 text-xs text-[var(--on-surface-variant)] whitespace-nowrap font-mono">
-                        {item.valid_from} → {item.valid_until}
-                      </td>
+                        {/* Validity */}
+                        <td className="px-4 py-2.5 text-xs text-[var(--on-surface-variant)] whitespace-nowrap font-mono">
+                          {item.valid_from} → {item.valid_until}
+                        </td>
 
-                      {/* Status */}
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        {isRevoked ? (
-                          <Badge tone="neutral">Đã thu hồi</Badge>
-                        ) : isEffective ? (
-                          <Badge tone="answer">Đang hiệu lực</Badge>
-                        ) : (
-                          <Badge tone="neutral">{item.effective_status || "Hết hạn"}</Badge>
-                        )}
-                      </td>
+                        {/* Status */}
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          {isRevoked ? (
+                            <Badge tone="neutral">Đã thu hồi</Badge>
+                          ) : isEffective ? (
+                            <Badge tone="answer">Đang hiệu lực</Badge>
+                          ) : (
+                            <Badge tone="neutral">{item.effective_status || "Hết hạn"}</Badge>
+                          )}
+                        </td>
 
-                      {/* Action */}
-                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                        {item.status === "ACTIVE" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRevoke(item)}
-                            className="text-sm font-medium text-[var(--error)] hover:underline hover:bg-[var(--error)]/10 px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors"
-                          >
-                            Thu hồi
-                          </button>
-                        ) : (
-                          <span className="text-xs text-[var(--on-surface-variant)]/60">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        {/* Action */}
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                          {item.status === "ACTIVE" ? (
+                            <button
+                              type="button"
+                              data-tour={idx === firstActiveIndex ? "exceptions-revoke" : undefined}
+                              onClick={() => handleOpenRevoke(item)}
+                              className="text-sm font-medium text-[var(--error)] hover:underline hover:bg-[var(--error)]/10 px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors"
+                            >
+                              Thu hồi
+                            </button>
+                          ) : (
+                            <span className="text-xs text-[var(--on-surface-variant)]/60">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>

@@ -328,7 +328,7 @@ export function StudentHistoryView({
   }
 
   // ── Render List Item Component ──
-  const renderListItem = (c: StudentCaseItem, isCompact: boolean) => {
+  const renderListItem = (c: StudentCaseItem, isCompact: boolean, isFirst = false) => {
     const isSelected = selectedCase?.rawId === c.rawId;
 
     if (isCompact) {
@@ -337,6 +337,7 @@ export function StudentHistoryView({
         <button
           key={c.rawId}
           type="button"
+          data-tour={isFirst ? "history-first-row" : undefined}
           onClick={() => navigate(`/workspace/history/${c.rawId}`)}
           className={`w-full text-left p-3.5 rounded-[var(--radius-md)] border transition-all ${
             isSelected
@@ -372,6 +373,7 @@ export function StudentHistoryView({
     return (
       <div
         key={c.rawId}
+        data-tour={isFirst ? "history-first-row" : undefined}
         onClick={() => navigate(`/workspace/history/${c.rawId}`)}
         className="flex items-center h-14 px-4 border-b border-[var(--outline)]/20 hover:bg-[var(--surface-container-high)] transition-colors cursor-pointer select-none group"
       >
@@ -406,7 +408,7 @@ export function StudentHistoryView({
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
             {/* Search bar like Gmail */}
-            <div className="relative flex-1 max-w-lg">
+            <div data-tour="history-search" className="relative flex-1 max-w-lg">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--on-surface-variant)]">
                 <Search size={16} />
               </div>
@@ -425,7 +427,7 @@ export function StudentHistoryView({
           </div>
 
           {/* Status Filter Chips with Counts */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          <div data-tour="history-filters" className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {filterTabs.map((tab) => {
               const count = filterCounts[tab.key] || 0;
               const isSelected = filter === tab.key;
@@ -458,7 +460,7 @@ export function StudentHistoryView({
       )}
 
       {/* ── MAIN WORKSPACE AREA ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div data-tour="history-list" className="flex-1 flex overflow-hidden">
         {/* CASE 1: No question selected → Full-width Gmail email list (Mockup 3) */}
         {!selectedCase && (
           <div className="flex-1 overflow-y-auto bg-[var(--surface)]">
@@ -467,7 +469,7 @@ export function StudentHistoryView({
                 Không tìm thấy câu hỏi phù hợp với bộ lọc
               </div>
             ) : (
-              <div>{filteredCases.map((c) => renderListItem(c, false))}</div>
+              <div>{filteredCases.map((c, idx) => renderListItem(c, false, idx === 0))}</div>
             )}
           </div>
         )}
@@ -478,7 +480,7 @@ export function StudentHistoryView({
             {/* Left compact list column (~380px), hidden when isReadingMode */}
             {!isReadingMode && (
               <div className="hidden md:flex w-[23.75rem] shrink-0 border-r border-[var(--outline)]/30 flex-col bg-[var(--surface-dim)] overflow-y-auto p-3 space-y-2">
-                {filteredCases.map((c) => renderListItem(c, true))}
+                {filteredCases.map((c, idx) => renderListItem(c, true, idx === 0))}
               </div>
             )}
 
@@ -515,11 +517,12 @@ export function StudentHistoryView({
                           <span>Quay lại</span>
                         </button>
 
-                        <ReadingModeTriggerButton onClick={enterReadingMode} />
+                        <ReadingModeTriggerButton data-tour="history-reading-mode" onClick={enterReadingMode} />
                       </div>
 
                       <div className="flex items-center gap-2">
                         <button
+                          data-tour="history-refresh"
                           type="button"
                           onClick={handleRefreshCurrentCase}
                           disabled={refreshing}

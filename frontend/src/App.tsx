@@ -10,6 +10,7 @@ import { AuditPage } from "./pages/AuditPage";
 import { VerifyPage } from "./pages/VerifyPage";
 import type { AIHealth, DashboardCounts, DemoCatalog } from "./types";
 import { groupLabel } from "./utils/labels";
+import { TourProvider } from "./tour/TourContext";
 
 const ACCOUNT_STORAGE_KEY = "aer_demo_account_id";
 
@@ -274,8 +275,9 @@ export function App() {
   })();
 
   return (
-    <div className="flex flex-col min-h-screen w-full bg-[var(--surface-dim)] text-[var(--on-surface)] overflow-x-hidden font-sans">
-      {/* Top Header */}
+    <TourProvider currentRole={currentAccount.role}>
+      <div className="flex flex-col min-h-screen w-full bg-[var(--surface-dim)] text-[var(--on-surface)] overflow-x-hidden font-sans">
+        {/* Top Header */}
       <AppHeader
         currentAccountId={currentAccount.id}
         currentRole={currentAccount.role}
@@ -381,6 +383,7 @@ export function App() {
         </Routes>
       </main>
     </div>
+  </TourProvider>
   );
 }
 

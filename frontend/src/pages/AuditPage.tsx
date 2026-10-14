@@ -91,7 +91,7 @@ export function AuditPage() {
       {/* Search & Event Type Filter Chips */}
       <div className="flex flex-col gap-3 bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="relative flex-1">
+          <div data-tour="audit-search" className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--on-surface-variant)]" />
             <input
               type="text"
@@ -106,7 +106,7 @@ export function AuditPage() {
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--outline)]/15">
+        <div data-tour="audit-filters" className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--outline)]/15">
           <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">
             Loại sự kiện:
           </span>
@@ -127,7 +127,7 @@ export function AuditPage() {
       </div>
 
       {/* Material Data Table */}
-      <div className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
+      <div data-tour="audit-table" className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -175,7 +175,7 @@ export function AuditPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredEvents.map((event) => {
+                {filteredEvents.map((event, idx) => {
                   const isExpanded = expandedId === event.id;
                   const label = auditEventLabel(event.event_type);
                   const tone = auditEventTone(event.event_type);
@@ -226,6 +226,7 @@ export function AuditPage() {
                         <td className="px-4 py-2.5 text-right whitespace-nowrap">
                           <button
                             type="button"
+                            data-tour={idx === 0 ? "audit-expand" : undefined}
                             aria-label={isExpanded ? "Thu gọn" : "Xem chi tiết"}
                             className="p-1 rounded text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] transition-colors inline-flex items-center"
                           >

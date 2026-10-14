@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check, RotateCcw } from "lucide-react";
+import { ChevronDown, Check, RotateCcw, HelpCircle } from "lucide-react";
 import { Modal, Button } from "./ui";
 import { api } from "../api/client";
 
@@ -54,6 +54,7 @@ interface AccountSwitcherProps {
   aiOnline: boolean;
   onSelectAccount: (account: DemoAccount) => void;
   activeGroupLabel?: string;
+  onOpenTour?: () => void;
 }
 
 export function AccountSwitcher({
@@ -61,6 +62,7 @@ export function AccountSwitcher({
   aiOnline,
   onSelectAccount,
   activeGroupLabel,
+  onOpenTour,
 }: AccountSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -100,7 +102,7 @@ export function AccountSwitcher({
   };
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative" ref={menuRef} data-tour="account-switcher">
       {/* Account Switcher Chip */}
       <button
         type="button"
@@ -210,13 +212,27 @@ export function AccountSwitcher({
           </div>
 
           <div className="mt-1 pt-1 border-t border-[var(--outline)]/30 px-2">
+            <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold text-[var(--on-surface-variant)] uppercase tracking-wider">
+              Công cụ demo
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenTour?.();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-sm)] text-xs font-medium text-[var(--on-surface)] hover:bg-[var(--surface-container)] transition-colors"
+            >
+              <HelpCircle size={15} className="text-[var(--primary)]" />
+              <span>Xem hướng dẫn sử dụng</span>
+            </button>
             <button
               type="button"
               onClick={() => {
                 setIsOpen(false);
                 setShowResetModal(true);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-sm)] text-xs font-medium text-[var(--error)] hover:bg-[#FFEBEE] transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-sm)] text-xs font-medium text-[var(--error)] hover:bg-[#FFEBEE] transition-colors mt-0.5"
             >
               <RotateCcw size={15} />
               <span>Reset dữ liệu demo</span>

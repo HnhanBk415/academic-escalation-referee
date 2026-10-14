@@ -221,3 +221,154 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
     transition: none !important;
   }
 }
+
+/* ============================================================
+   AER System – Driver.js Material 3 Product Tour Theme
+   ============================================================ */
+
+.driver-popover.aer-tour-popover {
+  border-radius: 1.25rem !important; /* 20px bo tròn Material 3 */
+  padding: 1.25rem 1.25rem 1rem !important;
+  max-width: 22rem !important;
+  background: var(--surface) !important;
+  color: var(--on-surface) !important;
+  border: 1px solid color-mix(in srgb, var(--outline) 40%, transparent) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+  font-family: inherit !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-title {
+  font-size: 1.0625rem !important;
+  font-weight: 500 !important;
+  color: var(--on-surface) !important;
+  margin-bottom: 0.375rem !important;
+  line-height: 1.4 !important;
+  padding-right: 1.75rem !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-description {
+  font-size: 0.9375rem !important;
+  line-height: 1.6 !important;
+  color: var(--on-surface-variant) !important;
+  margin-bottom: 0 !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-footer {
+  margin-top: 1.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.5rem !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-progress-text {
+  font-size: 0.8125rem !important;
+  color: var(--on-surface-variant) !important;
+  font-weight: 400 !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-navigation-btns {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-footer button,
+.driver-popover.aer-tour-popover .driver-popover-footer-btn {
+  border-radius: 999px !important;
+  height: 2.25rem !important;
+  padding: 0 1rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  text-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-footer button:focus-visible,
+.driver-popover.aer-tour-popover .driver-popover-footer-btn:focus-visible {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 2px !important;
+}
+
+/* Nút Tiếp/Đã hiểu = filled (bg var(--primary), chữ var(--on-primary)) */
+.driver-popover.aer-tour-popover .driver-popover-next-btn {
+  background: var(--primary) !important;
+  color: var(--on-primary) !important;
+  border: none !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-next-btn:hover {
+  background: #0842A0 !important;
+  color: var(--on-primary) !important;
+}
+
+/* Nút Quay lại = tonal (bg var(--surface-container-high), chữ var(--on-surface)) */
+.driver-popover.aer-tour-popover .driver-popover-prev-btn {
+  background: var(--surface-container-high) !important;
+  color: var(--on-surface) !important;
+  border: none !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-prev-btn:hover {
+  background: #CFD8E1 !important;
+  color: var(--on-surface) !important;
+}
+
+/* Ẩn nút Quay lại khi bị disabled (bước đầu tiên) */
+.driver-popover.aer-tour-popover .driver-popover-prev-btn:disabled,
+.driver-popover.aer-tour-popover .driver-popover-prev-btn[disabled],
+.driver-popover.aer-tour-popover .driver-popover-prev-btn.driver-popover-btn-disabled {
+  display: none !important;
+}
+
+/* Nút đóng = tròn 2rem, góc trên phải */
+.driver-popover.aer-tour-popover .driver-popover-close-btn {
+  width: 2rem !important;
+  height: 2rem !important;
+  border-radius: 999px !important;
+  position: absolute !important;
+  top: 0.75rem !important;
+  right: 0.75rem !important;
+  color: var(--on-surface-variant) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.125rem !important;
+  line-height: 1 !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-close-btn:hover {
+  background: var(--surface-container) !important;
+  color: var(--on-surface) !important;
+}
+
+/* Mũi tên cùng màu nền popover (--surface) */
+.driver-popover.aer-tour-popover .driver-popover-arrow {
+  border: 6px solid transparent !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-arrow-side-left {
+  border-left-color: var(--surface) !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-arrow-side-right {
+  border-right-color: var(--surface) !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-arrow-side-top {
+  border-top-color: var(--surface) !important;
+}
+
+.driver-popover.aer-tour-popover .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--surface) !important;
+}
+

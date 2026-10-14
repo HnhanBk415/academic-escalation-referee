@@ -382,7 +382,7 @@ export function LecturerInboxView({
     <div className="flex-1 w-full bg-[var(--surface-dim)] flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
       {/* ── TOP HEADER & TOOLBAR ── */}
       {!isReadingMode && (
-        <div className="px-4 sm:px-6 py-3.5 bg-[var(--surface)] border-b border-[var(--outline)]/30 shrink-0 space-y-3">
+        <div data-tour="inbox-filters" className="px-4 sm:px-6 py-3.5 bg-[var(--surface)] border-b border-[var(--outline)]/30 shrink-0 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h1 className="text-2xl font-normal text-[var(--on-surface)]">
@@ -443,7 +443,7 @@ export function LecturerInboxView({
       )}
 
       {/* ── MAIN WORKSPACE AREA ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div data-tour="inbox-queue" className="flex-1 flex overflow-hidden">
         {/* CASE 1: No case selected → Full-width Gmail list view */}
         {!selectedCase && (
           <div className="flex-1 overflow-y-auto bg-[var(--surface)]">
@@ -471,9 +471,10 @@ export function LecturerInboxView({
               </div>
             ) : (
               <div>
-                {filteredQueue.map((c) => (
+                {filteredQueue.map((c, idx) => (
                   <div
                     key={c.id}
+                    data-tour={idx === 0 ? "inbox-first-row" : undefined}
                     onClick={() => navigate(`/workspace/inbox/${c.id}`)}
                     className="flex items-center min-h-[4rem] py-2.5 px-4 border-b border-[var(--outline)]/20 hover:bg-[var(--surface-container-high)] transition-colors cursor-pointer select-none group gap-3"
                   >
@@ -514,12 +515,13 @@ export function LecturerInboxView({
             {/* Left compact list (~380px -> 23.75rem), hidden when isReadingMode */}
             {!isReadingMode && (
               <div className="hidden md:flex w-[23.75rem] shrink-0 border-r border-[var(--outline)]/30 flex-col bg-[var(--surface-dim)] overflow-y-auto p-3 space-y-2">
-                {filteredQueue.map((c) => {
+                {filteredQueue.map((c, idx) => {
                   const isSelected = selectedCase.id === c.id;
                   return (
                     <button
                       key={c.id}
                       type="button"
+                      data-tour={idx === 0 ? "inbox-first-row" : undefined}
                       onClick={() => navigate(`/workspace/inbox/${c.id}`)}
                       className={`w-full text-left p-3.5 rounded-[var(--radius-md)] border transition-all ${
                         isSelected
@@ -595,7 +597,7 @@ export function LecturerInboxView({
                       </div>
 
                       {selectedCase.slaDueAt && (
-                        <div className="text-xs">
+                        <div data-tour="inbox-sla" className="text-xs">
                           <SlaTimer dueAt={selectedCase.slaDueAt} compact />
                         </div>
                       )}
@@ -703,7 +705,7 @@ export function LecturerInboxView({
                     <div className="h-16 bg-[var(--surface-container)] rounded-[var(--radius-sm)]" />
                   </div>
                 ) : citations.length > 0 ? (
-                  <div className={`space-y-2 ${isReadingMode ? "max-w-[68ch] mx-auto w-full" : ""}`}>
+                  <div data-tour="inbox-citations" className={`space-y-2 ${isReadingMode ? "max-w-[68ch] mx-auto w-full" : ""}`}>
                     <p className="text-xs font-medium text-[var(--on-surface-variant)]">
                       Căn cứ điều khoản liên quan ({citations.length})
                     </p>
@@ -739,7 +741,7 @@ export function LecturerInboxView({
                 ) : null}
 
                 {/* ── FORM QUYẾT ĐỊNH (MATERIAL SEGMENTED CONTROL) ── */}
-                <div className={`pt-4 border-t border-[var(--outline)]/30 space-y-4 ${isReadingMode ? "max-w-[68ch] mx-auto w-full" : ""}`}>
+                <div data-tour="inbox-decision" className={`pt-4 border-t border-[var(--outline)]/30 space-y-4 ${isReadingMode ? "max-w-[68ch] mx-auto w-full" : ""}`}>
                   <h3 className="text-xs font-medium text-[var(--on-surface-variant)]">
                     Quyết định của Giảng viên (Thẩm định)
                   </h3>
@@ -774,7 +776,7 @@ export function LecturerInboxView({
 
                   {/* Collapsible Card: Tạo ngoại lệ (chỉ khi APPROVED) */}
                   {decision === "APPROVED" && (
-                    <Card variant="filled" className="space-y-3 bg-[var(--surface-container)]">
+                    <Card data-tour="inbox-exception" variant="filled" className="space-y-3 bg-[var(--surface-container)]">
                       <div className="flex items-center justify-between">
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input

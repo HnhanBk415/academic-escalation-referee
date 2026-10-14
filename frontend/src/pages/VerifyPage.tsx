@@ -367,6 +367,7 @@ export function VerifyPage() {
         actions={
           <Button
             id="run-verify-btn"
+            data-tour="verify-run"
             variant="filled"
             onClick={runVerify}
             disabled={running}
@@ -387,7 +388,7 @@ export function VerifyPage() {
       />
 
       {/* 4 Flat Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div data-tour="verify-metrics" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Tỷ lệ Đạt */}
         <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
           <div>
@@ -468,7 +469,7 @@ export function VerifyPage() {
         </div>
 
         {/* Metric 4: Latency & 16-Square Grid */}
-        <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
+        <div data-tour="verify-latency" className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
           <div>
             <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
               Tổng thời gian xử lý
@@ -568,7 +569,7 @@ export function VerifyPage() {
       </div>
 
       {/* Results Table */}
-      <div className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
+      <div data-tour="verify-table" className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
         <div className="px-5 py-4 border-b border-[var(--outline)]/20 flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--on-surface)]">
             Kết quả từng ca kiểm thử

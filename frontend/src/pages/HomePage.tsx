@@ -108,6 +108,7 @@ export function HomePage({
 
           <div className="pt-3">
             <Button
+              data-tour="home-hero"
               variant="filled"
               size="md"
               onClick={() => onNavigate(primaryAction)}
@@ -121,7 +122,7 @@ export function HomePage({
       </Card>
 
       {/* 3 Step Recommendation */}
-      <div className="space-y-3">
+      <div data-tour="home-steps" className="space-y-3">
         <h2 className="text-sm font-semibold text-[var(--on-surface)]">
           Quy trình thực hiện trong 3 bước
         </h2>
@@ -186,7 +187,7 @@ export function HomePage({
       {/* 2 Main Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Phân luồng */}
-        <Card className="p-5 sm:p-6 space-y-4">
+        <Card data-tour="home-routing" className="p-5 sm:p-6 space-y-4">
           <div className="flex items-center gap-3 pb-2 border-b border-[var(--outline)]/20">
             <div className="w-9 h-9 rounded-full bg-[var(--primary-container)] text-[var(--primary)] flex items-center justify-center">
               <Scale className="w-4 h-4" />

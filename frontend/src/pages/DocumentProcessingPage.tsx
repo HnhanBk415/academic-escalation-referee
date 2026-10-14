@@ -390,7 +390,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
       />
 
       {/* Stepper Material ngang */}
-      <div className="flex items-center justify-between bg-[var(--surface-container-low)] p-3.5 rounded-[var(--radius-lg)] border border-[var(--outline)]/20">
+      <div data-tour="docs-stepper" className="flex items-center justify-between bg-[var(--surface-container-low)] p-3.5 rounded-[var(--radius-lg)] border border-[var(--outline)]/20">
         {/* Step 1 */}
         <div className="flex items-center gap-2.5">
           <div
@@ -582,7 +582,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
           </div>
 
           {/* Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div data-tour="docs-meta" className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-[var(--on-surface)] mb-1">
                 Mã học phần
@@ -620,7 +620,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
           </div>
 
           {/* Dropzone with outlined dashed bo --radius-lg */}
-          <label className="flex flex-col items-center justify-center p-8 rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--outline)]/40 hover:border-[var(--primary)]/60 bg-[var(--surface-container-lowest)]/50 hover:bg-[var(--surface-container-low)] cursor-pointer transition-colors text-center group">
+          <label data-tour="docs-upload" className="flex flex-col items-center justify-center p-8 rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--outline)]/40 hover:border-[var(--primary)]/60 bg-[var(--surface-container-lowest)]/50 hover:bg-[var(--surface-container-low)] cursor-pointer transition-colors text-center group">
             <input
               type="file"
               accept=".pdf,.docx,.png,.jpg,.jpeg"
@@ -644,8 +644,9 @@ export function DocumentProcessingPage({ courseId }: Props) {
             <div className="flex-1 h-px bg-[var(--outline)]/20" />
           </div>
 
-          <div>
+          <div data-tour="docs-text">
             <textarea
+              data-tour="docs-try"
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
@@ -659,6 +660,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
 
           <div className="flex justify-end pt-2">
             <Button
+              data-tour="docs-submit"
               variant="filled"
               disabled={busy}
               onClick={start}
@@ -891,7 +893,7 @@ export function DocumentProcessingPage({ courseId }: Props) {
               </pre>
             </Card>
           ) : (
-            <div className="space-y-4">
+            <div data-tour="docs-conflicts" className="space-y-4">
               <div className="text-xs text-[var(--on-surface-variant)]">
                 Phát hiện <strong className="text-[var(--on-surface)]">{conflicts.length}</strong> đoạn có
                 nội dung cùng chủ đề với quy định hiện hành. Vui lòng chọn phương án giải quyết cho từng đoạn:

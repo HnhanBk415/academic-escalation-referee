@@ -105,6 +105,7 @@ export function WorkspaceRail({
       {/* Desktop Floating Rail */}
       <aside
         ref={railRef}
+        data-tour="workspace-rail"
         aria-label="Thanh điều hướng tính năng"
         onMouseEnter={triggerExpand}
         onMouseLeave={triggerCollapse}
