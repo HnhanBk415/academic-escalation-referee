@@ -14,13 +14,13 @@ router = APIRouter()
 _ai_health_cache: tuple[float, int, AIHealth] | None = None
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 async def health(session: AsyncSession = Depends(get_session)) -> dict:
     await session.execute(text("SELECT 1"))
     return {"status": "ok", "database": "ok"}
 
 
-@router.get("/health/ai", response_model=AIHealth)
+@router.api_route("/health/ai", methods=["GET", "HEAD"], response_model=AIHealth)
 async def ai_health(provider: AIProvider = Depends(get_ai_provider)) -> AIHealth:
     global _ai_health_cache
     now = monotonic()
@@ -34,4 +34,3 @@ async def ai_health(provider: AIProvider = Depends(get_ai_provider)) -> AIHealth
     result = await provider.health()
     _ai_health_cache = (now, id(provider), result)
     return result
-
