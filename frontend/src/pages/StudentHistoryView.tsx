@@ -113,7 +113,6 @@ export function StudentHistoryView({
       // Use dynamic actor_id
       params.append("actor_id", actorId || "student-a1");
       if (selectedCourseId) params.append("course_id", selectedCourseId);
-      if (selectedGroupId) params.append("group_id", selectedGroupId);
       const queryStr = params.toString() ? `?${params.toString()}` : "";
       const raw = await api<QuestionResponse[]>(`/api/v1/questions${queryStr}`);
       if (Array.isArray(raw)) {
@@ -212,7 +211,7 @@ export function StudentHistoryView({
 
   useEffect(() => {
     void loadData();
-  }, [actorId, selectedCourseId, selectedGroupId]);
+  }, [actorId, selectedCourseId]);
 
   const handleRefreshCurrentCase = async () => {
     if (!currentQuestionId) return;

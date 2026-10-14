@@ -53,12 +53,14 @@ interface AccountSwitcherProps {
   currentAccountId: string;
   aiOnline: boolean;
   onSelectAccount: (account: DemoAccount) => void;
+  activeGroupLabel?: string;
 }
 
 export function AccountSwitcher({
   currentAccountId,
   aiOnline,
   onSelectAccount,
+  activeGroupLabel,
 }: AccountSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -130,7 +132,13 @@ export function AccountSwitcher({
           </p>
           <p className="text-xs text-[var(--on-surface-variant)] leading-none mt-0.5 truncate">
             {currentAccount.roleLabel}
-            {currentAccount.groupLabel ? ` · ${currentAccount.groupLabel}` : ""}
+            {currentAccount.role === "student"
+              ? activeGroupLabel
+                ? ` · ${activeGroupLabel}`
+                : currentAccount.groupLabel
+                ? ` · ${currentAccount.groupLabel}`
+                : ""
+              : ""}
           </p>
         </div>
 
@@ -184,7 +192,13 @@ export function AccountSwitcher({
                     </p>
                     <p className="text-xs text-[var(--on-surface-variant)] truncate">
                       {acc.roleLabel}
-                      {acc.groupLabel ? ` · ${acc.groupLabel}` : ""}
+                      {acc.role === "student"
+                        ? acc.id === currentAccount.id && activeGroupLabel
+                          ? ` · ${activeGroupLabel}`
+                          : acc.groupLabel
+                          ? ` · ${acc.groupLabel}`
+                          : ""
+                        : ""}
                     </p>
                   </div>
                   {isSelected && (

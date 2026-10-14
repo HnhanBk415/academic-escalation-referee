@@ -347,6 +347,39 @@ Lưu ý cho người chạy: sau khi sửa xong, bấm "Reset dữ liệu demo" 
 
 ---
 
+## PROMPT 7 — Cho phép chọn nhóm tự do ở trang Hỏi đáp (test 2 sinh viên cùng nhóm)
+
+```
+Bối cảnh: frontend/ React + Vite + TS, Material 3 token, components trong frontend/src/components/ui/. Chỉ sửa FRONTEND. Backend đã cho phép: POST /api/v1/questions với group_id tường minh chỉ kiểm tra nhóm tồn tại và thuộc course_id (backend/app/services/questions.py, nhánh selected_group_id), KHÔNG kiểm tra sinh viên có phải thành viên nhóm → 2 tài khoản demo có thể hỏi dưới cùng một nhóm.
+
+HIỆN TRẠNG ĐÃ XÁC MINH:
+- Danh sách nhóm lấy từ BE (GET /api/v1/demo/catalog → courses[].groups[]), nhưng nhóm được chọn bị GHI CỨNG theo tài khoản:
+  * frontend/src/components/AccountSwitcher.tsx: DEMO_ACCOUNTS gán student-a1 → groupId "group-a", groupLabel "Nhóm 01"; student-b1 → "group-b", "Nhóm 02".
+  * frontend/src/pages/StudentSubmitView.tsx ~dòng 104–106 và ~dòng 147–150: fallback `actorId === "student-b1" ? "group-b" : "group-a"`; ~dòng 354–359: nhóm chỉ hiển thị dạng chip read-only, không chọn được.
+- Lỗi kèm theo: App.tsx handleSelectCourse đặt selectedGroupId = "" → khi đổi sang môn DADN, fallback vẫn gửi "group-a" (thuộc CO3001) → backend trả 422 GROUP_COURSE_MISMATCH.
+- StudentHistoryView.tsx ~dòng 116 lọc lịch sử theo selectedGroupId → nếu đổi nhóm thì câu hỏi cũ ở nhóm khác bị ẩn.
+
+YÊU CẦU:
+1. Trang Hỏi đáp: thay chip read-only bằng dropdown "Nhóm" (cùng kiểu pill outlined như ô "Chọn môn"), option lấy từ catalog của môn đang chọn, hiển thị tên nhóm (vd "Nhóm 01 - CO3001"). Bỏ hoàn toàn các fallback ghi cứng "group-a"/"group-b"/"student-b1" trong StudentSubmitView.
+2. Giá trị mặc định:
+   - Khi đổi tài khoản: chọn nhóm mà tài khoản là thành viên trong môn hiện tại (dựa vào catalog groups[].member_ids nếu catalog có; nếu không, dùng groupId mặc định trong DEMO_ACCOUNTS như gợi ý ban đầu) — nhưng người dùng đổi được.
+   - Khi đổi môn: tự chọn nhóm của tài khoản trong môn đó nếu có, ngược lại chọn nhóm đầu tiên của môn; nếu môn không có nhóm thì hiện "Chưa có nhóm" và khóa nút gửi kèm thông báo.
+   - Dropdown nhóm chỉ hiện các nhóm của môn đang chọn → không bao giờ gửi group sai môn.
+3. Khi nhóm đang chọn KHÁC nhóm mặc định của tài khoản, hiện dòng chú thích nhỏ dưới hàng chọn: "Đang hỏi với tư cách thành viên Nhóm 02 (chế độ demo)" để người test biết.
+4. AccountSwitcher: dòng phụ dưới tên tài khoản ("Sinh viên · Nhóm 01") hiển thị NHÓM ĐANG CHỌN thực tế (đọc từ state App), không phải groupLabel cố định.
+5. StudentHistoryView: KHÔNG lọc theo selectedGroupId nữa — lịch sử chỉ lọc theo actor_id (và course nếu đang có). Mỗi dòng/chi tiết vẫn hiển thị nhóm của câu hỏi đó (đã có groupLabel).
+6. Giữ lựa chọn nhóm theo từng tài khoản trong localStorage (key ví dụ aer_selected_group:<actorId>:<courseId>, bọc try/catch) để F5 không mất.
+
+Kiểm tra chấp nhận:
+- Tài khoản SV A chọn "Nhóm 02" rồi hỏi "Nhóm em xin phép có 6 thành viên được không?" → tạo hồ sơ với group-b; tài khoản SV B (mặc định Nhóm 02) hỏi cùng câu → giảng viên thấy 2 hồ sơ cùng "Nhóm 02" từ 2 sinh viên khác nhau.
+- Đổi môn sang DADN → dropdown nhóm chỉ còn nhóm DADN, gửi câu hỏi không lỗi 422.
+- Đổi nhóm không làm mất câu hỏi cũ trong Hồ sơ câu hỏi.
+- grep "group-a\|group-b\|student-b1" trong frontend/src/pages chỉ còn trong dữ liệu Verify (VerifyPage.tsx).
+- npm run build pass.
+```
+
+---
+
 ## PROMPT 6 — Backend: trích dẫn không liên quan + khôi phục downgrade migration
 
 ```

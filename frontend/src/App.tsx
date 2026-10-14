@@ -9,13 +9,83 @@ import { WorkspacePage } from "./pages/WorkspacePage";
 import { AuditPage } from "./pages/AuditPage";
 import { VerifyPage } from "./pages/VerifyPage";
 import type { AIHealth, DashboardCounts, DemoCatalog } from "./types";
+import { groupLabel } from "./utils/labels";
 
-const STORAGE_KEY = "aer_demo_account_id";
+const ACCOUNT_STORAGE_KEY = "aer_demo_account_id";
+
+function getGroupStorageKey(actorId: string, courseId: string) {
+  return `aer_selected_group:${actorId}:${courseId}`;
+}
+
+function getSavedGroupForAccountCourse(actorId: string, courseId: string): string | null {
+  try {
+    return localStorage.getItem(getGroupStorageKey(actorId, courseId));
+  } catch {
+    return null;
+  }
+}
+
+function saveGroupForAccountCourse(actorId: string, courseId: string, groupId: string) {
+  try {
+    if (groupId) {
+      localStorage.setItem(getGroupStorageKey(actorId, courseId), groupId);
+    } else {
+      localStorage.removeItem(getGroupStorageKey(actorId, courseId));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function resolveSelectedGroup(
+  account: DemoAccount,
+  courseId: string,
+  catalog: DemoCatalog | null
+): string {
+  const targetCourse = catalog?.courses.find((c) => c.id === courseId);
+  const courseGroups = targetCourse?.groups ?? [];
+
+  // 1. Check saved group in localStorage
+  const savedGroupId = getSavedGroupForAccountCourse(account.id, courseId);
+  if (savedGroupId) {
+    if (courseGroups.length > 0) {
+      if (courseGroups.some((g) => g.id === savedGroupId)) {
+        return savedGroupId;
+      }
+    } else if (!catalog) {
+      return savedGroupId;
+    }
+  }
+
+  // 2. Check if account is member of a group in this course from catalog
+  if (courseGroups.length > 0) {
+    const memberGroup = courseGroups.find((g) =>
+      (g as unknown as { member_ids?: string[] }).member_ids?.includes(account.id)
+    );
+    if (memberGroup) {
+      return memberGroup.id;
+    }
+  }
+
+  // 3. Default account group for this course if matches
+  if (account.courseId === courseId && account.groupId) {
+    if (courseGroups.length === 0 || courseGroups.some((g) => g.id === account.groupId)) {
+      return account.groupId;
+    }
+  }
+
+  // 4. Fallback to first group of the course
+  if (courseGroups.length > 0) {
+    return courseGroups[0].id;
+  }
+
+  return "";
+}
 
 function getInitialAccount(): DemoAccount {
   let acc = DEMO_ACCOUNTS[0]; // student-a1 by default
   try {
-    const savedId = localStorage.getItem(STORAGE_KEY);
+    const savedId = localStorage.getItem(ACCOUNT_STORAGE_KEY);
     if (savedId) {
       const found = DEMO_ACCOUNTS.find((a) => a.id === savedId);
       if (found) acc = found;
@@ -34,7 +104,9 @@ export function App() {
   const [currentAccount, setCurrentAccount] = useState<DemoAccount>(getInitialAccount);
   const [catalog, setCatalog] = useState<DemoCatalog | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string>(currentAccount.courseId);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(currentAccount.groupId || "");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(() =>
+    resolveSelectedGroup(currentAccount, currentAccount.courseId, null)
+  );
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | undefined>();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [queueCount, setQueueCount] = useState<number>(0);
@@ -44,7 +116,7 @@ export function App() {
   useEffect(() => {
     setDemoActorId(currentAccount.id);
     try {
-      localStorage.setItem(STORAGE_KEY, currentAccount.id);
+      localStorage.setItem(ACCOUNT_STORAGE_KEY, currentAccount.id);
     } catch {
       // ignore
     }
@@ -62,7 +134,26 @@ export function App() {
         if (cancelled) return;
         setCatalog(data);
         if (data.courses && data.courses.length > 0) {
-          setSelectedCourseId((prev) => prev || data.courses[0].id);
+          setSelectedCourseId((prevCourseId) => {
+            const validCourseId =
+              prevCourseId && data.courses.some((c) => c.id === prevCourseId)
+                ? prevCourseId
+                : data.courses[0].id;
+
+            setSelectedGroupId((prevGroupId) => {
+              const currentCourse = data.courses.find((c) => c.id === validCourseId);
+              const courseGroups = currentCourse?.groups ?? [];
+              if (prevGroupId && courseGroups.some((g) => g.id === prevGroupId)) {
+                saveGroupForAccountCourse(currentAccount.id, validCourseId, prevGroupId);
+                return prevGroupId;
+              }
+              const resolved = resolveSelectedGroup(currentAccount, validCourseId, data);
+              saveGroupForAccountCourse(currentAccount.id, validCourseId, resolved);
+              return resolved;
+            });
+
+            return validCourseId;
+          });
         }
       } catch (err) {
         console.warn("Could not load demo catalog", err);
@@ -127,8 +218,17 @@ export function App() {
   const handleSelectAccount = (account: DemoAccount) => {
     setCurrentAccount(account);
     setDemoActorId(account.id);
-    setSelectedCourseId(account.courseId);
-    setSelectedGroupId(account.groupId || "");
+
+    // Keep current course if valid in catalog, else fallback to account.courseId
+    const targetCourseId =
+      selectedCourseId && catalog?.courses.some((c) => c.id === selectedCourseId)
+        ? selectedCourseId
+        : account.courseId;
+    setSelectedCourseId(targetCourseId);
+
+    const resolvedGroup = resolveSelectedGroup(account, targetCourseId, catalog);
+    setSelectedGroupId(resolvedGroup);
+    saveGroupForAccountCourse(account.id, targetCourseId, resolvedGroup);
 
     const defaultFeature = account.role === "student" ? "ask" : "inbox";
     navigate(`/workspace/${defaultFeature}`);
@@ -137,11 +237,14 @@ export function App() {
 
   const handleSelectCourse = (courseId: string) => {
     setSelectedCourseId(courseId);
-    setSelectedGroupId("");
+    const resolvedGroup = resolveSelectedGroup(currentAccount, courseId, catalog);
+    setSelectedGroupId(resolvedGroup);
+    saveGroupForAccountCourse(currentAccount.id, courseId, resolvedGroup);
   };
 
   const handleSelectGroup = (groupId: string) => {
     setSelectedGroupId(groupId);
+    saveGroupForAccountCourse(currentAccount.id, selectedCourseId, groupId);
   };
 
   const handleQuestionSubmitted = (questionId: string) => {
@@ -158,6 +261,18 @@ export function App() {
     else if (destination === "operations") navigate("/workspace/inbox");
   };
 
+  const activeGroupLabel = (() => {
+    if (currentAccount.role !== "student") return undefined;
+    const currentCourse = catalog?.courses.find((c) => c.id === selectedCourseId);
+    const currentGroup = currentCourse?.groups.find((g) => g.id === selectedGroupId);
+    if (currentGroup) {
+      return currentGroup.name.includes(" - ")
+        ? currentGroup.name.split(" - ")[0].trim()
+        : currentGroup.name.trim();
+    }
+    return groupLabel(selectedGroupId, catalog);
+  })();
+
   return (
     <div className="flex flex-col min-h-screen w-full bg-[var(--surface-dim)] text-[var(--on-surface)] overflow-x-hidden font-sans">
       {/* Top Header */}
@@ -166,6 +281,7 @@ export function App() {
         currentRole={currentAccount.role}
         aiOnline={ai?.available ?? false}
         onSelectAccount={handleSelectAccount}
+        activeGroupLabel={activeGroupLabel}
       />
 
       {/* Main Content View with Routes */}

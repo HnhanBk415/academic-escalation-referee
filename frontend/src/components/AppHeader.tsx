@@ -7,6 +7,7 @@ interface AppHeaderProps {
   currentRole: "student" | "lecturer";
   aiOnline: boolean;
   onSelectAccount: (account: DemoAccount) => void;
+  activeGroupLabel?: string;
 }
 
 export function AppHeader({
@@ -14,6 +15,7 @@ export function AppHeader({
   currentRole,
   aiOnline,
   onSelectAccount,
+  activeGroupLabel,
 }: AppHeaderProps) {
   const location = useLocation();
   const pathname = location.pathname;
@@ -76,6 +78,7 @@ export function AppHeader({
           currentAccountId={currentAccountId}
           aiOnline={aiOnline}
           onSelectAccount={onSelectAccount}
+          activeGroupLabel={activeGroupLabel}
         />
       </div>
     </header>

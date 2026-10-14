@@ -25,7 +25,7 @@ const demoActors = {
   "student-dadn-a1": { label: "Lê Văn Cường · DADN/A",  courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành (HK242)" },
   "student-dadn-b1": { label: "Phạm Thị Dung · DADN/B", courseId: "DADN-HK242", courseLabel: "DADN · Đồ án Đa ngành (HK242)" },
   "student-a1":      { label: "Nguyễn Văn An · Nhóm A", courseId: "CO3001",     courseLabel: "CO3001 · Đồ án chuyên ngành" },
-  "student-b1":      { label: "Trần Thị Bình · Nhóm B", courseId: "CO3001",     courseLabel: "CO3001 · Đồ án chuyên ngành" },
+  "student-b":       { label: "Trần Thị Bình · Nhóm B", courseId: "CO3001",     courseLabel: "CO3001 · Đồ án chuyên ngành" },
 } as const;
 type DemoActorId = keyof typeof demoActors;
 

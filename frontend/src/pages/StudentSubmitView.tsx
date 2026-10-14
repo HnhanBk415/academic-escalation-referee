@@ -26,6 +26,7 @@ import { StudentWorkflowTracker } from "../components/StudentWorkflowTracker";
 import { Badge } from "../components/ui/Badge";
 import { PageHeader } from "../components/ui";
 import { routeLabel, routeTone } from "../utils/labels";
+import { DEMO_ACCOUNTS } from "../components/AccountSwitcher";
 import type { Citation, DemoCatalog, QuestionResponse } from "../types";
 
 interface StudentSubmitViewProps {
@@ -102,8 +103,34 @@ export function StudentSubmitView({
 
   const selectedCourse = catalog?.courses.find((c) => c.id === selectedCourseId);
   const availableGroups = selectedCourse?.groups ?? [];
-  const selectedGroup = availableGroups.find((g) => g.id === selectedGroupId) ||
-    availableGroups.find((g) => g.id === (actorId === "student-b1" ? "group-b" : "group-a"));
+  const selectedGroup =
+    availableGroups.find((g) => g.id === selectedGroupId) || availableGroups[0];
+
+  const defaultAccount = DEMO_ACCOUNTS.find((a) => a.id === actorId);
+  const memberGroup = availableGroups.find((g) =>
+    (g as unknown as { member_ids?: string[] }).member_ids?.includes(actorId || "")
+  );
+  const defaultGroupId =
+    memberGroup?.id ||
+    (defaultAccount?.courseId === selectedCourseId ? defaultAccount.groupId : undefined);
+
+  const effectiveGroupId =
+    availableGroups.some((g) => g.id === selectedGroupId)
+      ? selectedGroupId
+      : (selectedGroup?.id || "");
+
+  const isDifferentFromDefault = Boolean(
+    defaultGroupId &&
+    effectiveGroupId &&
+    effectiveGroupId !== defaultGroupId
+  );
+
+  const activeGroupObj = availableGroups.find((g) => g.id === effectiveGroupId) || selectedGroup;
+  const activeGroupShortName = activeGroupObj?.name
+    ? activeGroupObj.name.includes(" - ")
+      ? activeGroupObj.name.split(" - ")[0].trim()
+      : activeGroupObj.name.trim()
+    : "";
 
   function handleQueryChange(newQuery: string) {
     setQuery(newQuery);
@@ -121,6 +148,10 @@ export function StudentSubmitView({
     if (e) e.preventDefault();
     if (!selectedCourseId) {
       setError("Vui lòng chọn môn học trước khi gửi thắc mắc.");
+      return;
+    }
+    if (availableGroups.length === 0 || !effectiveGroupId) {
+      setError("Môn học này hiện chưa có nhóm đồ án để gửi thắc mắc.");
       return;
     }
     if (!query.trim()) {
@@ -143,11 +174,6 @@ export function StudentSubmitView({
       minute: "2-digit",
     });
     setSubmitTime(formattedSubmit);
-
-    const effectiveGroupId =
-      selectedGroupId ||
-      selectedGroup?.id ||
-      (actorId === "student-b1" ? "group-b" : "group-a");
 
     try {
       const res = await postJson<QuestionResponse>("/api/v1/questions", {
@@ -320,44 +346,84 @@ export function StudentSubmitView({
           </div>
         )}
 
-        {/* Hàng 1: pill "Chọn môn" + chip nhóm read-only */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
-            <select
-              value={selectedCourseId}
-              disabled={!catalog || !catalog.courses || catalog.courses.length === 0}
-              onChange={(e) => {
-                onSelectCourse(e.target.value);
-                setResult(null);
-                setError("");
-                setSubmitTime("");
-                setProcessTime("");
-              }}
-              className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {!catalog || !catalog.courses || catalog.courses.length === 0 ? (
-                <option value="" disabled>
-                  Đang tải môn học…
-                </option>
-              ) : (
-                catalog.courses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.code} - {course.name} ({course.semester})
+        {/* Hàng 1: pill "Chọn môn" + dropdown "Nhóm" */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <select
+                value={selectedCourseId}
+                disabled={!catalog || !catalog.courses || catalog.courses.length === 0}
+                onChange={(e) => {
+                  onSelectCourse(e.target.value);
+                  setResult(null);
+                  setError("");
+                  setSubmitTime("");
+                  setProcessTime("");
+                }}
+                className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {!catalog || !catalog.courses || catalog.courses.length === 0 ? (
+                  <option value="" disabled>
+                    Đang tải môn học…
                   </option>
-                ))
-              )}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--on-surface-variant)]">
-              <IconChevronRight size={14} className="rotate-90" />
+                ) : (
+                  catalog.courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.code} - {course.name} ({course.semester})
+                    </option>
+                  ))
+                )}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--on-surface-variant)]">
+                <IconChevronRight size={14} className="rotate-90" />
+              </div>
+            </div>
+
+            {/* Dropdown chọn nhóm */}
+            <div className="relative">
+              <select
+                value={effectiveGroupId}
+                disabled={availableGroups.length === 0}
+                onChange={(e) => {
+                  onSelectGroup(e.target.value);
+                  setResult(null);
+                  setError("");
+                }}
+                className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {availableGroups.length === 0 ? (
+                  <option value="" disabled>
+                    Chưa có nhóm
+                  </option>
+                ) : (
+                  availableGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--on-surface-variant)]">
+                <IconChevronRight size={14} className="rotate-90" />
+              </div>
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 h-10 px-4 rounded-[var(--radius-xl)] bg-[var(--surface-container)] border border-[var(--outline)]/40 text-xs text-[var(--on-surface-variant)] select-none">
-            <span>Nhóm:</span>
-            <span className="font-semibold text-[var(--on-surface)]">
-              {selectedGroup?.name || (actorId === "student-b1" ? "Nhóm 02 - CO3001" : "Nhóm 01 - CO3001")}
-            </span>
-          </div>
+          {/* Dòng chú thích khi chọn nhóm khác nhóm mặc định của tài khoản */}
+          {isDifferentFromDefault && activeGroupShortName && (
+            <p className="text-xs text-[var(--on-surface-variant)] flex items-center gap-1.5 pl-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
+              Đang hỏi với tư cách thành viên {activeGroupShortName} (chế độ demo)
+            </p>
+          )}
+
+          {/* Thông báo khóa khi môn học chưa có nhóm */}
+          {availableGroups.length === 0 && (
+            <p className="text-xs text-[var(--error)] flex items-center gap-1.5 pl-1">
+              <IconWarning size={14} />
+              Môn học này hiện chưa có nhóm đồ án. Vui lòng chọn môn học khác để gửi câu hỏi.
+            </p>
+          )}
         </div>
 
         {/* Hàng 2: ô hỏi lớn với nút FAB nhỏ */}
@@ -380,9 +446,13 @@ export function StudentSubmitView({
             <button
               type="button"
               onClick={() => void handleSubmit()}
-              disabled={busy || !query.trim()}
+              disabled={busy || !query.trim() || availableGroups.length === 0}
               className="w-10 h-10 rounded-full bg-[var(--primary)] text-white hover:bg-[#0842A0] active:bg-[#073682] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] cursor-pointer"
-              title="Gửi câu hỏi (Enter)"
+              title={
+                availableGroups.length === 0
+                  ? "Môn học chưa có nhóm"
+                  : "Gửi câu hỏi (Enter)"
+              }
             >
               {busy ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
