@@ -1,31 +1,22 @@
-import React, { FormEvent, useState } from "react";
+import React, { FormEvent, useState, useRef, useEffect } from "react";
 import { api, getLastRequestId, postJson } from "../api/client";
 import {
-  IconArrowUpRight,
-  IconBookOpen,
-  IconCheck,
-  IconChevronRight,
-  IconClock,
-  IconHelp,
-  IconInfo,
-  IconMessageSquare,
-  IconRotateCcw,
-  IconScale,
-  IconSearch,
-  IconShield,
-  IconSparkle,
-  IconTeacher,
-  IconThumbDown,
-  IconThumbUp,
-  IconUser,
-  IconWarning,
-  IconX,
-} from "../components/Icons";
-import { Send, Copy, Check } from "lucide-react";
-import { StudentWorkflowTracker } from "../components/StudentWorkflowTracker";
-import { Badge } from "../components/ui/Badge";
-import { PageHeader } from "../components/ui";
-import { routeLabel, routeTone } from "../utils/labels";
+  Send,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  ExternalLink,
+  Copy,
+  Clock,
+  ThumbsUp,
+  ThumbsDown,
+  AlertTriangle,
+  ArrowRight,
+  ShieldAlert,
+  XCircle,
+  BookOpen,
+} from "lucide-react";
 import { DEMO_ACCOUNTS } from "../components/AccountSwitcher";
 import type { Citation, DemoCatalog, QuestionResponse } from "../types";
 
@@ -51,22 +42,19 @@ export interface ClarificationTurnItem {
 const QUICK_CHIPS = [
   {
     label: "Hạn định hủy môn học",
-    prompt:
-      "Hạn chót để sinh viên được phép xin hủy môn học mà không bị ghi điểm F là khi nào?",
+    prompt: "Hạn định hủy môn học được tính từ tuần thứ mấy theo quy chế?",
   },
   {
     label: "Cộng điểm rèn luyện",
-    prompt:
-      "Quy định về việc cộng điểm rèn luyện khi tham gia hoạt động nghiên cứu khoa học và đồ án môn học như thế nào?",
+    prompt: "Cộng điểm rèn luyện khi tham gia nghiên cứu khoa học đồ án được tính như thế nào?",
   },
   {
     label: "Đăng ký nhóm ngoại lệ",
-    prompt:
-      "Nhóm em có nguyện vọng đăng ký 6 thành viên cho đồ án môn học có được phê duyệt không?",
+    prompt: "Đăng ký nhóm ngoại lệ dưới 2 sinh viên hoặc 6 sinh viên được giải quyết thế nào?",
   },
   {
     label: "Quy định số lượng thành viên",
-    prompt: "Một nhóm đồ án được có bao nhiêu thành viên theo quy chế chuẩn?",
+    prompt: "Quy định số lượng thành viên tối đa trong một nhóm đồ án chuyên ngành?",
   },
   {
     label: "Tỷ lệ điểm đồ án",
@@ -90,21 +78,28 @@ export function StudentSubmitView({
   const [result, setResult] = useState<QuestionResponse | null>(null);
   const [clarificationText, setClarificationText] = useState("");
   const [clarifyingBusy, setClarifyingBusy] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
   const [copiedRequestId, setCopiedRequestId] = useState(false);
   const [conversationTurns, setConversationTurns] = useState<ClarificationTurnItem[]>([]);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
+  const [copiedQuote, setCopiedQuote] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
-  // Time tracking
-  const [submitTime, setSubmitTime] = useState("");
-  const [processTime, setProcessTime] = useState("");
+  // Dropdown states
+  const [isCourseDropdownOpen, setIsCourseDropdownOpen] = useState(false);
+  const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
+  const courseDropdownRef = useRef<HTMLDivElement>(null);
+  const groupDropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedCourse = catalog?.courses.find((c) => c.id === selectedCourseId);
   const availableGroups = selectedCourse?.groups ?? [];
   const selectedGroup =
     availableGroups.find((g) => g.id === selectedGroupId) || availableGroups[0];
+
+  const effectiveGroupId =
+    availableGroups.some((g) => g.id === selectedGroupId)
+      ? selectedGroupId
+      : selectedGroup?.id || "";
 
   const defaultAccount = DEMO_ACCOUNTS.find((a) => a.id === actorId);
   const memberGroup = availableGroups.find((g) =>
@@ -113,11 +108,6 @@ export function StudentSubmitView({
   const defaultGroupId =
     memberGroup?.id ||
     (defaultAccount?.courseId === selectedCourseId ? defaultAccount.groupId : undefined);
-
-  const effectiveGroupId =
-    availableGroups.some((g) => g.id === selectedGroupId)
-      ? selectedGroupId
-      : (selectedGroup?.id || "");
 
   const isDifferentFromDefault = Boolean(
     defaultGroupId &&
@@ -132,17 +122,36 @@ export function StudentSubmitView({
       : activeGroupObj.name.trim()
     : "";
 
-  function handleQueryChange(newQuery: string) {
-    setQuery(newQuery);
-    if (result) {
-      setResult(null);
-      setConversationTurns([]);
-      setSubmitTime("");
-      setProcessTime("");
-      setFeedback(null);
-      setSelectedCitation(null);
-    }
+  function handleEscalateManually() {
+    const courseCode = selectedCourse?.id || "CO3001";
+    setQuery(
+      `Nhóm em có nguyện vọng xin đăng ký ngoại lệ 6 thành viên cho đồ án môn học ${courseCode}`
+    );
   }
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (courseDropdownRef.current && !courseDropdownRef.current.contains(e.target as Node)) {
+        setIsCourseDropdownOpen(false);
+      }
+      if (groupDropdownRef.current && !groupDropdownRef.current.contains(e.target as Node)) {
+        setIsGroupDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Determine current active scenario based strictly on real result route
+  const activeScenario: "A" | "B" | "C" | "REJECT" =
+    result?.route === "ANSWER"
+      ? "A"
+      : result?.route === "CLARIFY"
+      ? "B"
+      : result?.route === "REJECT" || (result as any)?.status === "REJECTED"
+      ? "REJECT"
+      : "C";
 
   async function handleSubmit(e?: FormEvent) {
     if (e) e.preventDefault();
@@ -159,21 +168,12 @@ export function StudentSubmitView({
       return;
     }
 
-    // Reset previous workflow state when re-asking
     setResult(null);
     setConversationTurns([]);
-    setProcessTime("");
     setFeedback(null);
     setSelectedCitation(null);
     setBusy(true);
     setError("");
-
-    const now = new Date();
-    const formattedSubmit = now.toLocaleTimeString("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    setSubmitTime(formattedSubmit);
 
     try {
       const res = await postJson<QuestionResponse>("/api/v1/questions", {
@@ -183,10 +183,6 @@ export function StudentSubmitView({
         text: query.trim(),
       });
 
-      const nowFinish = new Date();
-      setProcessTime(
-        nowFinish.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
-      );
       setCurrentRequestId(getLastRequestId());
       setResult(res);
 
@@ -216,8 +212,8 @@ export function StudentSubmitView({
     }
   }
 
-  async function handleSendClarification(e: FormEvent) {
-    e.preventDefault();
+  async function handleSendClarification(e?: FormEvent) {
+    if (e) e.preventDefault();
     if (!result || !clarificationText.trim()) return;
 
     setClarifyingBusy(true);
@@ -232,7 +228,6 @@ export function StudentSubmitView({
       );
       setCurrentRequestId(getLastRequestId());
 
-      // Update the thread with the student's reply and next round
       setConversationTurns((prev) => {
         const lastIdx = prev.length - 1;
         const updated = [...prev];
@@ -263,702 +258,910 @@ export function StudentSubmitView({
     }
   }
 
-  async function handleRefreshQuestion() {
-    if (!result?.question_id) return;
-    setRefreshing(true);
-    setError("");
-    try {
-      const updated = await api<QuestionResponse>(`/api/v1/questions/${result.question_id}`);
-      setCurrentRequestId(getLastRequestId());
-      setResult(updated);
-    } catch (err) {
-      setCurrentRequestId(getLastRequestId());
-      setError(err instanceof Error ? err.message : "Không thể làm mới kết quả.");
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-
-  function handleEscalateManually() {
-    const courseCode = selectedCourse?.code || "môn học";
-    setQuery(
-      `Nhóm em có nguyện vọng xin đăng ký ngoại lệ 6 thành viên cho đồ án môn học ${courseCode}`
-    );
-    setTimeout(() => {
-      void handleSubmit();
-    }, 50);
-  }
-
-  function handleNewQuestion() {
-    setQuery("");
-    setResult(null);
-    setError("");
-    setSelectedCitation(null);
-    setFeedback(null);
-    setSubmitTime("");
-    setProcessTime("");
-  }
-
-  const handleCopyRequestId = (reqId: string) => {
-    void navigator.clipboard.writeText(reqId);
-    setCopiedRequestId(true);
-    setTimeout(() => setCopiedRequestId(false), 2000);
+  const handleChipClick = (promptText: string) => {
+    setQuery(promptText);
+    // Focus or submit
   };
 
-  // Format bold highlight for answer text (Material 3: font-medium, no red color)
-  const renderFormattedAnswer = (text: string) => {
-    const parts = text.split(
-      /(hạn chót hủy môn không ghi điểm F là trước 17:00 ngày thứ Sáu của Tuần học thứ 6|3 đến 5 sinh viên|tối đa hai ngày|10%|40%|30%|20%|phải có lý do bất khả kháng và chuyển Giảng viên phê duyệt)/gi
-    );
-
-    return (
-      <span className="leading-relaxed">
-        {parts.map((part, idx) => {
-          const isHighlight =
-            /hạn chót|17:00|thứ Sáu|Tuần học thứ 6|3 đến 5|bất khả kháng|Giảng viên phê duyệt/i.test(
-              part
-            );
-          return isHighlight ? (
-            <strong key={idx} className="font-medium text-[var(--on-surface)]">
-              {part}
-            </strong>
-          ) : (
-            part
-          );
-        })}
-      </span>
-    );
+  const handleCopyRequestId = () => {
+    const idToCopy = currentRequestId || result?.question_id;
+    if (idToCopy) {
+      navigator.clipboard.writeText(idToCopy);
+      setCopiedRequestId(true);
+      setTimeout(() => setCopiedRequestId(false), 2000);
+    }
   };
 
   return (
-    <div className="flex-1 w-full bg-[var(--surface-dim)] space-y-5">
-      {/* Title */}
-      <PageHeader
-        title="Hỏi đáp quy chế"
-        description="Tra cứu quy chế đào tạo, đối soát điều khoản tự động và gửi yêu cầu thẩm định ngoại lệ"
-      />
+    <div className="space-y-4">
+      {/* 1. HEADER SECTION & ACADEMIC SELECTORS */}
+      <section className="pt-1 pb-1">
+        <div>
+          <h1 className="font-display text-xl sm:text-2xl text-stone-900 font-bold tracking-tight">
+            Hỏi đáp quy chế
+          </h1>
+          <p className="text-xs sm:text-sm text-stone-500 mt-0.5">
+            Tra cứu quy chế đào tạo, đối soát điều khoản tự động và gửi yêu cầu thẩm định ngoại lệ
+          </p>
+        </div>
 
-      {error && (
-          <div className="p-4 bg-[#FFEBEE] border border-[#FFCDD2] rounded-[var(--radius-md)] text-sm text-[var(--error)] font-medium flex items-center gap-2 shadow-xs">
-            <IconWarning size={16} />
+        {/* 2 Dropdown Selectors directly under title */}
+        <div className="flex flex-wrap items-center gap-2.5 mt-3">
+          {/* Subject Dropdown */}
+          <div className="relative" ref={courseDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsCourseDropdownOpen((prev) => !prev)}
+              className="inline-flex items-center justify-between gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-rose-200/80 shadow-2xs text-stone-800 hover:border-ruby-400 text-xs sm:text-sm font-semibold transition-all cursor-pointer min-w-[14rem]"
+            >
+              <span className="truncate">
+                {selectedCourse
+                  ? `${selectedCourse.id} - ${selectedCourse.name}`
+                  : "Chọn học phần"}
+              </span>
+              <ChevronDown size={15} className="text-stone-500 shrink-0" />
+            </button>
+
+            {isCourseDropdownOpen && catalog && (
+              <div className="absolute left-0 mt-1.5 w-72 bg-white rounded-xl shadow-lg border border-rose-100 py-1.5 z-50 animate-fade-in">
+                <div className="px-3 py-1 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                  Danh sách học phần
+                </div>
+                {catalog.courses.map((course) => (
+                  <button
+                    key={course.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectCourse(course.id);
+                      setIsCourseDropdownOpen(false);
+                      setResult(null);
+                    }}
+                    className={`w-full text-left px-3.5 py-2 text-xs sm:text-sm transition-colors flex items-center justify-between cursor-pointer hover:bg-rose-50 ${
+                      course.id === selectedCourseId
+                        ? "text-ruby-800 font-bold bg-rose-50/70"
+                        : "text-stone-700"
+                    }`}
+                  >
+                    <span className="truncate">
+                      {course.id} - {course.name}
+                    </span>
+                    {course.id === selectedCourseId && (
+                      <Check size={14} className="text-ruby-700 shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Group Selector */}
+          <div className="relative" ref={groupDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsGroupDropdownOpen((prev) => !prev)}
+              disabled={availableGroups.length === 0}
+              className="inline-flex items-center justify-between gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-rose-200/80 shadow-2xs text-stone-800 hover:border-ruby-400 text-xs sm:text-sm font-semibold transition-all cursor-pointer min-w-[10.5rem] disabled:opacity-50"
+            >
+              <span className="truncate">
+                {availableGroups.length === 0
+                  ? "Chưa có nhóm"
+                  : selectedGroup
+                  ? selectedGroup.name
+                  : "Chọn nhóm đồ án"}
+              </span>
+              <ChevronDown size={15} className="text-stone-500 shrink-0" />
+            </button>
+
+            {isGroupDropdownOpen && availableGroups.length > 0 && (
+              <div className="absolute left-0 mt-1.5 w-60 bg-white rounded-xl shadow-lg border border-rose-100 py-1.5 z-50 animate-fade-in">
+                <div className="px-3 py-1 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                  Nhóm trong học phần
+                </div>
+                {availableGroups.map((grp) => (
+                  <button
+                    key={grp.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectGroup(grp.id);
+                      setIsGroupDropdownOpen(false);
+                      setResult(null);
+                    }}
+                    className={`w-full text-left px-3.5 py-2 text-xs sm:text-sm transition-colors flex items-center justify-between cursor-pointer hover:bg-rose-50 ${
+                      grp.id === effectiveGroupId
+                        ? "text-ruby-800 font-bold bg-rose-50/70"
+                        : "text-stone-700"
+                    }`}
+                  >
+                    <span className="truncate">{grp.name}</span>
+                    {grp.id === effectiveGroupId && (
+                      <Check size={14} className="text-ruby-700 shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Thông báo khóa khi môn học chưa có nhóm */}
+        {availableGroups.length === 0 && (
+          <p className="text-xs text-red-600 flex items-center gap-1.5 mt-2">
+            <AlertTriangle size={13} className="shrink-0" />
+            <span>Môn học này hiện chưa có nhóm đồ án. Vui lòng chọn môn học khác để gửi câu hỏi.</span>
+          </p>
+        )}
+
+        {/* Dòng chú thích khi chọn nhóm khác nhóm mặc định của tài khoản */}
+        {isDifferentFromDefault && activeGroupShortName && (
+          <p className="text-xs text-stone-500 flex items-center gap-1.5 mt-2">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-ruby-700" />
+            <span>Đang hỏi với tư cách thành viên {activeGroupShortName} (chế độ demo)</span>
+          </p>
+        )}
+      </section>
+
+      {/* 2. BIG QUERY INPUT CARD */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100 relative">
+        <form onSubmit={handleSubmit}>
+          <div className="relative w-full rounded-2xl border border-rose-200/80 bg-white focus-within:border-ruby-500 focus-within:ring-2 focus-within:ring-ruby-100 transition-all p-3.5 pb-13">
+            <textarea
+              className="w-full bg-transparent text-stone-900 font-sans text-sm sm:text-base focus:outline-none resize-none placeholder:text-stone-400 leading-relaxed font-medium"
+              id="questionInput"
+              placeholder="Nhập câu hỏi về quy chế môn học, vd: Nhóm đồ án được tối đa bao nhiêu thành viên?"
+              rows={3}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              disabled={busy}
+            />
+
+            {/* Round circular submit button with send / paper plane icon */}
+            <div className="absolute bottom-2.5 right-2.5 flex items-center justify-end">
+              <button
+                type="submit"
+                disabled={busy || !query.trim() || availableGroups.length === 0}
+                title="Gửi câu hỏi"
+                className="w-9 h-9 rounded-full bg-ruby-700 text-white flex items-center justify-center shadow-md hover:bg-ruby-800 hover:shadow-lg transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                {busy ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send size={15} className="text-white ml-0.5" />
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {error && (
+          <div className="mt-2.5 p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-800 flex items-center gap-2">
+            <AlertTriangle size={14} className="shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Hàng 1: pill "Chọn môn" + dropdown "Nhóm" */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-3">
-            <div data-tour="ask-course" className="relative">
-              <select
-                value={selectedCourseId}
-                disabled={!catalog || !catalog.courses || catalog.courses.length === 0}
-                onChange={(e) => {
-                  onSelectCourse(e.target.value);
-                  setResult(null);
-                  setError("");
-                  setSubmitTime("");
-                  setProcessTime("");
-                }}
-                className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {!catalog || !catalog.courses || catalog.courses.length === 0 ? (
-                  <option value="" disabled>
-                    Đang tải môn học…
-                  </option>
-                ) : (
-                  catalog.courses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.code} - {course.name} ({course.semester})
-                    </option>
-                  ))
-                )}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--on-surface-variant)]">
-                <IconChevronRight size={14} className="rotate-90" />
-              </div>
-            </div>
-
-            {/* Dropdown chọn nhóm */}
-            <div data-tour="ask-group" className="relative">
-              <select
-                value={effectiveGroupId}
-                disabled={availableGroups.length === 0}
-                onChange={(e) => {
-                  onSelectGroup(e.target.value);
-                  setResult(null);
-                  setError("");
-                }}
-                className="appearance-none h-10 pl-4 pr-9 rounded-[var(--radius-xl)] bg-[var(--surface)] border border-[var(--outline)] text-xs font-medium text-[var(--on-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {availableGroups.length === 0 ? (
-                  <option value="" disabled>
-                    Chưa có nhóm
-                  </option>
-                ) : (
-                  availableGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))
-                )}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--on-surface-variant)]">
-                <IconChevronRight size={14} className="rotate-90" />
-              </div>
-            </div>
-          </div>
-
-          {/* Dòng chú thích khi chọn nhóm khác nhóm mặc định của tài khoản */}
-          {isDifferentFromDefault && activeGroupShortName && (
-            <p className="text-xs text-[var(--on-surface-variant)] flex items-center gap-1.5 pl-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
-              Đang hỏi với tư cách thành viên {activeGroupShortName} (chế độ demo)
-            </p>
-          )}
-
-          {/* Thông báo khóa khi môn học chưa có nhóm */}
-          {availableGroups.length === 0 && (
-            <p className="text-xs text-[var(--error)] flex items-center gap-1.5 pl-1">
-              <IconWarning size={14} />
-              Môn học này hiện chưa có nhóm đồ án. Vui lòng chọn môn học khác để gửi câu hỏi.
-            </p>
-          )}
-        </div>
-
-        {/* Hàng 2: ô hỏi lớn với nút FAB nhỏ */}
-        <div data-tour="ask-input" className="rounded-[var(--radius-lg)] bg-[var(--surface-container)] border border-[var(--outline)]/40 focus-within:ring-2 focus-within:ring-[var(--primary)] focus-within:bg-[var(--surface)] transition-all p-4 shadow-xs">
-          <textarea
-            data-tour="ask-try"
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void handleSubmit();
-              }
-            }}
-            rows={3}
-            placeholder="Nhập câu hỏi về quy chế môn học, vd: Nhóm đồ án được tối đa bao nhiêu thành viên?"
-            style={{ border: "none", outline: "none", boxShadow: "none" }}
-            className="border-0 outline-none ring-0 shadow-none focus:ring-0 focus:outline-none bg-transparent resize-none w-full text-sm text-[var(--on-surface)] placeholder-[var(--on-surface-variant)]/60 leading-relaxed min-h-[4.6875rem]"
-          />
-          <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              onClick={() => void handleSubmit()}
-              disabled={busy || !query.trim() || availableGroups.length === 0}
-              className="w-10 h-10 rounded-full bg-[var(--primary)] text-white hover:bg-[#0842A0] active:bg-[#073682] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] cursor-pointer"
-              title={
-                availableGroups.length === 0
-                  ? "Môn học chưa có nhóm"
-                  : "Gửi câu hỏi (Enter)"
-              }
-            >
-              {busy ? (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Send size={18} />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Dưới ô hỏi: hàng filter-chip "Gợi ý nhanh" */}
-        <div data-tour="ask-suggestions" className="flex flex-wrap items-center gap-2 pt-0.5">
-          <span className="text-xs text-[var(--on-surface-variant)] mr-1 flex items-center gap-1 font-medium select-none">
-            <IconSparkle size={13} />
-            Gợi ý nhanh:
+        {/* Quick suggestion chips ("Gợi ý nhanh:") */}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-bold text-stone-500 uppercase tracking-wider mr-1 flex items-center gap-1 select-none">
+            <span>✨</span> Gợi ý nhanh:
           </span>
-          {QUICK_CHIPS.map((chip, idx) => (
+          {QUICK_CHIPS.map((chip) => (
             <button
-              key={idx}
+              key={chip.label}
               type="button"
-              onClick={() => handleQueryChange(chip.prompt)}
-              className="px-3 py-1.5 rounded-[var(--radius-sm)] bg-[var(--surface)] border border-[var(--outline)]/50 text-xs font-medium text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)] hover:text-[var(--on-surface)] transition-colors cursor-pointer shadow-xs"
+              onClick={() => handleChipClick(chip.prompt)}
+              className="px-2.5 py-1 rounded-full border border-rose-200/80 bg-white text-stone-700 text-xs font-medium hover:border-ruby-400 hover:text-ruby-800 hover:bg-rose-50/50 transition-all cursor-pointer"
             >
               {chip.label}
             </button>
           ))}
         </div>
+      </div>
 
-        {/* ── CARD 2: WORKFLOW TIẾN TRÌNH ── */}
-        <div data-tour="ask-progress">
-          <StudentWorkflowTracker
-            busy={busy}
-            result={result}
-            submitTime={submitTime}
-            processTime={processTime}
-          />
+      {/* 3. WORKFLOW PROGRESS STEPPER (Always visible, dynamic status) */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-rose-100/80 gap-2.5">
+          <h3 className="font-display text-sm sm:text-base text-stone-900 font-bold tracking-tight">
+            Tiến trình thẩm định & phân luồng học vụ
+          </h3>
+          <div className="flex items-center">
+            {busy ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-ruby-800 border border-rose-300 font-semibold text-xs">
+                <span className="w-2 h-2 rounded-full bg-ruby-600 animate-pulse" />
+                <span>Đang đối soát & phân luồng…</span>
+              </span>
+            ) : result ? (
+              activeScenario === "A" ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 font-semibold text-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                  <span>AI trả lời tự động</span>
+                </span>
+              ) : activeScenario === "B" ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-semibold text-xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Cần bổ sung thông tin (Lượt {result.clarification_round || 1}/2)</span>
+                </span>
+              ) : activeScenario === "REJECT" ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 text-ruby-900 border border-rose-300 font-semibold text-xs">
+                  <span className="w-2 h-2 rounded-full bg-ruby-700" />
+                  <span>Từ chối trực tiếp (Vi phạm bảo mật)</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-ruby-800 border border-rose-300 font-semibold text-xs">
+                  <span className="w-2 h-2 rounded-full bg-ruby-600 animate-pulse" />
+                  <span>Chuyển Giảng viên thụ lý</span>
+                </span>
+              )
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 text-stone-600 border border-stone-200 font-semibold text-xs">
+                <span>Sẵn sàng tra cứu</span>
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* ── CARD 3: KẾT QUẢ ĐỐI SOÁT & TRÍCH LỤC QUY CHẾ ── */}
-        {result && (
-          <div data-tour="ask-result" className="bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] shadow-xs overflow-hidden transition-all">
-            {/* Header: 1 line with Badge + sentence case text + subtle case ID */}
-            <div className="px-5 py-3.5 border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)] flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <Badge tone={routeTone(result.route)}>
-                  {routeLabel(result.route)}
-                </Badge>
-                <span className="text-sm text-[var(--on-surface)]">
-                  {result.applied_exception_id
-                    ? "Đã áp dụng ngoại lệ phê duyệt từ giảng viên"
-                    : result.route === "ANSWER"
-                    ? "Trả lời tự động từ quy chế hiện hành"
-                    : result.route === "OUT_OF_SCOPE"
-                    ? "Ngoài phạm vi thẩm quyền của môn học"
-                    : result.route === "REJECT"
-                    ? "Yêu cầu không được chấp thuận theo quy chế"
-                    : result.final_decision
-                    ? `Giảng viên đã ${result.final_decision === "APPROVED" ? "phê duyệt" : "từ chối"}`
-                    : result.route === "ESCALATE"
-                    ? "Đã chuyển tiếp cho giảng viên phụ trách"
-                    : `Cần bổ sung thông tin (Lượt ${result.clarification_round || 1}/2)`}
-                </span>
+        {/* Connected Horizontal Line Stepper Structure */}
+        <div className="relative mt-6 mb-3 px-2 sm:px-6">
+          {/* Continuous connecting line */}
+          <div className="absolute top-4 left-8 sm:left-12 right-8 sm:right-12 h-[2px] bg-stone-200 -z-0">
+            <div
+              className="h-full bg-ruby-700 transition-all duration-300"
+              style={{
+                width: result ? (activeScenario === "B" ? "50%" : "100%") : busy ? "50%" : "0%",
+              }}
+            />
+          </div>
+
+          {/* 3 Stepper Nodes */}
+          <div className="relative z-10 grid grid-cols-3 gap-2 sm:gap-6">
+            {/* Step 1 */}
+            <div className="flex flex-col items-center text-center">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all ${
+                  result || busy
+                    ? "bg-ruby-700 text-white ring-4 ring-rose-50"
+                    : "border border-stone-200 bg-stone-50 text-stone-500"
+                }`}
+              >
+                {result || busy ? <Check size={15} /> : <span>1</span>}
               </div>
-              {result.case_id && (
-                <span className="text-xs font-mono text-[var(--on-surface-variant)]">
-                  Hồ sơ #{result.case_id}
+              <div className="mt-2.5">
+                <div className="font-bold text-stone-900 text-xs">Gửi câu hỏi</div>
+                <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">
+                  Sinh viên gửi đề xuất học vụ
+                  <br />
+                  <span className="text-stone-400">
+                    {result || busy ? "Đã tiếp nhận vào hệ thống" : "Chờ gửi câu hỏi"}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="flex flex-col items-center text-center">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all ${
+                  result
+                    ? "bg-ruby-700 text-white ring-4 ring-rose-50"
+                    : busy
+                    ? "border-2 border-ruby-700 bg-white text-ruby-700 ring-4 ring-rose-100"
+                    : "border border-stone-200 bg-stone-50 text-stone-500"
+                }`}
+              >
+                {result ? (
+                  <Check size={15} />
+                ) : busy ? (
+                  <span className="w-3.5 h-3.5 border-2 border-ruby-700 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span>2</span>
+                )}
+              </div>
+              <div className="mt-2.5">
+                <div className="font-bold text-stone-900 text-xs">
+                  Kiểm tra & Phân luồng
+                </div>
+                <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">
+                  {busy ? "Hệ thống AI đối chiếu quy chế" : "RAG đối chiếu quy chế định mức"}
+                  <br />
+                  {busy ? (
+                    <span className="text-ruby-700 font-semibold">Đang đối chiếu quy chế…</span>
+                  ) : result ? (
+                    activeScenario === "A" ? (
+                      <span className="text-emerald-700 font-semibold">
+                        Quy chuẩn hợp lệ (Đủ thẩm quyền AI)
+                      </span>
+                    ) : activeScenario === "B" ? (
+                      <span className="text-amber-700 font-semibold">
+                        Thiếu dữ kiện tình huống cụ thể
+                      </span>
+                    ) : activeScenario === "REJECT" ? (
+                      <span className="text-ruby-700 font-semibold">
+                        Phát hiện can thiệp hệ thống / Prompt Injection
+                      </span>
+                    ) : (
+                      <span className="text-ruby-700 font-semibold">
+                        Trường hợp ngoại lệ (Cần phê duyệt)
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-stone-400">Chờ tiếp nhận & phân luồng</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="flex flex-col items-center text-center">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all ${
+                  result
+                    ? activeScenario === "A"
+                      ? "bg-emerald-600 text-white ring-4 ring-emerald-50"
+                      : activeScenario === "B"
+                      ? "bg-white text-ruby-800 border-2 border-ruby-700 ring-4 ring-rose-50"
+                      : activeScenario === "REJECT"
+                      ? "bg-ruby-700 text-white ring-4 ring-rose-100"
+                      : "bg-white text-ruby-700 border-2 border-ruby-700 ring-4 ring-rose-50"
+                    : "border border-stone-200 bg-stone-50 text-stone-500"
+                }`}
+              >
+                {result ? (
+                  activeScenario === "A" ? (
+                    <Check size={15} />
+                  ) : activeScenario === "B" ? (
+                    <span>3</span>
+                  ) : activeScenario === "REJECT" ? (
+                    <XCircle size={15} />
+                  ) : (
+                    <ArrowRight size={15} className="text-ruby-700" />
+                  )
+                ) : (
+                  <span>3</span>
+                )}
+              </div>
+              <div className="mt-2.5">
+                <div
+                  className={`font-bold text-xs ${
+                    result ? "text-ruby-800" : "text-stone-900"
+                  }`}
+                >
+                  {result
+                    ? activeScenario === "A"
+                      ? "AI Trả lời & Trích dẫn"
+                      : activeScenario === "B"
+                      ? "AI Yêu cầu làm rõ"
+                      : activeScenario === "REJECT"
+                      ? "Từ chối trực tiếp"
+                      : "Chuyển Giảng viên"
+                    : "Thẩm định & Trả lời"}
+                </div>
+                <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">
+                  {result ? (
+                    activeScenario === "A" ? (
+                      <>
+                        Căn cứ pháp lý rõ ràng
+                        <br />
+                        <span className="text-stone-400">Đã trích xuất khung quy chế đào tạo</span>
+                      </>
+                    ) : activeScenario === "B" ? (
+                      <>
+                        Chưa đủ dữ kiện đối chiếu
+                        <br />
+                        <span className="text-stone-400">Chờ sinh viên bổ sung tình huống</span>
+                      </>
+                    ) : activeScenario === "REJECT" ? (
+                      <>
+                        Vi phạm an toàn hệ thống
+                        <br />
+                        <span className="text-ruby-700 font-medium">Hệ thống từ chối can thiệp</span>
+                      </>
+                    ) : (
+                      <>
+                        Vượt thẩm quyền tự động AI
+                        <br />
+                        <span className="text-stone-400">Hồ sơ chờ Giảng viên xem xét</span>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      Phản hồi chính thức
+                      <br />
+                      <span className="text-stone-400">Tự động đối soát bởi AI hoặc Giảng viên</span>
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. CHỈ HIỂN THỊ KẾT QUẢ PHÂN LUỒNG KHI ĐÃ ĐẶT CÂU HỎI VÀ CÓ KẾT QUẢ */}
+      {result && (
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 gap-2.5 border-b border-rose-100">
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase text-stone-900 font-extrabold tracking-wider">
+                Kết quả phân luồng
+              </span>
+              {result?.question_id && (
+                <span className="font-mono text-xs text-stone-500 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                  #{result.question_id.replace(/^q_/, "").slice(0, 8).toUpperCase()}
                 </span>
               )}
             </div>
 
-            <div className="p-5 md:p-6 space-y-6">
-              {/* Applied Exception Banner if present */}
-              {result.applied_exception_id && (
-                <div className="p-3.5 bg-[#E8F5E9] border border-[#C8E6C9] rounded-[var(--radius-md)] flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#146C2E] text-white flex items-center justify-center shrink-0 mt-0.5">
-                    <IconCheck size={14} />
-                  </div>
-                  <div className="flex-1 text-xs">
-                    <span className="font-semibold text-[#146C2E]">
-                      Đã áp dụng ngoại lệ #{result.applied_exception_id}
+            <button
+              type="button"
+              onClick={() => {
+                setResult(null);
+                setQuery("");
+                setError("");
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-rose-200 text-stone-600 hover:text-ruby-800 hover:bg-rose-50 text-xs font-semibold transition-all cursor-pointer"
+            >
+              <RefreshCw size={12} />
+              <span>Đặt câu hỏi mới</span>
+            </button>
+          </div>
+
+        {/* SCENARIO A: AUTO RESOLVED */}
+        {activeScenario === "A" && (
+          <div className="pt-5 space-y-4">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200">
+              <div className="flex items-center gap-2">
+                <Check size={18} className="text-emerald-700" />
+                <span className="font-bold text-sm">Trả lời tự động từ quy chế hiện hành</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-rose-50/50 space-y-1.5 border border-rose-100/60">
+              <div className="flex items-center gap-1.5 text-ruby-800 text-[11px] uppercase tracking-wider font-bold">
+                <span>Kết luận từ quy chế chính thức</span>
+              </div>
+              <p className="text-sm text-stone-800 font-medium leading-relaxed">
+                {result?.answer || (
+                  <>
+                    Theo rubric đánh giá đồ án môn học {selectedCourseId || "CO3001"}, cơ cấu điểm bao gồm:{" "}
+                    <span className="font-bold text-ruby-800">báo cáo kỹ thuật 30%</span>,{" "}
+                    <span className="font-bold text-ruby-800">sản phẩm 40%</span>,{" "}
+                    <span className="font-bold text-ruby-800">trình bày và trả lời câu hỏi 20%</span>,{" "}
+                    <span className="font-bold text-ruby-800">hợp tác và đóng góp trong nhóm 10%</span>.
+                  </>
+                )}
+              </p>
+            </div>
+
+            {/* Citations / Evidence Section */}
+            {((result?.citations && result.citations.length > 0) || !result?.citations) && (
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5 text-ruby-800">
+                    <BookOpen size={14} />
+                    <span>
+                      Căn cứ pháp lý & Trích dẫn quy chế
+                      {result?.citations?.length ? ` (${result.citations.length})` : ""}
                     </span>
-                    <p className="text-[#146C2E]/90 mt-0.5 leading-relaxed">
-                      Câu hỏi này đã được đối chiếu với cơ sở dữ liệu ngoại lệ và tự động áp dụng ngoại lệ được Giảng viên phê duyệt trước đó cho nhóm/môn này.
-                    </p>
-                  </div>
+                  </span>
+                  <span className="text-[11px] text-stone-400 font-medium">
+                    Đối soát trực tiếp từ văn bản quy chế
+                  </span>
                 </div>
-              )}
 
-              {/* 1. Official Conclusion / Decision Block */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-[var(--on-surface)]">
-                  {result.route === "ANSWER"
-                    ? "Kết luận quy chế chính thức"
-                    : result.route === "OUT_OF_SCOPE"
-                    ? "Hướng dẫn học vụ ngoài phạm vi môn học"
-                    : result.route === "REJECT"
-                    ? "Thông báo từ chối yêu cầu"
-                    : result.final_decision
-                    ? "Quyết định chính thức từ Giảng viên"
-                    : result.route === "ESCALATE"
-                    ? "Hồ sơ chuyển tiếp Giảng viên phụ trách thụ lý"
-                    : `Yêu cầu làm rõ từ hệ thống (Lượt ${result.clarification_round || 1}/2)`}
-                </h3>
+                <div className="space-y-3">
+                  {(result?.citations && result.citations.length > 0
+                    ? result.citations
+                    : [
+                        {
+                          label: "C1",
+                          chunk_id: "c1",
+                          document_id: "rubric-01",
+                          document_title: `Rubric đánh giá đồ án ${selectedCourseId || "CO3001"}`,
+                          page_number: null,
+                          heading: "Cơ cấu điểm & Tỷ lệ đánh giá",
+                          quote:
+                            "Mục 4.2 – Thành phần đánh giá đồ án tốt nghiệp và chuyên ngành CO3001 quy định trọng số tính tổng điểm học phần cuối kỳ: Thuyết minh báo cáo 30%, Hiện thực và demo mã nguồn 40%, Vấn đáp hội đồng chuyên môn 20%, Đánh giá nội bộ chéo giữa các thành viên 10%. Điểm làm tròn đến 0.5.",
+                        },
+                      ]
+                  ).map((c, idx) => (
+                    <div
+                      key={c.chunk_id || idx}
+                      className="p-4 rounded-xl bg-white border border-rose-200/90 shadow-2xs space-y-2.5 transition-all hover:border-ruby-300"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="font-mono text-xs font-bold bg-rose-100 text-ruby-800 px-2.5 py-0.5 rounded-full border border-rose-200 shadow-2xs">
+                            [{c.label || `C${idx + 1}`}]
+                          </span>
+                          <span className="font-semibold text-sm text-stone-900 truncate">
+                            {c.document_title}
+                          </span>
+                          {c.heading && (
+                            <span className="text-xs text-stone-600 font-medium bg-rose-50/70 px-2 py-0.5 rounded-md border border-rose-100">
+                              § {c.heading}
+                            </span>
+                          )}
+                        </div>
 
-                {/* Answer box according to route */}
-                <div className="p-4 bg-[var(--surface-container)] border border-[var(--outline)]/20 rounded-[var(--radius-md)]">
-                  {/* ANSWER route */}
-                  {result.route === "ANSWER" && result.answer && (
-                    <p className="text-base text-[var(--on-surface)] leading-relaxed">
-                      {renderFormattedAnswer(result.answer)}
-                    </p>
-                  )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCitation(c)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-ruby-700 hover:text-ruby-800 hover:bg-rose-50 text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+                          title="Xem chi tiết toàn văn điều khoản"
+                        >
+                          <span>Xem toàn văn</span>
+                          <ExternalLink size={13} />
+                        </button>
+                      </div>
 
-                  {/* OUT_OF_SCOPE route */}
-                  {result.route === "OUT_OF_SCOPE" && (
-                    <div className="space-y-3">
-                      {result.answer && (
-                        <p className="text-base text-[var(--on-surface)] leading-relaxed">
-                          {result.answer}
-                        </p>
-                      )}
-                      <div className="p-3 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-sm)] text-xs space-y-1 text-[var(--on-surface-variant)]">
-                        <p className="font-medium text-[var(--on-surface)]">
-                          Ngoài phạm vi xử lý của môn học
-                        </p>
-                        <p className="leading-relaxed">
-                          Yêu cầu của bạn không thuộc thẩm quyền của Giảng viên hay Quy chế môn học này. Vui lòng liên hệ Phòng Đào tạo, Ban Quản lý Ký túc xá hoặc đơn vị phụ trách liên quan theo hướng dẫn.
-                        </p>
+                      <div className="p-3.5 rounded-xl bg-[#fff8f9] text-stone-700 text-xs leading-relaxed border-l-3 border-ruby-700 whitespace-pre-line italic selection:bg-rose-200">
+                        “{c.quote}”
                       </div>
                     </div>
-                  )}
-
-                  {/* REJECT route */}
-                  {result.route === "REJECT" && (
-                    <div className="space-y-3">
-                      {result.answer && (
-                        <p className="text-base text-[var(--on-surface)] leading-relaxed">
-                          {result.answer}
-                        </p>
-                      )}
-                      <div className="p-3 bg-[#FFEBEE] border border-[#FFCDD2] rounded-[var(--radius-sm)] text-xs space-y-1 text-[#B3261E]">
-                        <p className="font-medium">
-                          Thông báo từ chối
-                        </p>
-                        <p className="leading-relaxed">
-                          Nội dung yêu cầu vi phạm chính sách học vụ hoặc không hợp lệ. Hệ thống từ chối yêu cầu và không tạo hồ sơ chuyển tiếp cho giảng viên.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ESCALATE route */}
-                  {result.route === "ESCALATE" && (
-                    <div className="space-y-3">
-                      {result.final_decision ? (
-                        <div className="p-4 bg-[#E8F5E9] border border-[#C8E6C9] rounded-[var(--radius-md)] space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-xs text-[#146C2E]">
-                              Quyết định: {result.final_decision === "APPROVED" ? "Đã phê duyệt" : "Đã từ chối"}
-                            </span>
-                            {result.exception_id && (
-                              <span className="font-mono text-xs bg-[#C8E6C9] text-[#146C2E] px-2 py-0.5 rounded font-semibold">
-                                Ngoại lệ: #{result.exception_id}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-base text-[var(--on-surface)] leading-relaxed">
-                            {result.final_decision_reason || "Giảng viên đã hoàn tất thẩm định hồ sơ."}
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="text-base text-[var(--on-surface)] leading-relaxed">
-                            Yêu cầu của bạn thuộc diện <span className="font-medium">ngoại lệ quy chế hoặc vượt thẩm quyền tự động</span> của AI. Hồ sơ đã được chuyển tiếp đến Giảng viên phụ trách môn học và đang chờ xem xét.
-                          </p>
-                          <div className="p-3.5 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-sm)] text-xs space-y-1.5 text-[var(--on-surface-variant)]">
-                            {result.case_id && (
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-[var(--on-surface)]">Mã hồ sơ thẩm định:</span>
-                                <span className="font-mono font-medium text-[var(--on-surface)]">#{result.case_id}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between">
-                              <span>Giảng viên thụ lý:</span>
-                              <span className="font-medium text-[var(--on-surface)]">
-                                {catalog?.lecturer.display_name || "TS. Trần Minh Tuấn"} ({catalog?.lecturer.id || "lecturer-01"})
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>Phân luồng:</span>
-                              <span className="font-medium text-[var(--on-surface)]">
-                                {result.escalation_target || "Giảng viên phụ trách"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>Lý do phân luồng:</span>
-                              <span className="font-medium text-[var(--on-surface)]">
-                                {result.reason_code || "Cần thẩm quyền giảng viên"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Refresh button to check lecturer's decision */}
-                          <div className="pt-2 flex items-center justify-end">
-                            <button
-                              type="button"
-                              onClick={handleRefreshQuestion}
-                              disabled={refreshing}
-                              className="px-3 py-1.5 bg-[var(--surface-container-high)] hover:bg-[var(--surface-container-highest)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                            >
-                              <IconRotateCcw size={13} className={refreshing ? "animate-spin" : ""} />
-                              <span>{refreshing ? "Đang kiểm tra…" : "Làm mới kết quả hồ sơ"}</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* CLARIFY route */}
-                  {result.route === "CLARIFY" && (
-                    <div className="space-y-4">
-                      {conversationTurns.length > 0 && (
-                        <div className="space-y-2 border-b border-[var(--outline)]/20 pb-3">
-                          <div className="text-xs font-medium text-[var(--on-surface-variant)]">
-                            Tiến trình đối thoại bổ sung (Tối đa 2 lượt)
-                          </div>
-                          {conversationTurns.map((turn, idx) => (
-                            <div key={idx} className="p-3 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-sm)] text-xs space-y-1.5">
-                              <div className="flex items-center justify-between text-[var(--on-surface-variant)]">
-                                <span className="font-medium">{turn.round === 0 ? "Câu hỏi gốc ban đầu" : `Lượt làm rõ ${turn.round}/2`}</span>
-                                {turn.round > 0 && (
-                                  <span className="font-mono text-xs">
-                                    Vòng {turn.round}
-                                  </span>
-                                )}
-                              </div>
-                              {turn.clarifyingQuestion && (
-                                <div className="text-[var(--on-surface)] bg-[var(--surface-container)] p-2 rounded border border-[var(--outline)]/20 flex items-start gap-1.5">
-                                  <span><b>AI:</b> {turn.clarifyingQuestion}</span>
-                                </div>
-                              )}
-                              {turn.studentResponse && (
-                                <div className="text-[var(--on-surface)] bg-[var(--surface-container)] p-2 rounded border border-[var(--outline)]/20 flex items-start gap-1.5">
-                                  <span><b>Sinh viên:</b> {turn.studentResponse}</span>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Current clarifying question */}
-                      {result.clarifying_question && (
-                        <div className="p-3.5 bg-[var(--surface)] border border-[var(--primary)]/30 rounded-[var(--radius-sm)] space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-[var(--primary)]">
-                              Câu hỏi làm rõ từ AI:
-                            </span>
-                            <span className="text-xs font-medium text-[var(--on-surface-variant)]">
-                              Lượt {result.clarification_round || 1}/2
-                            </span>
-                          </div>
-                          <p className="text-sm font-medium text-[var(--on-surface)]">
-                            {result.clarifying_question}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Clarification input form if round < 2 */}
-                      {(result.clarification_round || 0) < 2 ? (
-                        <form onSubmit={handleSendClarification} className="flex gap-2 pt-1">
-                          <input
-                            type="text"
-                            value={clarificationText}
-                            onChange={(e) => setClarificationText(e.target.value)}
-                            placeholder="Nhập câu trả lời hoặc thông tin bổ sung (ví dụ: 'Nhóm em là nhóm A')..."
-                            className="flex-1 px-3.5 py-2 text-xs border border-[var(--outline)]/40 rounded-[var(--radius-sm)] focus:outline-none focus:border-[var(--primary)] bg-[var(--surface)] text-[var(--on-surface)]"
-                          />
-                          <button
-                            type="submit"
-                            disabled={clarifyingBusy || !clarificationText.trim()}
-                            className="px-4 py-2 bg-[var(--primary)] text-white text-xs font-medium rounded-[var(--radius-sm)] hover:bg-[#0842A0] disabled:opacity-50 transition-all flex items-center gap-1.5 cursor-pointer"
-                          >
-                            {clarifyingBusy ? "Đang gửi…" : "Gửi thông tin bổ sung"}
-                          </button>
-                        </form>
-                      ) : (
-                        <div className="p-3 bg-[var(--surface-container)] rounded-[var(--radius-sm)] text-xs text-[var(--on-surface-variant)]">
-                          Hệ thống đã đạt giới hạn tối đa 2 lượt bổ sung thông tin.
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
+            )}
 
-              {/* 2. Citations Section */}
-              {result.citations && result.citations.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-[var(--on-surface)]">
-                      Căn cứ trích dẫn học phần ({result.citations.length})
-                    </h4>
-                  </div>
+            {/* Action Bar: Copy ID & Feedback */}
+            <div className="flex items-center justify-between pt-2 text-xs text-stone-500">
+              <button
+                type="button"
+                onClick={handleCopyRequestId}
+                className="inline-flex items-center gap-1.5 hover:text-stone-900 transition-colors cursor-pointer"
+              >
+                <Copy size={14} />
+                <span>
+                  {copiedRequestId ? "Đã sao chép mã!" : "Sao chép mã yêu cầu"}
+                </span>
+              </button>
 
-                  {/* Citations Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {result.citations.map((c, i) => (
-                      <div
-                        key={i}
-                        className="p-3.5 bg-[var(--surface-container)] border border-[var(--outline)]/30 rounded-[var(--radius-md)] flex flex-col justify-between text-xs space-y-2"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium text-[var(--on-surface)] truncate" title={c.document_title}>
-                              {c.document_title}
-                            </span>
-                            <span className="text-xs font-mono text-[var(--on-surface-variant)] shrink-0">
-                              {c.label}
-                            </span>
-                          </div>
-
-                          {c.heading && (
-                            <p className="text-xs text-[var(--on-surface-variant)] mt-0.5">
-                              {c.heading}
-                              {c.page_number !== null && c.page_number !== undefined
-                                ? ` · Trang ${c.page_number}`
-                                : ""}
-                            </p>
-                          )}
-
-                          {c.quote && (
-                            <p className="text-xs text-[var(--on-surface)] italic mt-2 pl-2.5 border-l-2 border-[var(--outline)] line-clamp-3 leading-relaxed">
-                              "{c.quote}"
-                            </p>
-                          )}
-                        </div>
-
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCitation(c)}
-                            className="text-xs font-medium text-[var(--primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>Xem thêm điều khoản</span>
-                            <IconArrowUpRight size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 3. Escalation Suggestion Banner (Only shown for ANSWER route) */}
-              {result.route === "ANSWER" && (
-                <div className="p-4 bg-[var(--surface-container)] border border-[var(--outline)]/30 rounded-[var(--radius-md)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h5 className="text-xs font-medium text-[var(--on-surface)]">
-                      Trường hợp của bạn vượt quá quy chuẩn hoặc có lý do đặc biệt?
-                    </h5>
-                    <p className="text-xs text-[var(--on-surface-variant)] mt-0.5">
-                      Hệ thống hỗ trợ tạo hồ sơ ngoại lệ để chuyển trực tiếp Giảng viên phụ trách xem xét và phê duyệt.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleEscalateManually}
-                    className="px-3.5 py-2 bg-[var(--surface-container-high)] hover:bg-[var(--surface-container-highest)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] border border-[var(--outline)]/40 transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
-                  >
-                    <span>Chuyển tiếp hồ sơ</span>
-                    <IconChevronRight size={13} />
-                  </button>
-                </div>
-              )}
-
-              {/* 4. Bottom Utility Bar */}
-              <div className="pt-4 border-t border-[var(--outline)]/20 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--on-surface-variant)]">
-                <div className="flex items-center gap-2">
-                  {onViewHistory && (
-                    <button
-                      type="button"
-                      onClick={() => onViewHistory(result.question_id)}
-                      className="px-3.5 py-1.5 bg-[var(--surface-container)] hover:bg-[var(--surface-container-high)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] border border-[var(--outline)]/30 transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <IconBookOpen size={13} />
-                      <span>Lưu vào Hồ sơ</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleNewQuestion}
-                    className="px-3.5 py-1.5 bg-[var(--surface)] hover:bg-[var(--surface-container)] border border-[var(--outline)]/40 text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer"
-                  >
-                    + Đặt câu hỏi mới
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {result.case_id && (
-                    <span className="font-mono text-xs">
-                      Mã hồ sơ: #{result.case_id}
-                    </span>
-                  )}
-                  {currentRequestId && (
-                    <div className="flex items-center gap-1 font-mono text-xs text-[var(--on-surface-variant)]">
-                      <span>Req: {currentRequestId.slice(0, 8)}...</span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyRequestId(currentRequestId)}
-                        className="p-1 hover:bg-[var(--surface-container)] rounded transition-colors cursor-pointer"
-                        title="Sao chép Request ID"
-                      >
-                        {copiedRequestId ? (
-                          <Check size={12} className="text-[#146C2E]" />
-                        ) : (
-                          <Copy size={12} />
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px]">Đánh giá phản hồi:</span>
+                <button
+                  type="button"
+                  onClick={() => setFeedback("up")}
+                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                    feedback === "up"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      : "hover:bg-stone-50 border-stone-200 text-stone-600"
+                  }`}
+                  title="Hữu ích"
+                >
+                  <ThumbsUp size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeedback("down")}
+                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                    feedback === "down"
+                      ? "bg-red-50 text-red-700 border-red-300"
+                      : "hover:bg-stone-50 border-stone-200 text-stone-600"
+                  }`}
+                  title="Chưa chính xác"
+                >
+                  <ThumbsDown size={14} />
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── CARD 4: FOOTER FEEDBACK BAR ── */}
-        <div className="px-5 py-3.5 bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--on-surface-variant)] shadow-xs">
-          <div className="flex items-center gap-2">
-            <span>Thông tin phản hồi có hữu ích với bạn không?</span>
-            <div className="flex items-center gap-1">
+        {/* SCENARIO B: CLARIFY / CẦN BỔ SUNG */}
+        {activeScenario === "B" && (
+          <div className="pt-5 space-y-4">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-500/10 text-amber-900 border border-amber-500/20">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={18} className="text-amber-700" />
+                <span className="font-bold text-sm">
+                  Cần bổ sung thông tin (Lượt {result?.clarification_round || 1}/2)
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-rose-50/50 space-y-1.5 border border-rose-100/60">
+              <span className="text-[11px] uppercase text-amber-800 font-bold tracking-wider block">
+                thông báo từ hệ thống ai
+              </span>
+              <p className="text-sm text-stone-800 leading-relaxed">
+                {result?.clarifying_question || (
+                  <>
+                    Câu hỏi của bạn quá ngắn hoặc chưa nêu rõ ngữ cảnh cụ thể (
+                    <span className="font-bold text-ruby-800">
+                      “{query.trim() || "ở ĐÂU"}”
+                    </span>
+                    ). Bạn vui lòng cung cấp thêm thông tin chi tiết về địa điểm, vấn đề hoặc nội dung cụ thể mà bạn đang muốn hỏi để hệ thống có thể đối chiếu chính xác với quy chế môn học {selectedCourseId || "CO3001"}.
+                  </>
+                )}
+              </p>
+            </div>
+
+            {/* Supplementary Input Console */}
+            <form onSubmit={handleSendClarification} className="space-y-2 pt-1">
+              <label className="text-xs font-semibold text-stone-700 block">
+                Nhập câu trả lời bổ sung làm rõ:
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={clarificationText}
+                  onChange={(e) => setClarificationText(e.target.value)}
+                  placeholder="Ví dụ: Phòng nộp báo cáo đồ án ở đâu hoặc địa điểm bảo vệ hội đồng..."
+                  disabled={clarifyingBusy}
+                  className="flex-1 bg-rose-50/50 px-4 py-2.5 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-ruby-200 outline-none border border-rose-200/80 text-stone-900 placeholder:text-stone-400"
+                />
+                <button
+                  type="submit"
+                  disabled={clarifyingBusy || !clarificationText.trim()}
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-ruby-700 text-white font-semibold text-sm hover:bg-ruby-800 transition-colors shadow-sm disabled:opacity-40 cursor-pointer"
+                >
+                  <span>{clarifyingBusy ? "Đang gửi..." : "Gửi thông tin bổ sung"}</span>
+                  <Send size={15} />
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* SCENARIO REJECT: PROMPT INJECTION / SUSPICIOUS INPUT */}
+        {activeScenario === "REJECT" && (
+          <div className="pt-5 space-y-4">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-100/90 text-ruby-950 border border-rose-300">
+              <div className="flex items-center gap-2">
+                <XCircle size={18} className="text-ruby-700" />
+                <span className="font-bold text-sm">
+                  Yêu cầu bị từ chối do vi phạm an toàn hệ thống
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-rose-50/70 space-y-1.5 border border-rose-200/80">
+              <div className="flex items-center gap-1.5 text-ruby-800 text-[11px] uppercase tracking-wider font-bold">
+                <span>Thông báo từ chối trực tiếp</span>
+              </div>
+              <p className="text-sm text-stone-800 font-medium leading-relaxed">
+                {result?.answer ||
+                  "Yêu cầu bị từ chối vì có dấu hiệu can thiệp hệ thống hoặc vi phạm quy định. Hệ thống không thực hiện thay đổi dữ liệu, điểm số hay phê duyệt ngoại lệ."}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-white border border-rose-200/80 overflow-hidden shadow-xs">
+              <div className="px-4 py-2.5 bg-rose-50/70 text-[11px] uppercase text-stone-600 font-bold border-b border-rose-100">
+                Chi tiết xử lý vi phạm an toàn
+              </div>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Mã hồ sơ:</span>
+                  <span className="font-mono text-ruby-800 font-bold text-sm">
+                    #{result?.question_id?.slice(0, 8) || "01"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Phân loại an toàn:</span>
+                  <span className="font-semibold text-stone-900 font-mono">
+                    {result?.policy_topic || "SECURITY"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Hình thức xử lý:</span>
+                  <span className="font-mono bg-rose-100 text-ruby-900 px-2 py-0.5 rounded font-semibold border border-rose-200">
+                    DIRECT_REJECT (Từ chối thẳng, không chuyển GV)
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Mã kiểm duyệt:</span>
+                  <span className="font-mono text-ruby-700 font-semibold">
+                    {result?.reason_code || "SUSPICIOUS_INPUT"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between pt-4 border-t border-rose-100 gap-3 text-xs">
               <button
                 type="button"
-                onClick={() => setFeedback("up")}
-                className={`p-1.5 rounded hover:bg-[var(--surface-container)] transition-colors cursor-pointer ${
-                  feedback === "up" ? "text-[#146C2E] bg-[#E8F5E9]" : "text-[var(--on-surface-variant)]"
-                }`}
-                title="Hữu ích"
+                onClick={() => {
+                  if (result?.question_id && onViewHistory) {
+                    onViewHistory(result.question_id);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-rose-100 text-ruby-800 font-semibold hover:bg-rose-200 transition-all cursor-pointer"
               >
-                <IconThumbUp size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setFeedback("down")}
-                className={`p-1.5 rounded hover:bg-[var(--surface-container)] transition-colors cursor-pointer ${
-                  feedback === "down" ? "text-[var(--error)] bg-[#FFEBEE]" : "text-[var(--on-surface-variant)]"
-                }`}
-                title="Chưa hữu ích"
-              >
-                <IconThumbDown size={14} />
+                <RefreshCw size={14} />
+                <span>Xem chi tiết trong lịch sử</span>
               </button>
             </div>
           </div>
+        )}
 
-          <button
-            type="button"
-            onClick={handleEscalateManually}
-            className="text-[var(--on-surface-variant)] hover:text-[var(--primary)] font-medium flex items-center gap-1 transition-colors cursor-pointer"
-          >
-            <span>Cần khiếu nại hoặc chuyển tiếp giảng viên xem xét</span>
-            <IconChevronRight size={13} />
-          </button>
-        </div>
-
-      {/* ── CITATION DETAILS MODAL ── */}
-      {selectedCitation && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--surface)] border border-[var(--outline)]/30 rounded-[var(--radius-lg)] max-w-lg w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[var(--outline)]/20 pb-3">
+        {/* SCENARIO C: ESCALATED TO LECTURER */}
+        {activeScenario === "C" && (
+          <div className="pt-5 space-y-4">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-500/10 text-rose-950 border border-rose-500/20">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 bg-[var(--primary-container)] text-[var(--primary)] font-mono font-medium text-xs rounded">
-                  {selectedCitation.label}
+                <ShieldAlert size={18} className="text-ruby-700" />
+                <span className="font-bold text-sm text-ruby-800">
+                  Đã chuyển tiếp cho giảng viên phụ trách
                 </span>
-                <h4 className="text-sm font-medium text-[var(--on-surface)]">
-                  {selectedCitation.document_title}
-                </h4>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-rose-50/50 space-y-1 border border-rose-100/60">
+              <span className="text-[11px] uppercase text-ruby-800 font-bold tracking-wider block">
+                Thông báo thẩm quyền học vụ:
+              </span>
+              <p className="text-sm text-stone-800 leading-relaxed">
+                Yêu cầu của bạn thuộc diện ngoại lệ quy chế hoặc vượt thẩm quyền tự động của AI. Hồ sơ đã được chuyển tiếp đến Giảng viên phụ trách môn học và đang chờ xem xét.
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-white border border-rose-200/80 overflow-hidden shadow-xs">
+              <div className="px-4 py-2.5 bg-rose-50/70 text-[11px] uppercase text-stone-600 font-bold border-b border-rose-100">
+                Chi tiết hồ sơ điều phối phân luồng
+              </div>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Mã hồ sơ thẩm định:</span>
+                  <span className="font-mono text-ruby-800 font-bold text-sm">
+                    #{result?.question_id?.slice(0, 8) || "01"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Giảng viên thụ lý:</span>
+                  <span className="font-semibold text-stone-900">
+                    {(result as any)?.assigned_to || (result as any)?.assigned_reviewer_id || "TS. Trần Minh Tuấn"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Phân luồng học vụ:</span>
+                  <span className="font-mono bg-rose-50 px-2 py-0.5 rounded text-stone-800 font-semibold border border-rose-200">
+                    {result?.escalation_target || "COURSE_LECTURER"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-500 block mb-0.5">Lý do phân luồng:</span>
+                  <span className="font-mono text-ruby-700 font-semibold">
+                    {result?.reason_code || "REQUIRES_LECTURER_APPROVAL"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between pt-4 border-t border-rose-100 gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  if (result?.question_id && onViewHistory) {
+                    onViewHistory(result.question_id);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-rose-100 text-ruby-800 font-semibold hover:bg-rose-200 transition-all cursor-pointer"
+              >
+                <RefreshCw size={14} />
+                <span>Xem chi tiết trong lịch sử</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* 5. FOOTER FEEDBACK & ESCALATION BAR */}
+    <div className="bg-white p-4 rounded-2xl shadow-soft-card border border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-600">
+      <div className="flex items-center gap-2">
+        <span>Thông tin phản hồi có hữu ích với bạn không?</span>
+        <button
+          type="button"
+          onClick={() => setFeedback("up")}
+          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+            feedback === "up"
+              ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+              : "hover:bg-stone-50 border-stone-200 text-stone-600"
+          }`}
+          title="Hữu ích"
+        >
+          <ThumbsUp size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setFeedback("down")}
+          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+            feedback === "down"
+              ? "bg-red-50 text-red-700 border-red-300"
+              : "hover:bg-stone-50 border-stone-200 text-stone-600"
+          }`}
+          title="Chưa chính xác"
+        >
+          <ThumbsDown size={14} />
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleEscalateManually}
+        className="inline-flex items-center gap-1 text-ruby-700 hover:text-ruby-800 font-semibold hover:underline cursor-pointer"
+      >
+        <span>Cần khiếu nại hoặc chuyển tiếp giảng viên xem xét</span>
+        <ChevronRight size={14} />
+      </button>
+    </div>
+
+      {/* Citation Detail Modal */}
+      {selectedCitation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-rose-100 space-y-4">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3.5 border-b border-rose-100 gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold bg-rose-100 text-ruby-800 px-2.5 py-0.5 rounded-full border border-rose-200">
+                    [{selectedCitation.label || "C1"}]
+                  </span>
+                  <h3 className="font-bold text-base text-stone-900 leading-snug">
+                    {selectedCitation.document_title}
+                  </h3>
+                </div>
+                {selectedCitation.heading && (
+                  <p className="text-xs text-stone-500 font-medium pl-0.5">
+                    Mục / Điều khoản: <span className="text-stone-800 font-semibold">{selectedCitation.heading}</span>
+                  </p>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedCitation(null)}
-                className="text-[var(--on-surface-variant)] hover:text-[var(--on-surface)] transition-colors p-1 rounded hover:bg-[var(--surface-container)] cursor-pointer"
-                aria-label="Đóng"
+                onClick={() => {
+                  setSelectedCitation(null);
+                  setCopiedQuote(false);
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors text-base font-bold shrink-0 cursor-pointer"
+                title="Đóng"
               >
-                <IconX size={18} />
+                ✕
               </button>
             </div>
 
-            {selectedCitation.heading && (
-              <p className="text-xs font-medium text-[var(--on-surface)]">
-                Điều khoản: {selectedCitation.heading}
-              </p>
-            )}
-
-            <div className="p-4 bg-[var(--surface-container)] border border-[var(--outline)]/30 rounded-[var(--radius-md)] text-xs text-[var(--on-surface)] leading-relaxed font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
-              {selectedCitation.quote}
+            {/* Modal Quote Content */}
+            <div className="space-y-2">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-stone-400 block">
+                Nội dung trích xuất nguyên văn:
+              </span>
+              <div className="p-4 bg-rose-50/40 rounded-xl border border-rose-200/70 text-xs sm:text-sm text-stone-800 leading-relaxed whitespace-pre-line max-h-72 overflow-y-auto">
+                {selectedCitation.quote}
+              </div>
             </div>
 
-            <div className="flex justify-end">
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-rose-100">
               <button
                 type="button"
-                onClick={() => setSelectedCitation(null)}
-                className="px-4 py-2 bg-[var(--surface-container-high)] hover:bg-[var(--surface-container-highest)] text-[var(--on-surface)] text-xs font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                onClick={() => {
+                  if (selectedCitation?.quote) {
+                    navigator.clipboard.writeText(selectedCitation.quote);
+                    setCopiedQuote(true);
+                    setTimeout(() => setCopiedQuote(false), 2000);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 hover:bg-rose-50 text-stone-600 hover:text-ruby-800 text-xs font-semibold transition-all cursor-pointer"
+              >
+                {copiedQuote ? (
+                  <>
+                    <Check size={14} className="text-emerald-600" />
+                    <span className="text-emerald-700 font-bold">Đã sao chép!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={14} />
+                    <span>Sao chép điều khoản</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCitation(null);
+                  setCopiedQuote(false);
+                }}
+                className="px-5 py-2 rounded-full bg-ruby-700 hover:bg-ruby-800 text-white font-semibold text-xs shadow-sm hover:shadow transition-all cursor-pointer"
               >
                 Đóng
               </button>

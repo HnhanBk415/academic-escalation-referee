@@ -1,7 +1,7 @@
-import React from "react";
-import { useParams, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import React, { useState } from "react";
+import { useParams, Navigate, useNavigate } from "react-router-dom";
+import { PanelLeftOpen } from "lucide-react";
 import { WorkspaceRail } from "../components/WorkspaceRail";
-import { PageContainer } from "../components/ui";
 import { StudentSubmitView } from "./StudentSubmitView";
 import { StudentHistoryView } from "./StudentHistoryView";
 import { LecturerInboxView } from "./LecturerInboxView";
@@ -39,10 +39,29 @@ export function WorkspacePage({
   queueCount,
 }: WorkspacePageProps) {
   const { feature } = useParams<{ feature: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const isReadingMode = searchParams.get("read") === "1";
+  // Sidebar collapse state with localStorage persistence
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("aer_workspace_sidebar_open");
+      return saved !== null ? saved === "true" : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("aer_workspace_sidebar_open", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Validate allowed features per role
   const studentFeatures = ["ask", "history"];
@@ -61,68 +80,72 @@ export function WorkspacePage({
     navigate(`/workspace/history/${questionId}`);
   };
 
-  const isTwoColumn = feature === "history" || feature === "inbox";
-
   return (
-    <div className="relative min-h-[calc(100vh-4rem)] flex-1 flex flex-col bg-[var(--surface-dim)]">
-      {/* Floating Left Rail */}
-      {!isReadingMode && (
-        <WorkspaceRail
-          role={role}
-          pendingCount={pendingCount}
-          queueCount={queueCount}
-        />
-      )}
-
-      {/* Main Workspace Content */}
-      <div
-        className={`flex-1 ${isReadingMode ? "pl-0" : "md:pl-[5.5rem]"} w-full flex flex-col ${
-          isTwoColumn ? "h-[calc(100vh-4rem)] overflow-hidden" : "overflow-y-auto"
-        }`}
-      >
-        {role === "student" && feature === "ask" && (
-          <PageContainer variant="reading" className="py-6 pb-20 md:pb-8 flex-1">
-            <StudentSubmitView
-              actorId={actorId}
-              catalog={catalog}
-              selectedCourseId={selectedCourseId}
-              selectedGroupId={selectedGroupId}
-              onSelectCourse={onSelectCourse}
-              onSelectGroup={onSelectGroup}
-              onSubmitted={onQuestionSubmitted}
-              onViewHistory={handleNavigateToHistory}
+    <div className="relative min-h-[calc(100vh-4rem)] flex-1 flex flex-col bg-[#faf7f8]">
+      <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1">
+        <div className="flex flex-col lg:flex-row gap-5 pt-4 pb-10">
+          {/* Collapsible Sidebar */}
+          {isSidebarOpen && (
+            <WorkspaceRail
+              role={role}
+              pendingCount={pendingCount}
+              queueCount={queueCount}
+              onToggleCollapse={handleToggleSidebar}
             />
-          </PageContainer>
-        )}
+          )}
 
-        {role === "student" && feature === "history" && (
-          <PageContainer variant="wide" className="h-full p-0 flex-1 flex flex-col overflow-hidden">
-            <StudentHistoryView
-              actorId={actorId}
-              catalog={catalog}
-              selectedCourseId={selectedCourseId}
-              selectedGroupId={selectedGroupId}
-            />
-          </PageContainer>
-        )}
+          {/* Main Workspace Content Area */}
+          <div className="flex-1 min-w-0">
+            {/* If sidebar is collapsed, provide an un-collapse button */}
+            {!isSidebarOpen && (
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={handleToggleSidebar}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200/80 bg-white hover:bg-rose-50 text-stone-700 hover:text-ruby-800 text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                  title="Mở thanh danh mục bên trái"
+                >
+                  <PanelLeftOpen size={15} />
+                  <span>Mở danh mục</span>
+                </button>
+              </div>
+            )}
 
-        {role === "lecturer" && feature === "inbox" && (
-          <PageContainer variant="wide" className="h-full p-0 flex-1 flex flex-col overflow-hidden">
-            <LecturerInboxView onDecisionMade={onDecisionMade} />
-          </PageContainer>
-        )}
+            {role === "student" && feature === "ask" && (
+              <StudentSubmitView
+                actorId={actorId}
+                catalog={catalog}
+                selectedCourseId={selectedCourseId}
+                selectedGroupId={selectedGroupId}
+                onSelectCourse={onSelectCourse}
+                onSelectGroup={onSelectGroup}
+                onSubmitted={onQuestionSubmitted}
+                onViewHistory={handleNavigateToHistory}
+              />
+            )}
 
-        {role === "lecturer" && feature === "exceptions" && (
-          <PageContainer variant="wide" className="py-6 pb-20 md:pb-8 flex-1">
-            <ExceptionsView actorId={actorId} />
-          </PageContainer>
-        )}
+            {role === "student" && feature === "history" && (
+              <StudentHistoryView
+                actorId={actorId}
+                catalog={catalog}
+                selectedCourseId={selectedCourseId}
+                selectedGroupId={selectedGroupId}
+              />
+            )}
 
-        {role === "lecturer" && feature === "documents" && (
-          <PageContainer variant="wide" className="py-6 pb-20 md:pb-8 flex-1">
-            <DocumentProcessingPage courseId={selectedCourseId} />
-          </PageContainer>
-        )}
+            {role === "lecturer" && feature === "inbox" && (
+              <LecturerInboxView onDecisionMade={onDecisionMade} />
+            )}
+
+            {role === "lecturer" && feature === "exceptions" && (
+              <ExceptionsView actorId={actorId} />
+            )}
+
+            {role === "lecturer" && feature === "documents" && (
+              <DocumentProcessingPage courseId={selectedCourseId} />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

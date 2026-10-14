@@ -19,12 +19,12 @@ export function Badge({ tone, route, children, className = "", ...props }: Badge
   }
 
   const toneStyles: Record<BadgeTone, string> = {
-    answer: "bg-[#E8F5E9] text-[#146C2E] border border-[#C8E6C9]",
-    clarify: "bg-[#E3F2FD] text-[#0B57D0] border border-[#BBDEFB]",
-    escalate: "bg-[#FFF8E1] text-[#8C5000] border border-[#FFE082]",
-    reject: "bg-[#FFEBEE] text-[#B3261E] border border-[#FFCDD2]",
-    neutral: "bg-[var(--surface-container-high)] text-[var(--on-surface-variant)] border border-[var(--outline)]/40",
-    info: "bg-[var(--primary-container)] text-[var(--primary)] border border-[var(--primary)]/30",
+    answer: "bg-emerald-50 text-emerald-800 border border-emerald-200",
+    clarify: "bg-amber-50 text-amber-800 border border-amber-200",
+    escalate: "bg-rose-50 text-ruby-800 border border-rose-200",
+    reject: "bg-red-50 text-red-800 border border-red-200",
+    neutral: "bg-stone-100 text-stone-700 border border-stone-200",
+    info: "bg-rose-100 text-ruby-800 border border-rose-200",
   };
 
   return (

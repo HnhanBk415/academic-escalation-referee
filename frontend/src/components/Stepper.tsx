@@ -1,5 +1,5 @@
 import React from "react";
-import { IconCheck } from "./Icons";
+import { Check } from "lucide-react";
 import type { CaseStatus } from "./StatusBadge";
 
 interface StepperProps {
@@ -40,45 +40,58 @@ export function Stepper({ status, route }: StepperProps) {
     isAllComplete = true;
   }
 
-  return (
-    <div className="flex items-center gap-0 w-full">
-      {steps.map((step, i) => {
-        const isComplete = isAllComplete || i < activeStep;
-        const isActive = !isAllComplete && i === activeStep;
-        const isLast = i === steps.length - 1;
+  const progressPercent = isAllComplete
+    ? 100
+    : steps.length > 1
+    ? (activeStep / (steps.length - 1)) * 100
+    : 0;
 
-        return (
-          <div key={i} className="flex items-center gap-0 flex-1 min-w-0">
-            <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+  return (
+    <div className="relative w-full py-1">
+      {/* Continuous connecting line positioned behind nodes */}
+      <div className="absolute top-3.5 left-6 right-6 sm:left-10 sm:right-10 h-[2px] bg-rose-100 -z-0">
+        <div
+          className="h-full bg-ruby-700 transition-all duration-300"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      {/* Grid of step nodes preventing any text overlapping */}
+      <div
+        className={`relative z-10 grid gap-1 sm:gap-2 text-center ${
+          steps.length === 4 ? "grid-cols-4" : "grid-cols-3"
+        }`}
+      >
+        {steps.map((step, i) => {
+          const isComplete = isAllComplete || i < activeStep;
+          const isActive = !isAllComplete && i === activeStep;
+
+          return (
+            <div key={i} className="flex flex-col items-center">
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border transition-all ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-2xs ring-4 ring-white ${
                   isComplete
-                    ? "bg-[var(--primary)] border-[var(--primary)] text-white shadow-xs"
+                    ? "bg-ruby-700 text-white"
                     : isActive
-                    ? "bg-[var(--surface)] border-2 border-[var(--primary)] text-[var(--primary)] font-semibold"
-                    : "bg-[var(--surface-container)] border border-[var(--outline)]/40 text-[var(--on-surface-variant)]"
+                    ? "bg-white border-2 border-ruby-700 text-ruby-800"
+                    : "border border-stone-200 bg-stone-50 text-stone-400"
                 }`}
               >
-                {isComplete ? <IconCheck size={13} /> : i + 1}
+                {isComplete ? <Check size={13} strokeWidth={2.5} /> : i + 1}
               </div>
               <span
-                className={`text-xs text-center leading-tight whitespace-nowrap ${
-                  isComplete || isActive ? "text-[var(--on-surface)] font-medium" : "text-[var(--on-surface-variant)]"
+                className={`text-[11px] sm:text-xs text-center mt-1.5 leading-tight px-0.5 max-w-[5.5rem] break-words ${
+                  isComplete || isActive
+                    ? "text-stone-900 font-semibold"
+                    : "text-stone-400 font-medium"
                 }`}
               >
                 {step}
               </span>
             </div>
-            {!isLast && (
-              <div
-                className={`h-0.5 flex-1 mx-2 mb-4 transition-all ${
-                  isComplete ? "bg-[var(--primary)]" : "bg-[var(--outline)]/20"
-                }`}
-              />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

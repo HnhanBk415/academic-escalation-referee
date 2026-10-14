@@ -355,9 +355,9 @@ export function LecturerInboxView({
       key: "FORWARDED",
       label: "Chuyển tiếp",
       icon: Forward,
-      activeBg: "bg-[#E3F2FD]",
-      activeText: "text-[#0B57D0]",
-      activeBorder: "border-[#BBDEFB]",
+      activeBg: "bg-rose-50",
+      activeText: "text-ruby-800",
+      activeBorder: "border-rose-200",
     },
   ];
 

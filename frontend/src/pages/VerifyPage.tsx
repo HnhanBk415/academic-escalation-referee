@@ -1,7 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Play, Check, X, Loader2 } from "lucide-react";
 import { postJson } from "../api/client";
-import { Badge, Button, PageHeader } from "../components/ui";
 import type { QuestionResponse, Route } from "../types";
 
 /* ── Semantic routing verification cases ── */
@@ -75,6 +74,7 @@ const CASES: VerifyCase[] = [
     must_include: ["3 đến 5"],
     forbidden_claims: [],
   },
+
   /* ── MISSING FACT (CLARIFY) ── */
   {
     id: "verify_006",
@@ -221,43 +221,45 @@ interface VerifyResult extends VerifyCase {
   error: string | null;
 }
 
-const CATEGORY_MAP: Record<VerifyCase["category"], { label: string; bg: string; text: string; border: string }> = {
+const CATEGORY_MAP: Record<
+  VerifyCase["category"],
+  { label: string; bg: string; text: string; border: string }
+> = {
   routine: {
     label: "Quy chuẩn",
-    bg: "#E8F5E9",
-    text: "#146C2E",
-    border: "#C8E6C9",
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    border: "border-emerald-200/60",
   },
   missing_fact: {
     label: "Thiếu dữ kiện",
-    bg: "#FFF8E1",
-    text: "#8C5000",
-    border: "#FFE082",
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200/60",
   },
   authority: {
     label: "Thẩm quyền",
-    bg: "#E3F2FD",
-    text: "#0B57D0",
-    border: "#BBDEFB",
+    bg: "bg-rose-50",
+    text: "text-ruby-700",
+    border: "border-rose-200/60",
   },
   out_of_policy: {
     label: "Ngoài quy chế",
-    bg: "#F3E5F5",
-    text: "#6A1B9A",
-    border: "#E1BEE7",
+    bg: "bg-purple-50",
+    text: "text-purple-700",
+    border: "border-purple-200/60",
   },
   suspicious: {
     label: "Khả nghi",
-    bg: "#FFEBEE",
-    text: "#B3261E",
-    border: "#FFCDD2",
+    bg: "bg-red-50",
+    text: "text-red-700",
+    border: "border-red-200/60",
   },
 };
 
 export function VerifyPage() {
   const [results, setResults] = useState<VerifyResult[]>([]);
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
   const runInFlight = useRef(false);
@@ -277,8 +279,8 @@ export function VerifyPage() {
     if (runInFlight.current) return;
     runInFlight.current = true;
     setRunning(true);
-    setProgress(0);
     setResults([]);
+
     try {
       const collected: VerifyResult[] = [];
       for (const item of CASES) {
@@ -300,8 +302,9 @@ export function VerifyPage() {
             }
           );
         } catch (e) {
-          error = e instanceof Error ? e.message : "Unknown request error";
+          error = e instanceof Error ? e.message : "Lỗi kết nối kiểm thử";
         }
+
         const answer = response?.answer ?? "";
         const reqOk = item.must_include.every((p) =>
           answer.toLowerCase().includes(p.toLowerCase())
@@ -319,422 +322,429 @@ export function VerifyPage() {
           reqOk &&
           forbOk &&
           citOk &&
-          targetOk &&
-          !error;
-        const latency = Math.round(performance.now() - started);
-        collected.push({
+          targetOk;
+
+        const resItem: VerifyResult = {
           ...item,
           actual_route: response?.route ?? null,
           passed,
-          latency_ms: latency,
+          latency_ms: Math.round(performance.now() - started),
           response,
           error,
-        });
+        };
+
+        collected.push(resItem);
         setResults([...collected]);
-        setProgress(collected.length);
       }
     } finally {
-      setActiveCaseId(null);
       runInFlight.current = false;
       setRunning(false);
+      setActiveCaseId(null);
     }
   }
 
-  const passed = results.filter((r) => r.passed).length;
-  const totalDone = results.length;
-  const complete = totalDone === CASES.length;
-  const totalLatency = results.reduce((s, r) => s + r.latency_ms, 0);
-  const maxLatency = Math.max(...results.map((r) => r.latency_ms), 1);
+  // Calculated metrics
+  const totalRan = results.length;
+  const passedCount = results.filter((r) => r.passed).length;
+  const passRate = totalRan > 0 ? Math.round((passedCount / totalRan) * 100) : null;
 
-  const routineCases = results.filter((r) => r.category === "routine");
-  const overEscalated = routineCases.filter((r) => r.actual_route === "ESCALATE").length;
+  // Over-escalation: Routine cases that were escalated
+  const routineRan = results.filter((r) => r.category === "routine");
+  const overEscalated = routineRan.filter((r) => r.actual_route === "ESCALATE").length;
   const overEscalationRate =
-    routineCases.length > 0 ? (overEscalated / routineCases.length) * 100 : 0;
+    routineRan.length > 0 ? Math.round((overEscalated / routineRan.length) * 100) : null;
 
-  const escalateCases = results.filter((r) => r.expected_route === "ESCALATE");
-  const underEscalated = escalateCases.filter(
-    (r) => r.actual_route !== "ESCALATE"
-  ).length;
+  // Under-escalation: Authority cases that were NOT escalated
+  const authorityRan = results.filter((r) => r.category === "authority");
+  const underEscalated = authorityRan.filter((r) => r.actual_route !== "ESCALATE").length;
   const underEscalationRate =
-    escalateCases.length > 0 ? (underEscalated / escalateCases.length) * 100 : 0;
+    authorityRan.length > 0
+      ? Math.round((underEscalated / authorityRan.length) * 100)
+      : null;
+
+  const totalTimeSeconds = (
+    results.reduce((acc, r) => acc + r.latency_ms, 0) / 1000
+  ).toFixed(1);
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <PageHeader
-        title="Kiểm chứng hệ thống"
-        description="Tự động kiểm tra 16 ca thẩm định phân luồng, trích xuất và đo lường độ chính xác"
-        actions={
-          <Button
-            id="run-verify-btn"
-            data-tour="verify-run"
-            variant="filled"
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-7">
+      {/* Title & Action Bar */}
+      <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+            Kiểm chứng hệ thống
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Tự động kiểm tra 16 ca thẩm định phân luồng, trích xuất và đo lường độ chính xác
+          </p>
+        </div>
+
+        {/* Action Button */}
+        <div>
+          <button
+            type="button"
             onClick={runVerify}
             disabled={running}
-            className="shadow-xs"
-            icon={
-              running ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Play className="w-4 h-4 fill-current" />
-              )
-            }
+            className="inline-flex items-center justify-center gap-2.5 px-6 py-3 bg-ruby-700 hover:bg-ruby-800 active:bg-ruby-900 text-white font-semibold text-sm rounded-xl shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer disabled:opacity-50 group"
           >
-            {running
-              ? `Đang chạy ${progress}/${CASES.length}...`
-              : "Chạy toàn bộ Verify"}
-          </Button>
-        }
-      />
+            {running ? (
+              <>
+                <Loader2 size={16} className="animate-spin text-white" />
+                <span>Đang kiểm chứng ({totalRan}/16)...</span>
+              </>
+            ) : (
+              <>
+                <Play size={16} className="fill-current transition-transform group-hover:scale-110" />
+                <span>Chạy toàn bộ Verify</span>
+              </>
+            )}
+          </button>
+        </div>
+      </section>
 
-      {/* 4 Flat Metric Cards */}
-      <div data-tour="verify-metrics" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: Tỷ lệ Đạt */}
-        <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
+      {/* BEGIN: BentoOverviewMetrics */}
+      <section
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
+        data-purpose="metrics-dashboard"
+      >
+        {/* Card 1: Tỷ lệ đạt */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
           <div>
-            <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
-              Tỷ lệ đạt
-            </span>
-            <div className="text-2xl font-normal text-[var(--on-surface)] mt-1 flex items-baseline gap-1">
-              <span className={complete && passed === CASES.length ? "text-[#146C2E] font-medium" : ""}>
-                {complete ? `${Math.round((passed / CASES.length) * 100)}%` : "—"}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+                Tỷ lệ đạt
               </span>
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="w-full bg-[var(--surface-container-high)] h-1.5 rounded-full overflow-hidden">
-              <div
-                className="bg-[var(--primary)] h-full transition-all duration-300"
-                style={{ width: `${(progress / CASES.length) * 100}%` }}
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  passRate !== null
+                    ? passRate >= 95
+                      ? "bg-emerald-500"
+                      : "bg-amber-500"
+                    : "bg-slate-300"
+                }`}
               />
             </div>
-            <p className="text-xs text-[var(--on-surface-variant)] mt-1.5">
-              {totalDone}/{CASES.length} ca đã chạy · {passed} Đạt
-            </p>
-          </div>
-        </div>
-
-        {/* Metric 2: Over-escalation */}
-        <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
-          <div>
-            <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
-              Tỷ lệ chuyển thừa
-            </span>
-            <div className="text-2xl font-normal text-[var(--on-surface)] mt-1">
-              <span
-                className={
-                  complete && overEscalated === 0
-                    ? "text-[#146C2E] font-medium"
-                    : complete && overEscalated > 0
-                    ? "text-[var(--error)] font-medium"
-                    : ""
-                }
-              >
-                {complete ? `${overEscalationRate.toFixed(1)}%` : "—"}
+            <div className="mt-4 mb-2">
+              <span className="font-display text-3xl font-bold text-slate-800 tracking-tight">
+                {passRate !== null ? `${passRate}%` : "—"}
               </span>
             </div>
           </div>
-          <p className="text-xs text-[var(--on-surface-variant)] mt-3">
-            {complete
-              ? `${overEscalated}/${routineCases.length} ca thường bị đẩy thừa · Mục tiêu: 0%`
-              : "Đẩy thừa ca quy chuẩn lên giảng viên"}
-          </p>
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>
+              {totalRan > 0 ? `${totalRan}/16 ca - ${passedCount} Đạt` : "0/16 ca đã chạy"}
+            </span>
+            <span className="font-medium text-slate-400">Target 95%</span>
+          </div>
         </div>
 
-        {/* Metric 3: Under-escalation */}
-        <div className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
+        {/* Card 2: Tỷ lệ chuyển thừa */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
           <div>
-            <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
-              Tỷ lệ bỏ sót
-            </span>
-            <div className="text-2xl font-normal text-[var(--on-surface)] mt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+                Tỷ lệ chuyển thừa
+              </span>
               <span
-                className={
-                  complete && underEscalated === 0
-                    ? "text-[#146C2E] font-medium"
-                    : complete && underEscalated > 0
-                    ? "text-[var(--error)] font-medium"
-                    : ""
-                }
-              >
-                {complete ? `${underEscalationRate.toFixed(1)}%` : "—"}
+                className={`w-2.5 h-2.5 rounded-full ${
+                  overEscalationRate !== null
+                    ? overEscalationRate === 0
+                      ? "bg-emerald-500"
+                      : "bg-rose-500"
+                    : "bg-slate-300"
+                }`}
+              />
+            </div>
+            <div className="mt-4 mb-2">
+              <span className="font-display text-3xl font-bold text-slate-800 tracking-tight">
+                {overEscalationRate !== null ? `${overEscalationRate}%` : "—"}
               </span>
             </div>
           </div>
-          <p className="text-xs text-[var(--on-surface-variant)] mt-3">
-            {complete
-              ? `${underEscalated}/${escalateCases.length} ca thẩm quyền bị sót · Mục tiêu: 0%`
-              : "Bỏ sót ca cần chuyển lên thẩm quyền"}
-          </p>
+          <div
+            className="pt-4 border-t border-slate-100 text-xs text-slate-500 truncate"
+            title="Đẩy thừa ca quy chuẩn lên giảng viên"
+          >
+            Đẩy thừa ca quy chuẩn lên giảng viên
+          </div>
         </div>
 
-        {/* Metric 4: Latency & 16-Square Grid */}
-        <div data-tour="verify-latency" className="bg-[var(--surface)] p-4 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs flex flex-col justify-between min-w-0">
+        {/* Card 3: Tỷ lệ bỏ sót */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
           <div>
-            <span className="text-xs font-medium text-[var(--on-surface-variant)] block">
-              Tổng thời gian xử lý
-            </span>
-            <div className="flex items-baseline justify-between mt-1 min-w-0">
-              <div className="text-2xl font-normal text-[var(--on-surface)] font-mono">
-                {results.length > 0 ? (totalLatency / 1000).toFixed(1).replace(".", ",") : "0,0"}{" "}
-                <span className="text-sm font-sans font-normal text-[var(--on-surface-variant)]">s</span>
-              </div>
-              <span className="text-xs text-[var(--on-surface-variant)] shrink-0">/ 90 s mục tiêu</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+                Tỷ lệ bỏ sót
+              </span>
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  underEscalationRate !== null
+                    ? underEscalationRate === 0
+                      ? "bg-emerald-500"
+                      : "bg-rose-500"
+                    : "bg-slate-300"
+                }`}
+              />
             </div>
-            <div className="text-xs text-[var(--on-surface-variant)] mt-1 truncate">
-              {results.length > 0 ? (
-                (() => {
-                  const avgSec = (totalLatency / results.length / 1000).toFixed(1).replace(".", ",");
-                  const slowest = results.reduce(
-                    (max, r) => (r.latency_ms > max.latency_ms ? r : max),
-                    results[0]
-                  );
-                  const slowestNum = slowest.id.replace(/^verify_0*/, "").padStart(3, "0");
-                  const slowestSec = (slowest.latency_ms / 1000).toFixed(1).replace(".", ",");
-                  return `TB ${avgSec} s · chậm nhất #${slowestNum} (${slowestSec} s)`;
-                })()
-              ) : (
-                "Chưa có dữ liệu chạy"
-              )}
+            <div className="mt-4 mb-2">
+              <span className="font-display text-3xl font-bold text-slate-800 tracking-tight">
+                {underEscalationRate !== null ? `${underEscalationRate}%` : "—"}
+              </span>
             </div>
           </div>
+          <div
+            className="pt-4 border-t border-slate-100 text-xs text-slate-500 truncate"
+            title="Bỏ sót ca cần chuyển lên thẩm quyền"
+          >
+            Bỏ sót ca cần chuyển lên thẩm quyền
+          </div>
+        </div>
 
-          <div className="mt-3 min-w-0">
-            {/* 16 ô vuông: grid 8 cột × 2 hàng, gap 0.25rem, aspect-square bo 0.25rem */}
-            <div
-              className="grid grid-cols-8 grid-rows-2 gap-1 w-full min-w-0"
-              role="group"
-              aria-label="Độ trễ từng ca kiểm thử"
-            >
-              {CASES.map((item, idx) => {
-                const caseNumber = String(idx + 1).padStart(2, "0");
-                const res = results.find((r) => r.id === item.id);
-                const isRunning = running && activeCaseId === item.id;
+        {/* Card 4: Tổng thời gian xử lý & Matrix */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+                Tổng thời gian xử lý
+              </span>
+              <span className="text-[11px] text-slate-400 font-medium">/ 90 s mục tiêu</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="font-display text-2xl font-bold text-slate-800">
+                {totalRan > 0 ? totalTimeSeconds : "0,0"}
+              </span>
+              <span className="text-sm font-medium text-slate-500">s</span>
+              <span className="text-[11px] text-slate-400 ml-auto">
+                {totalRan > 0 ? `${totalRan}/16 hoàn tất` : "Chưa có dữ liệu"}
+              </span>
+            </div>
 
-                let cellStyle = "bg-[var(--surface-container)] text-[var(--on-surface-variant)]/40 border border-transparent";
-                let tooltip = `${item.id} · Chưa chạy`;
+            {/* 16-Grid Matrix Representation */}
+            <div className="grid grid-cols-8 gap-1 mt-3 mb-2" title="Trạng thái 16 ca test">
+              {CASES.map((c, idx) => {
+                const res = results.find((r) => r.id === c.id);
+                const isCurrentActive = activeCaseId === c.id;
 
-                if (res) {
-                  const latencySec = res.latency_ms / 1000;
-                  if (latencySec < 2) {
-                    cellStyle = "bg-[#E8F5E9] text-[#146C2E] border border-transparent";
-                  } else if (latencySec <= 5) {
-                    cellStyle = "bg-[#FFF8E1] text-[#8C5000] border border-transparent";
-                  } else {
-                    cellStyle = "bg-[#FFEBEE] text-[#B3261E] border border-transparent";
-                  }
-
+                let cellBg = "bg-slate-100 text-slate-600";
+                if (isCurrentActive) {
+                  cellBg = "bg-ruby-700 text-white animate-pulse";
+                } else if (res) {
                   if (!res.passed) {
-                    cellStyle += " ring-2 ring-inset ring-[var(--error)]";
+                    cellBg = "bg-rose-500 text-white";
+                  } else if (res.latency_ms < 2000) {
+                    cellBg = "bg-emerald-500 text-white";
+                  } else if (res.latency_ms <= 5000) {
+                    cellBg = "bg-amber-400 text-slate-900";
+                  } else {
+                    cellBg = "bg-rose-500 text-white";
                   }
-
-                  tooltip = `${item.id} · ${res.latency_ms.toLocaleString("vi-VN")} ms · ${res.passed ? "PASS" : "FAIL"}`;
-                } else if (isRunning) {
-                  cellStyle = "border-2 border-[var(--primary)] bg-[var(--surface-container-high)] text-[var(--primary)] animate-pulse";
-                  tooltip = `${item.id} · Đang chạy...`;
                 }
 
                 return (
                   <button
-                    key={item.id}
+                    key={c.id}
                     type="button"
-                    onClick={() => handleScrollToRow(item.id)}
-                    title={tooltip}
-                    aria-label={tooltip}
-                    className={`aspect-square rounded-[0.25rem] flex items-center justify-center font-mono text-xs font-semibold cursor-pointer transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] select-none ${cellStyle}`}
+                    onClick={() => handleScrollToRow(c.id)}
+                    className={`h-6 flex items-center justify-center text-[10px] font-mono rounded font-medium transition-all hover:scale-105 cursor-pointer ${cellBg}`}
+                    title={`${c.id}: ${c.label} (${res ? `${res.latency_ms}ms` : "Chờ chạy"})`}
                   >
-                    {caseNumber}
+                    {String(idx + 1).padStart(2, "0")}
                   </button>
                 );
               })}
             </div>
+          </div>
 
-            {/* Chú thích 3 màu nhỏ bên dưới lưới: "< 2 s", "2–5 s", "> 5 s" */}
-            <div className="flex items-center justify-between text-xs text-[var(--on-surface-variant)] mt-2 pt-1.5 border-t border-[var(--outline)]/15">
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-[2px] bg-[#E8F5E9] border border-[#C8E6C9] inline-block shrink-0" />
-                <span>&lt; 2 s</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-[2px] bg-[#FFF8E1] border border-[#FFE082] inline-block shrink-0" />
-                <span>2–5 s</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-[2px] bg-[#FFEBEE] border border-[#FFCDD2] inline-block shrink-0" />
-                <span>&gt; 5 s</span>
-              </div>
-            </div>
+          {/* Legend Chú thích độ trễ */}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-medium">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-xs bg-emerald-500" /> &lt; 2 s
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-xs bg-amber-400" /> 2–5 s
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-xs bg-rose-500" /> &gt; 5 s
+            </span>
           </div>
         </div>
-      </div>
+      </section>
+      {/* END: BentoOverviewMetrics */}
 
-      {/* Results Table */}
-      <div data-tour="verify-table" className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs overflow-hidden">
-        <div className="px-5 py-4 border-b border-[var(--outline)]/20 flex items-center justify-between">
-          <span className="text-sm font-medium text-[var(--on-surface)]">
-            Kết quả từng ca kiểm thử
+      {/* BEGIN: DetailedResultsTable */}
+      <section
+        className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden"
+        data-purpose="test-cases-table-container"
+      >
+        {/* Table Header Title */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div>
+            <h2 className="font-display text-base font-semibold text-slate-900">
+              Kết quả từng ca kiểm thử
+            </h2>
+            <p className="text-xs text-slate-500">
+              Toàn bộ 16 ca mẫu thẩm định quy chuẩn và ngoại lệ đồ án
+            </p>
+          </div>
+          <span
+            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+              running
+                ? "bg-amber-100 text-amber-800"
+                : totalRan > 0
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {running
+              ? `Đang chạy: ${totalRan}/16`
+              : totalRan > 0
+              ? "Hoàn tất kiểm thử"
+              : "Chế độ tĩnh: Sẵn sàng chạy"}
           </span>
-          {complete && (
-            <span
-              className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
-                passed === CASES.length
-                  ? "bg-[#E8F5E9] text-[#146C2E]"
-                  : "bg-[#FFEBEE] text-[var(--error)]"
-              }`}
-            >
-              {passed}/{CASES.length} Đạt chuẩn
-            </span>
-          )}
         </div>
 
+        {/* Responsive Table View */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          <table className="w-full text-left text-sm" id="verify-testcase-table">
             <thead>
-              <tr className="border-b border-[var(--outline)]/20 bg-[var(--surface-container-low)]">
-                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+              <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <th className="py-3.5 px-6 w-48" scope="col">
                   Mã ca · Nhóm
                 </th>
-                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)]">
+                <th className="py-3.5 px-6" scope="col">
                   Nội dung câu hỏi
                 </th>
-                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                <th className="py-3.5 px-6 w-44" scope="col">
                   Phân luồng dự kiến
                 </th>
-                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                <th className="py-3.5 px-6 w-36 text-center" scope="col">
                   Kết quả thực tế
                 </th>
-                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] whitespace-nowrap">
+                <th className="py-3.5 px-6 w-28 text-center" scope="col">
                   Độ trễ
                 </th>
-                <th className="px-4 py-3 text-xs font-medium text-[var(--on-surface-variant)] text-right whitespace-nowrap">
+                <th className="py-3.5 px-6 w-32 text-right" scope="col">
                   Kết quả
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 font-normal">
               {CASES.map((item) => {
                 const res = results.find((r) => r.id === item.id);
-                const catMeta = CATEGORY_MAP[item.category];
+                const isHighlighted = highlightedRowId === item.id;
+                const isActive = activeCaseId === item.id;
+                const cat = CATEGORY_MAP[item.category];
 
                 return (
                   <tr
                     key={item.id}
                     id={`verify-row-${item.id}`}
-                    className={`min-h-[3.25rem] border-b border-[var(--outline)]/15 transition-all duration-300 ${
-                      highlightedRowId === item.id
-                        ? "bg-[var(--primary)]/15 ring-2 ring-inset ring-[var(--primary)]"
-                        : "hover:bg-[var(--surface-container-low)]/50"
+                    className={`transition-colors ${
+                      isHighlighted
+                        ? "bg-amber-50"
+                        : isActive
+                        ? "bg-rose-50/70"
+                        : "hover:bg-slate-50/70"
                     }`}
                   >
-                    {/* Case ID & Category */}
-                    <td className="px-4 py-2.5 text-xs whitespace-nowrap">
-                      <div className="font-mono text-[var(--on-surface)] font-medium">
+                    {/* Mã ca · Nhóm */}
+                    <td className="py-3.5 px-6 align-top">
+                      <div className="font-mono text-xs font-semibold text-slate-800">
                         {item.id}
                       </div>
-                      <div className="mt-1">
-                        <span
-                          className="inline-block px-1.5 py-0.5 rounded text-xs font-medium border"
-                          style={{
-                            backgroundColor: catMeta.bg,
-                            color: catMeta.text,
-                            borderColor: catMeta.border,
-                          }}
-                        >
-                          {catMeta.label}
+                      <span
+                        className={`inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium border ${cat.bg} ${cat.text} ${cat.border}`}
+                      >
+                        {cat.label}
+                      </span>
+                    </td>
+
+                    {/* Nội dung câu hỏi */}
+                    <td className="py-3.5 px-6 align-top">
+                      <p className="font-semibold text-slate-800 text-xs">{item.label}</p>
+                      <p className="text-slate-500 text-xs mt-0.5">{item.question}</p>
+                    </td>
+
+                    {/* Phân luồng dự kiến */}
+                    <td className="py-3.5 px-6 align-top">
+                      {item.expected_route === "ANSWER" && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          ANSWER
                         </span>
-                      </div>
-                    </td>
-
-                    {/* Question text */}
-                    <td className="px-4 py-2.5 text-xs max-w-sm">
-                      <div className="font-medium text-[var(--on-surface)]">
-                        {item.label}
-                      </div>
-                      <div className="text-[var(--on-surface-variant)] line-clamp-1 mt-0.5">
-                        {item.question}
-                      </div>
-                    </td>
-
-                    {/* Expected Route */}
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <Badge route={item.expected_route}>{item.expected_route}</Badge>
-                        {item.expected_target === "COURSE_LECTURER" && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-container-high)] text-[var(--on-surface-variant)] font-medium">
+                      )}
+                      {item.expected_route === "CLARIFY" && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                          CLARIFY
+                        </span>
+                      )}
+                      {item.expected_route === "ESCALATE" && (
+                        <div className="inline-flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                            ESCALATE
+                          </span>
+                          <span className="px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
                             Giảng viên
                           </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Actual Route */}
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      {res ? (
-                        <div className="flex items-center gap-1.5">
-                          <Badge route={res.actual_route ?? "ESCALATE"}>
-                            {res.actual_route ?? "ESCALATE"}
-                          </Badge>
-                          {res.response?.escalation_target === "COURSE_LECTURER" && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-container-high)] text-[var(--on-surface-variant)] font-medium">
-                              Giảng viên
-                            </span>
-                          )}
                         </div>
-                      ) : (
-                        <span className="text-xs text-[var(--on-surface-variant)]/60">—</span>
                       )}
-                    </td>
-
-                    {/* Latency */}
-                    <td className="px-4 py-2.5 text-xs font-mono text-[var(--on-surface-variant)] whitespace-nowrap">
-                      {res ? `${res.latency_ms} ms` : "—"}
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                      {!res && running && progress >= CASES.indexOf(item) && (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-[var(--on-surface-variant)]">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--primary)]" />
-                          <span>Đang kiểm tra...</span>
+                      {item.expected_route === "REJECT" && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                          REJECT
                         </span>
                       )}
+                    </td>
 
-                      {res && (
+                    {/* Kết quả thực tế */}
+                    <td className="py-3.5 px-6 align-top text-center">
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-ruby-700 font-semibold animate-pulse">
+                          <Loader2 size={12} className="animate-spin" />
+                          Đang kiểm tra
+                        </span>
+                      ) : res?.actual_route ? (
+                        <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-800">
+                          {res.actual_route}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-mono text-xs">—</span>
+                      )}
+                    </td>
+
+                    {/* Độ trễ */}
+                    <td className="py-3.5 px-6 align-top text-center">
+                      {res ? (
+                        <span
+                          className={`font-mono text-xs font-semibold ${
+                            res.latency_ms < 2000
+                              ? "text-emerald-700"
+                              : res.latency_ms <= 5000
+                              ? "text-amber-700"
+                              : "text-rose-700"
+                          }`}
+                        >
+                          {res.latency_ms} ms
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-mono text-xs">—</span>
+                      )}
+                    </td>
+
+                    {/* Kết quả */}
+                    <td className="py-3.5 px-6 align-top text-right text-xs">
+                      {res ? (
                         res.passed ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-medium bg-[#E8F5E9] text-[#146C2E] border border-[#C8E6C9]">
-                            <Check className="w-3.5 h-3.5" />
-                            PASS
+                          <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+                            <Check size={14} />
+                            Đạt
                           </span>
                         ) : (
-                          <details className="inline-block text-left">
-                            <summary className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-medium bg-[#FFEBEE] text-[#B3261E] border border-[#FFCDD2] cursor-pointer list-none">
-                              <X className="w-3.5 h-3.5" />
-                              FAIL
-                            </summary>
-                            <div className="absolute right-6 mt-1 p-3 bg-[var(--surface)] border border-[var(--outline)]/40 rounded-[var(--radius-md)] shadow-lg z-20 text-xs text-[var(--on-surface)] max-w-xs space-y-1">
-                              {res.error && <div>Lỗi: {res.error}</div>}
-                              {res.actual_route !== res.expected_route && (
-                                <div>
-                                  Route: mong đợi <b>{res.expected_route}</b>, nhận{" "}
-                                  <b>{res.actual_route ?? "null"}</b>
-                                </div>
-                              )}
-                              {item.expected_target &&
-                                res.response?.escalation_target !== item.expected_target && (
-                                  <div>
-                                    Target: mong đợi <b>{item.expected_target}</b>, nhận{" "}
-                                    <b>{res.response?.escalation_target ?? "null"}</b>
-                                  </div>
-                                )}
-                            </div>
-                          </details>
+                          <span className="inline-flex items-center gap-1 font-bold text-red-600">
+                            <X size={14} />
+                            Không đạt
+                          </span>
                         )
-                      )}
-
-                      {!res && !running && (
-                        <span className="text-xs text-[var(--on-surface-variant)]/60">
-                          Chờ chạy
-                        </span>
+                      ) : (
+                        <span className="text-slate-400">Chờ chạy</span>
                       )}
                     </td>
                   </tr>
@@ -743,7 +753,16 @@ export function VerifyPage() {
             </tbody>
           </table>
         </div>
-      </div>
+
+        {/* Footer meta */}
+        <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between text-xs text-slate-500">
+          <div>Hiển thị 16 / 16 ca thẩm định kiểm thử tự động</div>
+          <div className="font-medium text-slate-400">
+            {totalRan === 16 ? `Đạt ${passedCount}/16 (${passRate}%)` : "Sẵn sàng chạy"}
+          </div>
+        </div>
+      </section>
+      {/* END: DetailedResultsTable */}
     </div>
   );
 }

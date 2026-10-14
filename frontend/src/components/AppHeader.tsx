@@ -1,8 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { HelpCircle, BookOpen, Compass, RotateCcw, Play } from "lucide-react";
 import { AccountSwitcher, type DemoAccount } from "./AccountSwitcher";
-import { useTour } from "../tour/useTour";
 
 interface AppHeaderProps {
   currentAccountId: string;
@@ -22,31 +20,12 @@ export function AppHeader({
   const location = useLocation();
   const pathname = location.pathname;
 
-  const { startTour, startAppShellTour, resetAllTours } = useTour();
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const helpMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (helpMenuRef.current && !helpMenuRef.current.contains(event.target as Node)) {
-        setIsHelpOpen(false);
-      }
-    }
-    if (isHelpOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isHelpOpen]);
-
   const defaultWorkspaceFeature = currentRole === "student" ? "ask" : "inbox";
   const workspacePath = `/workspace/${defaultWorkspaceFeature}`;
 
   const navItems = [
     { label: "Trang chủ", path: "/", exact: true },
     { label: "Không gian làm việc", path: workspacePath, prefix: "/workspace" },
-    { label: "Audit Log", path: "/audit", prefix: "/audit" },
     { label: "Verify Harness", path: "/verify", prefix: "/verify" },
   ];
 
@@ -57,118 +36,77 @@ export function AppHeader({
   };
 
   return (
-    <header className="sticky top-0 z-40 h-16 px-4 sm:px-6 bg-[var(--surface-dim)] border-b border-[var(--outline)]/30 flex items-center justify-between shrink-0 select-none">
-      {/* Left: Brand */}
-      <div className="flex items-center gap-6">
-        <Link to="/" data-tour="app-logo" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-[#C51A1B] flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105">
-            <span className="text-white font-mono font-semibold text-xs tracking-wider">AER</span>
-          </div>
-          <div>
-            <span className="font-semibold text-base text-[var(--on-surface)] tracking-tight">
-              AER System
-            </span>
-          </div>
-        </Link>
-
-        {/* Center-left: Navigation Pills */}
-        <nav data-tour="main-nav" className="hidden md:flex items-center gap-1.5 ml-4">
-          {navItems.map((item) => {
-            const active = isItemActive(item);
-            return (
-              <Link
-                key={item.label}
-                to={item.path}
-                className={`h-9 px-4 rounded-[var(--radius-xl)] text-xs transition-colors flex items-center justify-center font-medium ${
-                  active
-                    ? "bg-[var(--primary-container)] text-[var(--primary)] font-semibold shadow-xs"
-                    : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)] hover:text-[var(--on-surface)]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Right: Help Button & Account Switcher */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Help Button with Dropdown Menu */}
-        <div className="relative" ref={helpMenuRef}>
-          <button
-            type="button"
-            data-tour="help-button"
-            title="Hướng dẫn trang này"
-            aria-label="Hướng dẫn trang này"
-            aria-haspopup="true"
-            aria-expanded={isHelpOpen}
-            onClick={() => setIsHelpOpen((prev) => !prev)}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--on-surface)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] border border-[var(--outline)]/40 bg-[var(--surface-container)] cursor-pointer"
-          >
-            <HelpCircle size={18} />
-          </button>
-
-          {isHelpOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[var(--shadow-2)] border border-[var(--outline)]/40 py-1.5 z-50 animate-fade-in select-none">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsHelpOpen(false);
-                  startTour();
-                }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-left font-medium text-[var(--on-surface)] hover:bg-[var(--surface-container)] transition-colors cursor-pointer"
-              >
-                <BookOpen size={16} className="text-[var(--primary)] shrink-0" />
-                <span>Hướng dẫn trang này</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsHelpOpen(false);
-                  startAppShellTour();
-                }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-left font-medium text-[var(--on-surface)] hover:bg-[var(--surface-container)] transition-colors cursor-pointer"
-              >
-                <Compass size={16} className="text-[var(--primary)] shrink-0" />
-                <span>Giới thiệu giao diện chung</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsHelpOpen(false);
-                  startTour("demo-scenario");
-                }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-left font-medium text-[var(--on-surface)] hover:bg-[var(--surface-container)] transition-colors cursor-pointer"
-              >
-                <Play size={16} className="text-[var(--primary)] shrink-0" />
-                <span>Kịch bản test nhanh</span>
-              </button>
-              <div className="my-1 border-t border-[var(--outline)]/30" />
-              <button
-                type="button"
-                onClick={() => {
-                  setIsHelpOpen(false);
-                  resetAllTours();
-                }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-left font-medium text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)] hover:text-[var(--on-surface)] transition-colors cursor-pointer"
-              >
-                <RotateCcw size={15} className="shrink-0" />
-                <span>Đặt lại tất cả hướng dẫn</span>
-              </button>
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-rose-100 shadow-[0_1px_8px_rgba(190,18,60,0.05)] select-none">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        {/* Left: Brand Logo & Navigation Links */}
+        <div className="flex items-center gap-6 lg:gap-8">
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-ruby-700 to-rose-500 flex items-center justify-center text-white shadow-md shadow-ruby-700/20 group-hover:scale-105 transition-transform">
+              <span className="font-display font-bold text-lg text-white">A</span>
             </div>
-          )}
+            <div className="flex flex-col">
+              <span className="font-display font-bold text-lg tracking-tight text-stone-900 group-hover:text-ruby-800 transition-colors">
+                AER <span className="text-ruby-700">System</span>
+              </span>
+            </div>
+          </Link>
+
+          {/* Desktop Navigation Links */}
+          <nav className="hidden md:flex items-center gap-1.5 text-sm font-semibold">
+            {navItems.map((item) => {
+              const active = isItemActive(item);
+              return (
+                <Link
+                  key={item.label}
+                  to={item.path}
+                  className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm transition-all ${
+                    active
+                      ? "bg-rose-100/80 text-ruby-800 font-bold shadow-xs"
+                      : "text-stone-600 hover:text-ruby-800 hover:bg-rose-50/70"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        <AccountSwitcher
-          currentAccountId={currentAccountId}
-          aiOnline={aiOnline}
-          onSelectAccount={onSelectAccount}
-          activeGroupLabel={activeGroupLabel}
-          onOpenTour={() => startTour()}
-        />
+        {/* Right: Quick Action (if student) + AI Status + Account Switcher */}
+        <div className="flex items-center gap-3">
+          <Link
+            to="/audit"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-ruby-700 hover:bg-ruby-800 text-white font-semibold text-xs px-3.5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-all active:scale-95"
+          >
+            <span>Audit Log</span>
+          </Link>
+
+          {/* AI Status Indicator Pill */}
+          <div
+            className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+              aiOnline
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-amber-50 text-amber-800 border-amber-200"
+            }`}
+            title={aiOnline ? "Hệ thống AI đang hoạt động bình thường" : "AI đang kết nối"}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                aiOnline ? "bg-emerald-600 animate-pulse" : "bg-amber-500"
+              }`}
+            />
+            <span>{aiOnline ? "AI Sẵn sàng" : "Kiểm tra..."}</span>
+          </div>
+
+          {/* Account Switcher */}
+          <AccountSwitcher
+            currentAccountId={currentAccountId}
+            aiOnline={aiOnline}
+            onSelectAccount={onSelectAccount}
+            activeGroupLabel={activeGroupLabel}
+          />
+        </div>
       </div>
     </header>
   );
 }
-
