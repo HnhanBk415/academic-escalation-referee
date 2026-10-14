@@ -55,4 +55,15 @@ describe("API client", () => {
 
     await expect(api("/health/ai")).rejects.toThrow("fetch failed");
   });
+
+  it("normalizes API URLs avoiding double slashes when base has trailing slashes", async () => {
+    const { resolveApiUrl } = await import("./client");
+    expect(resolveApiUrl("/api/v1/demo", "https://api.example.com/")).toBe(
+      "https://api.example.com/api/v1/demo"
+    );
+    expect(resolveApiUrl("api/v1/demo", "https://api.example.com///")).toBe(
+      "https://api.example.com/api/v1/demo"
+    );
+    expect(resolveApiUrl("/health/ai", "")).toBe("/health/ai");
+  });
 });
