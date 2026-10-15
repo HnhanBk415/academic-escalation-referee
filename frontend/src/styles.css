@@ -385,3 +385,80 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: radial-gradient(circle at 50% 0%, rgba(253, 164, 175, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
 }
 
+/* ============================================================
+   AER Terminal Card – 3D Depth & Elevation System
+   ============================================================ */
+
+/* Atmospheric ambient glow around and behind the card */
+.aer-terminal-glow {
+  position: absolute;
+  inset: -18px -20px -28px -20px;
+  border-radius: 2.75rem;
+  background: radial-gradient(
+    ellipse 85% 75% at 50% 25%,
+    rgba(251, 113, 133, 0.35) 0%,
+    rgba(244, 63, 94, 0.20) 45%,
+    rgba(255, 228, 230, 0.02) 80%
+  );
+  filter: blur(32px);
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Elevated White Terminal Card with multi-tiered shadows */
+.aer-terminal-card {
+  position: relative;
+  z-index: 10;
+  background: #ffffff;
+  border-radius: 1.75rem; /* 28px */
+  border: 1px solid rgba(244, 63, 94, 0.16);
+  box-shadow:
+    /* Specular rim highlight (light catching top edge) */
+    inset 0 1.5px 1px 0 #ffffff,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+    inset 0 -1px 2px 0 rgba(225, 29, 72, 0.04),
+    /* Crisp contact shadow (grounding the element) */
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    /* Near ambient shadow */
+    0 8px 16px -2px rgba(159, 18, 57, 0.10),
+    /* Mid-range warm bounce shadow */
+    0 18px 32px -4px rgba(159, 18, 57, 0.14),
+    /* Far atmospheric elevation */
+    0 32px 64px -8px rgba(190, 18, 60, 0.18),
+    /* Wide soft ambient floor bounce */
+    0 48px 80px -16px rgba(136, 19, 55, 0.10);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.35s ease;
+}
+
+.aer-terminal-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(244, 63, 94, 0.28);
+  box-shadow:
+    inset 0 1.5px 1px 0 #ffffff,
+    inset 0 0 0 1px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px 0 rgba(225, 29, 72, 0.06),
+    0 4px 8px -1px rgba(0, 0, 0, 0.08),
+    0 14px 24px -2px rgba(159, 18, 57, 0.14),
+    0 26px 44px -4px rgba(159, 18, 57, 0.18),
+    0 44px 80px -8px rgba(190, 18, 60, 0.24),
+    0 60px 100px -16px rgba(136, 19, 55, 0.14);
+}
+
+.group:hover .aer-terminal-glow {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+/* Tactile macOS style dots */
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  display: inline-block;
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.75), 0 1px 2px rgba(190, 18, 60, 0.18);
+}
+

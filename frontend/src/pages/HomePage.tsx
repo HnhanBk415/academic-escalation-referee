@@ -109,70 +109,82 @@ export function HomePage({
               </div>
             </div>
 
-            {/* Right Column: Simulated AER Terminal Card */}
+            {/* Right Column: Simulated AER Terminal Card with Rich 3D Depth */}
             <div className="lg:col-span-6 flex justify-center">
-              <div
-                className="w-full max-w-lg bg-white rounded-3xl p-6 md:p-7 shadow-soft-card border border-rose-100 relative"
-                data-purpose="terminal-card"
-              >
-                {/* Terminal Header */}
-                <div className="flex items-center justify-between pb-4 border-b border-stone-100 text-xs font-semibold text-stone-600">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-full bg-rose-200 inline-block" />
-                    <span className="w-3 h-3 rounded-full bg-rose-300 inline-block" />
-                    <span className="w-3 h-3 rounded-full bg-rose-200 inline-block" />
-                    <span className="ml-2 uppercase tracking-wider text-[11px] font-bold text-stone-600">
-                      Hỏi đáp quy chế
+              <div className="relative w-full max-w-lg group">
+                {/* Ambient atmospheric glow halo lifting the card off the background */}
+                <div className="aer-terminal-glow" aria-hidden="true" />
+
+                {/* Main Elevated Terminal Card */}
+                <div
+                  className="aer-terminal-card w-full p-6 md:p-7 relative"
+                  data-purpose="terminal-card"
+                >
+                  {/* Subtle top edge shimmer accent */}
+                  <div className="absolute top-0 inset-x-8 h-[1px] bg-gradient-to-r from-transparent via-rose-300/60 to-transparent pointer-events-none" />
+
+                  {/* Terminal Header */}
+                  <div className="flex items-center justify-between pb-4 border-b border-rose-100/90 text-xs font-semibold text-stone-600">
+                    <div className="flex items-center space-x-2">
+                      <span className="terminal-dot bg-gradient-to-b from-rose-200 to-rose-300 ring-1 ring-rose-400/25" />
+                      <span className="terminal-dot bg-gradient-to-b from-rose-300 to-rose-400 ring-1 ring-rose-500/30" />
+                      <span className="terminal-dot bg-gradient-to-b from-rose-200 to-rose-300 ring-1 ring-rose-400/25" />
+                      <span className="ml-2 uppercase tracking-wider text-[11px] font-bold text-stone-700">
+                        Hỏi đáp quy chế
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-gradient-to-r from-rose-100 via-rose-50 to-pink-100 text-ruby-800 tracking-wide uppercase border border-rose-200/70 shadow-[inset_0_1px_1px_rgba(255,255,255,0.8),0_1px_2px_rgba(190,18,60,0.06)]">
+                      TỰ ĐỘNG THẨM ĐỊNH
                     </span>
                   </div>
-                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-rose-100 text-ruby-800 tracking-wide uppercase">
-                    TỰ ĐỘNG THẨM ĐỊNH
-                  </span>
-                </div>
 
-                {/* Simulated Question Card (No confidence % and no gauge icon as requested) */}
-                <div className="mt-5 p-4 sm:p-5 bg-rose-50/70 rounded-2xl border border-rose-200/70">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-ruby-800 block mb-1">
-                    CÂU HỎI MÔ PHỎNG:
-                  </span>
-                  <p className="text-xs sm:text-sm font-semibold text-stone-800 leading-snug">
-                    Tỷ lệ điểm giữa kỳ, quá trình, báo cáo tổng kết và sản phẩm là bao nhiêu?
-                  </p>
-                </div>
-
-                {/* Regulation & Rule Reasoning Block */}
-                <div className="mt-5 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold">
-                    <span className="text-stone-700 uppercase tracking-wide">CĂN CỨ ĐIỀU KHOẢN:</span>
-                  </div>
-                  <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200/80 text-xs leading-relaxed text-stone-700 flex items-start gap-2.5">
-                    <div className="text-emerald-700 mt-0.5 shrink-0">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    </div>
-                    <p className="text-xs sm:text-sm">
-                      <span className="font-semibold text-stone-900">Phân tích quy chế:</span> Đánh giá đồ án gồm báo cáo kỹ thuật{" "}
-                      <span className="font-bold text-ruby-800">30%</span>, sản phẩm{" "}
-                      <span className="font-bold text-ruby-800">40%</span>, trình bày và trả lời câu hỏi{" "}
-                      <span className="font-bold text-ruby-800">20%</span>, hợp tác và đóng góp trong nhóm{" "}
-                      <span className="font-bold text-ruby-800">10%</span>.
+                  {/* Simulated Question Card (Recessed depth with inner rim) */}
+                  <div className="mt-5 p-4 sm:p-5 bg-gradient-to-br from-rose-50/90 via-rose-50/60 to-pink-50/40 rounded-2xl border border-rose-200/80 shadow-[inset_0_1px_2px_rgba(255,255,255,0.9),0_2px_6px_rgba(190,18,60,0.04)]">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-ruby-800 block mb-1">
+                      CÂU HỎI MÔ PHỎNG:
+                    </span>
+                    <p className="text-xs sm:text-sm font-semibold text-stone-800 leading-snug">
+                      Tỷ lệ điểm giữa kỳ, quá trình, báo cáo tổng kết và sản phẩm là bao nhiêu?
                     </p>
                   </div>
-                </div>
 
-                {/* Terminal Footer */}
-                <div className="mt-5 pt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
-                  <span>Học phần: CO3001 - Đồ án chuyên ngành</span>
-                  <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Đã đối soát điều khoản
-                  </span>
+                  {/* Regulation & Rule Reasoning Block (Layered elevated panel) */}
+                  <div className="mt-5 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-stone-700 uppercase tracking-wide">CĂN CỨ ĐIỀU KHOẢN:</span>
+                    </div>
+                    <div className="p-3.5 bg-white/90 rounded-xl border border-stone-200/90 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,1)] text-xs leading-relaxed text-stone-700 flex items-start gap-2.5">
+                      <div className="text-emerald-700 mt-0.5 shrink-0 bg-emerald-50 p-0.5 rounded-md border border-emerald-200/60 shadow-xs">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                          />
+                        </svg>
+                      </div>
+                      <p className="text-xs sm:text-sm">
+                        <span className="font-semibold text-stone-900">Phân tích quy chế:</span> Đánh giá đồ án gồm báo cáo kỹ thuật{" "}
+                        <span className="font-bold text-ruby-800">30%</span>, sản phẩm{" "}
+                        <span className="font-bold text-ruby-800">40%</span>, trình bày và trả lời câu hỏi{" "}
+                        <span className="font-bold text-ruby-800">20%</span>, hợp tác và đóng góp trong nhóm{" "}
+                        <span className="font-bold text-ruby-800">10%</span>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Terminal Footer */}
+                  <div className="mt-5 pt-3.5 border-t border-rose-100/90 flex items-center justify-between text-xs text-stone-500">
+                    <span className="font-medium">Học phần: CO3001 - Đồ án chuyên ngành</span>
+                    <span className="text-emerald-700 font-semibold flex items-center gap-1.5 bg-emerald-50/80 px-2.5 py-1 rounded-full border border-emerald-200/60 shadow-2xs">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      Đã đối soát điều khoản
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -460,7 +472,9 @@ export function HomePage({
                   <span className="font-display text-4xl font-extrabold text-ruby-600">01</span>
                   <span className="w-4 h-4 rounded-full bg-rose-100" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-2">Sinh viên gửi yêu cầu</h3>
+                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
+                  Sinh viên gửi yêu cầu
+                </h3>
                 <p className="text-xs text-stone-600 leading-relaxed font-normal">
                   Chọn học phần cụ thể, gửi tình huống và câu hỏi thắc mắc liên quan tới quy chế, hạn nộp, tỷ lệ điểm.
                 </p>
@@ -477,7 +491,7 @@ export function HomePage({
                   <span className="font-display text-4xl font-extrabold text-ruby-600">02</span>
                   <span className="w-4 h-4 rounded-full bg-rose-100" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-2">
+                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
                   Hệ thống tiếp nhận và thẩm định
                 </h3>
                 <p className="text-xs text-stone-600 leading-relaxed font-normal">
@@ -496,8 +510,12 @@ export function HomePage({
                   <span className="font-display text-4xl font-extrabold text-ruby-800">03</span>
                   <span className="w-4 h-4 rounded-full bg-ruby-200" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-1">Phân luồng xử lý</h3>
-                <p className="text-xs text-stone-600 mb-4">Hệ thống AI xác định hướng xử lý phù hợp</p>
+                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
+                  Phân luồng xử lý
+                </h3>
+                <p className="text-xs text-stone-600 leading-relaxed font-normal mb-4">
+                  Hệ thống AI xác định hướng xử lý phù hợp
+                </p>
 
                 {/* Nested Sub-cards */}
                 <div className="space-y-2.5">
@@ -547,7 +565,9 @@ export function HomePage({
                   <span className="font-display text-4xl font-extrabold text-ruby-600">04</span>
                   <span className="w-4 h-4 rounded-full bg-rose-100" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-2">Thông báo và theo dõi kết quả</h3>
+                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
+                  Thông báo và theo dõi kết quả
+                </h3>
                 <p className="text-xs text-stone-600 leading-relaxed font-normal">
                   Sinh viên và giảng viên nhận thông báo kết quả kèm biên bản giải trình, lưu trữ lịch sử minh bạch và bất biến.
                 </p>
