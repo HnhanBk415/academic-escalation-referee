@@ -1,5 +1,12 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+const rawBase = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+const API_BASE = rawBase.replace(/\/+$/, "");
 const ACCESS_TOKEN_KEY = "aer.access-token";
+
+export function resolveApiUrl(path: string, base: string = API_BASE): string {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const cleanBase = base.trim().replace(/\/+$/, "");
+  return cleanBase ? `${cleanBase}${cleanPath}` : cleanPath;
+}
 
 let lastRequestId: string | null = null;
 let demoActorId: string | null = null;
@@ -46,7 +53,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     ...init,
     headers
   });
@@ -74,7 +81,7 @@ export async function apiBlob(path: string): Promise<Blob> {
   const headers = new Headers();
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   else if (demoActorId) headers.set("X-Demo-Actor-ID", demoActorId);
-  const response = await fetch(`${API_BASE}${path}`, { headers });
+  const response = await fetch(resolveApiUrl(path), { headers });
   if (!response.ok) throw new Error("Không thể tải ảnh crop Local.");
   return response.blob();
 }
