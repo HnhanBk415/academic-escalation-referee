@@ -44,7 +44,6 @@ chuyển người có thẩm quyền, quản lý quyết định/ngoại lệ v�
 **Người dùng chính:**
 - 🎓 **Sinh viên** – gửi câu hỏi, xem lịch sử, phản hồi làm rõ
 - 👨‍🏫 **Giảng viên** – xem inbox, xử lý escalation, ra quyết định
-- 🏛️ **Phòng Đào tạo (Academic Affairs)** – xem toàn bộ audit log
 
 > [!IMPORTANT]
 > [!NOTE]
@@ -455,12 +454,12 @@ Frontend hiện là **một SPA theo tab sidebar**, không có URL route riêng 
 
 | Màn hình | Tab sidebar | Người dùng | Mô tả |
 |------|------|-----------|-------|
-| `HomePage` | Trang hướng dẫn | Sinh viên, giảng viên, Phòng Đào tạo | Homepage giới thiệu phạm vi, 3 bước sử dụng, các kết quả có thể nhận và điều hướng nhanh |
+| `HomePage` | Trang hướng dẫn | Sinh viên, Giảng viên | Homepage giới thiệu phạm vi, 3 bước sử dụng, các kết quả có thể nhận và điều hướng nhanh |
 | `StudentSubmitView` | Hỏi đáp quy chế | Sinh viên | Gửi câu hỏi, chọn course/nhóm và xem quyết định AI |
 | `StudentHistoryView` | Hồ sơ của tôi | Sinh viên | Lịch sử câu hỏi + workflow tracker |
 | `LecturerInboxView` | Hàng chờ thẩm định | Giảng viên | Danh sách escalation case, ra quyết định |
 | `ExceptionsView` | Ngoại lệ quy chế | Giảng viên | Xem và thu hồi policy exception |
-| `OperationsPage` | Trung tâm vận hành | Phòng Đào tạo | Theo dõi yêu cầu, case/SLA, ngoại lệ, tài liệu và audit gần đây |
+| `OperationsPage` | Trung tâm vận hành | Quản trị viên | Theo dõi yêu cầu, case/SLA, ngoại lệ, tài liệu và audit gần đây |
 | `AuditPage` | Audit Log | Chung | Toàn bộ audit event log |
 | `VerifyPage` | Verify Harness | Chung | Kiểm tra hệ thống và scenario demo |
 

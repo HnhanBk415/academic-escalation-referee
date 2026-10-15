@@ -31,7 +31,7 @@ def load_demo_config() -> dict:
     return {
         "lecturers": [{"id": "lecturer-01", "display_name": "TS. Trần Minh Tuấn"}],
         "academic_affairs": [
-            {"id": "academic-affairs-01", "display_name": "Phòng Đào tạo demo"}
+            {"id": "academic-affairs-01", "display_name": "Quản trị viên demo"}
         ],
         "students": [
             {"id": "demo-student", "display_name": "Sinh viên demo"},

@@ -85,7 +85,7 @@ export function formatEscalationTarget(target: string | undefined | null): strin
     case "COURSE_LECTURER":
       return "Giảng viên phụ trách môn học";
     case "ACADEMIC_AFFAIRS":
-      return "Phòng Đào tạo";
+      return "Cấp có thẩm quyền";
     case "POLICY_VIOLATION":
       return "Hội đồng học vụ / Vi phạm quy chế";
     default:
@@ -121,7 +121,7 @@ export function formatCaseStatus(status: string | undefined | null): {
       return {
         label: "Đã chuyển tiếp cấp trên",
         badgeClass: "bg-purple-50 text-purple-700 border-purple-200",
-        description: "Hồ sơ đã được chuyển tiếp lên Phòng Đào tạo giải quyết.",
+        description: "Hồ sơ đã được chuyển tiếp lên cấp có thẩm quyền giải quyết.",
       };
     case "CANCELLED":
       return {
