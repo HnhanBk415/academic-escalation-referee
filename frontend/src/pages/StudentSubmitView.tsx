@@ -276,7 +276,7 @@ export function StudentSubmitView({
         {/* 2 Dropdown Selectors directly under title */}
         <div className="flex flex-wrap items-center gap-2.5 mt-3">
           {/* Subject Dropdown */}
-          <div className="relative" ref={courseDropdownRef}>
+          <div className="relative" ref={courseDropdownRef} data-tour="ask-course">
             <button
               type="button"
               onClick={() => setIsCourseDropdownOpen((prev) => !prev)}
@@ -323,7 +323,7 @@ export function StudentSubmitView({
           </div>
 
           {/* Group Selector */}
-          <div className="relative" ref={groupDropdownRef}>
+          <div className="relative" ref={groupDropdownRef} data-tour="ask-group">
             <button
               type="button"
               onClick={() => setIsGroupDropdownOpen((prev) => !prev)}
@@ -389,10 +389,11 @@ export function StudentSubmitView({
       </section>
 
       {/* 2. BIG QUERY INPUT CARD */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100 relative">
+      <div data-tour="ask-input" className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100 relative">
         <form onSubmit={handleSubmit}>
           <div className="relative w-full rounded-2xl border border-rose-200/80 bg-white focus-within:border-ruby-500 focus-within:ring-2 focus-within:ring-ruby-100 transition-all p-3.5 pb-13">
             <textarea
+              data-tour="ask-try"
               className="w-full bg-transparent text-stone-900 font-sans text-sm sm:text-base focus:outline-none resize-none placeholder:text-stone-400 leading-relaxed font-medium"
               id="questionInput"
               placeholder="Nhập câu hỏi về quy chế môn học, vd: Nhóm đồ án được tối đa bao nhiêu thành viên?"
@@ -428,7 +429,7 @@ export function StudentSubmitView({
         )}
 
         {/* Quick suggestion chips ("Gợi ý nhanh:") */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div data-tour="ask-suggestions" className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-bold text-stone-500 uppercase tracking-wider mr-1 flex items-center gap-1 select-none">
             <span>✨</span> Gợi ý nhanh:
           </span>
@@ -446,7 +447,7 @@ export function StudentSubmitView({
       </div>
 
       {/* 3. WORKFLOW PROGRESS STEPPER (Always visible, dynamic status) */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100">
+      <div data-tour="ask-progress" className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-rose-100/80 gap-2.5">
           <h3 className="font-display text-sm sm:text-base text-stone-900 font-bold tracking-tight">
             Tiến trình thẩm định & phân luồng học vụ
@@ -665,7 +666,7 @@ export function StudentSubmitView({
 
       {/* 4. CHỈ HIỂN THỊ KẾT QUẢ PHÂN LUỒNG KHI ĐÃ ĐẶT CÂU HỎI VÀ CÓ KẾT QUẢ */}
       {result && (
-        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100 animate-fade-in">
+        <div data-tour="ask-result" className="bg-white p-4 sm:p-5 rounded-2xl shadow-soft-card border border-rose-100 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 gap-2.5 border-b border-rose-100">
             <div className="flex items-center gap-2">
               <span className="text-xs uppercase text-stone-900 font-extrabold tracking-wider">

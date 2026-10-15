@@ -67,7 +67,7 @@ export function WorkspaceRail({
   const items = role === "student" ? studentItems : lecturerItems;
 
   return (
-    <aside className="w-full lg:w-60 shrink-0">
+    <aside data-tour="workspace-rail" className="w-full lg:w-60 shrink-0">
       <div className="bg-white/90 border border-rose-100 rounded-2xl p-2.5 shadow-sm space-y-1 sticky top-20 backdrop-blur-md">
         {/* Rail Header with collapse toggle button */}
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-rose-100/60 mb-1">

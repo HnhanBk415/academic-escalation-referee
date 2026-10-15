@@ -383,6 +383,7 @@ export function VerifyPage() {
         <div>
           <button
             type="button"
+            data-tour="verify-run"
             onClick={runVerify}
             disabled={running}
             className="inline-flex items-center justify-center gap-2.5 px-6 py-3 bg-ruby-700 hover:bg-ruby-800 active:bg-ruby-900 text-white font-semibold text-sm rounded-xl shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer disabled:opacity-50 group"
@@ -404,6 +405,7 @@ export function VerifyPage() {
 
       {/* BEGIN: BentoOverviewMetrics */}
       <section
+        data-tour="verify-metrics"
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
         data-purpose="metrics-dashboard"
       >
@@ -501,7 +503,7 @@ export function VerifyPage() {
         </div>
 
         {/* Card 4: Tổng thời gian xử lý & Matrix */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
+        <div data-tour="verify-latency" className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
@@ -573,6 +575,7 @@ export function VerifyPage() {
 
       {/* BEGIN: DetailedResultsTable */}
       <section
+        data-tour="verify-table"
         className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden"
         data-purpose="test-cases-table-container"
       >

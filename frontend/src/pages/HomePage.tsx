@@ -76,6 +76,7 @@ export function HomePage({
               <div className="pt-4 flex flex-wrap items-center gap-4">
                 <button
                   type="button"
+                  data-tour="home-hero"
                   onClick={() => onNavigate("submit")}
                   className="inline-flex items-center gap-2 px-7 py-3.5 text-base font-bold text-white bg-ruby-800 hover:bg-ruby-900 rounded-full shadow-ruby-glow transition-all transform hover:scale-105 cursor-pointer"
                 >
@@ -439,6 +440,7 @@ export function HomePage({
         className="w-full bg-[#fff0f3] border-b border-rose-200/80 py-16 md:py-24"
         data-purpose="process-flow-section"
         id="process"
+        data-tour="home-steps"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Section Header */}
@@ -488,7 +490,7 @@ export function HomePage({
             </div>
 
             {/* Step 03 (Branching Hub) */}
-            <div className="bg-white rounded-3xl p-6 border border-rose-200/90 shadow-soft-card flex flex-col h-full justify-between">
+            <div data-tour="home-routing" className="bg-white rounded-3xl p-6 border border-rose-200/90 shadow-soft-card flex flex-col h-full justify-between">
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-display text-4xl font-extrabold text-ruby-800">03</span>
