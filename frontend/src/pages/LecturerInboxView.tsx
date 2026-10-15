@@ -403,8 +403,8 @@ export function LecturerInboxView({
               onClick={() => setFilterTarget("ALL")}
               className={`h-7 px-3 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors cursor-pointer ${
                 filterTarget === "ALL"
-                  ? "bg-[var(--primary-container)] border-[var(--primary)] text-[var(--primary)] font-semibold"
-                  : "bg-[var(--surface)] border-[var(--outline)]/40 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)]"
+                  ? "bg-stone-800 border-stone-800 text-white font-semibold shadow-xs"
+                  : "bg-white border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
               }`}
             >
               Tất cả ({loading ? "–" : queue.length})
@@ -414,8 +414,8 @@ export function LecturerInboxView({
               onClick={() => setFilterTarget("COURSE_LECTURER")}
               className={`h-7 px-3 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors cursor-pointer ${
                 filterTarget === "COURSE_LECTURER"
-                  ? "bg-[var(--primary-container)] border-[var(--primary)] text-[var(--primary)] font-semibold"
-                  : "bg-[var(--surface)] border-[var(--outline)]/40 text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)]"
+                  ? "bg-stone-800 border-stone-800 text-white font-semibold shadow-xs"
+                  : "bg-white border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
               }`}
             >
               Giảng viên phụ trách ({loading ? "–" : queue.filter((q) => q.escalationTarget === "COURSE_LECTURER").length})
@@ -525,8 +525,8 @@ export function LecturerInboxView({
                       onClick={() => navigate(`/workspace/inbox/${c.id}`)}
                       className={`w-full text-left p-3.5 rounded-[var(--radius-md)] border transition-all ${
                         isSelected
-                          ? "bg-[var(--primary-container)]/50 border-[var(--primary)] shadow-xs"
-                          : "bg-[var(--surface)] border-[var(--outline)]/30 hover:bg-[var(--surface-container-high)]"
+                          ? "bg-stone-100 border-stone-400 shadow-xs"
+                          : "bg-white border-stone-200/70 hover:bg-stone-50"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -540,8 +540,8 @@ export function LecturerInboxView({
                       <p
                         className={`text-xs leading-snug line-clamp-2 ${
                           isSelected
-                            ? "font-semibold text-[var(--primary)]"
-                            : "font-medium text-[var(--on-surface)]"
+                            ? "font-semibold text-stone-900"
+                            : "font-medium text-stone-800"
                         }`}
                       >
                         {c.title}
@@ -808,8 +808,8 @@ export function LecturerInboxView({
                                   onClick={() => setExceptionScope(scope)}
                                   className={`px-3 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors cursor-pointer ${
                                     exceptionScope === scope
-                                      ? "bg-[var(--primary)] border-[var(--primary)] text-white"
-                                      : "bg-[var(--surface)] border-[var(--outline)]/40 text-[var(--on-surface)] hover:bg-[var(--surface-container-high)]"
+                                      ? "bg-stone-800 border-stone-800 text-white font-medium shadow-xs"
+                                      : "bg-white border-stone-200 text-stone-700 hover:bg-stone-100"
                                   }`}
                                 >
                                   {scope === "GROUP"

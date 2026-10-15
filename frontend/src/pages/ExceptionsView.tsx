@@ -118,8 +118,8 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
       />
 
       {/* Filter Chips Bar */}
-      <div data-tour="exceptions-filters" className="flex flex-wrap items-center gap-2 bg-[var(--surface)] p-3 rounded-[var(--radius-lg)] border border-[var(--outline)]/30 shadow-xs">
-        <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">Phạm vi:</span>
+      <div data-tour="exceptions-filters" className="flex flex-wrap items-center gap-2 bg-white p-3 rounded-[var(--radius-lg)] border border-stone-200/80 shadow-xs">
+        <span className="text-xs font-medium text-stone-600 mr-1">Phạm vi:</span>
         <Chip
           label="Tất cả"
           selected={scopeFilter === "ALL"}
@@ -141,9 +141,9 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
           onClick={() => setScopeFilter("STUDENT")}
         />
 
-        <div className="h-4 w-px bg-[var(--outline)]/30 mx-1 hidden sm:block" />
+        <div className="h-4 w-px bg-stone-200 mx-1 hidden sm:block" />
 
-        <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">Trạng thái:</span>
+        <span className="text-xs font-medium text-stone-600 mr-1">Trạng thái:</span>
         <Chip
           label="Tất cả"
           selected={statusFilter === "ALL"}
@@ -244,7 +244,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
 
                         {/* Topic */}
                         <td className="px-4 py-2.5 text-xs">
-                          <span className="font-medium text-[var(--primary)] bg-[var(--primary-container)] px-2 py-0.5 rounded-[var(--radius-sm)]">
+                          <span className="font-medium text-stone-700 bg-stone-100 border border-stone-200/80 px-2 py-0.5 rounded-[var(--radius-sm)]">
                             {policyTopicLabel(item.policy_topic)}
                           </span>
                         </td>
@@ -331,7 +331,7 @@ export function ExceptionsView({ actorId = "lecturer-01" }: ExceptionsViewProps)
                     ? "Toàn môn"
                     : revokingItem.groupName || groupLabel(revokingItem.scope_id)}
                 </span>
-                <span className="font-medium text-[var(--primary)] bg-[var(--primary-container)] px-2 py-0.5 rounded-[var(--radius-sm)]">
+                <span className="font-medium text-stone-700 bg-stone-100 border border-stone-200/80 px-2 py-0.5 rounded-[var(--radius-sm)]">
                   {policyTopicLabel(revokingItem.policy_topic)}
                 </span>
               </div>

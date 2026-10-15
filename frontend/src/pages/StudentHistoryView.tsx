@@ -435,17 +435,17 @@ export function StudentHistoryView({
                           key={tab.key}
                           type="button"
                           onClick={() => setFilter(tab.key)}
-                          className={`h-7 px-3 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                          className={`h-7 px-3 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                             isSelected
-                              ? "bg-rose-100 border-rose-300 text-ruby-800 shadow-xs"
-                              : "bg-white border-stone-200 text-stone-600 hover:bg-rose-50/60"
+                              ? "bg-stone-800 border-stone-800 text-white shadow-xs font-semibold"
+                              : "bg-white border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
                           }`}
                         >
                           <span>{tab.label}</span>
                           <span
                             className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
                               isSelected
-                                ? "bg-ruby-700 text-white"
+                                ? "bg-stone-700 text-white"
                                 : "bg-stone-100 text-stone-600"
                             }`}
                           >
