@@ -4,7 +4,6 @@ import {
   Send,
   Check,
   ChevronDown,
-  ChevronRight,
   RefreshCw,
   ExternalLink,
   Copy,
@@ -117,13 +116,6 @@ export function StudentSubmitView({
       ? activeGroupObj.name.split(" - ")[0].trim()
       : activeGroupObj.name.trim()
     : "";
-
-  function handleEscalateManually() {
-    const courseCode = selectedCourse?.id || "CO3001";
-    setQuery(
-      `Nhóm em có nguyện vọng xin đăng ký ngoại lệ 6 thành viên cho đồ án môn học ${courseCode}`
-    );
-  }
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -1041,8 +1033,8 @@ export function StudentSubmitView({
       </div>
     )}
 
-    {/* 5. FOOTER FEEDBACK & ESCALATION BAR */}
-    <div className="bg-white p-4 rounded-2xl shadow-soft-card border border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-600">
+    {/* 5. FOOTER FEEDBACK BAR */}
+    <div className="bg-white p-4 rounded-2xl shadow-soft-card border border-rose-100 flex items-center justify-between gap-3 text-xs text-stone-600">
       <div className="flex items-center gap-2">
         <span>Thông tin phản hồi có hữu ích với bạn không?</span>
         <button
@@ -1070,15 +1062,6 @@ export function StudentSubmitView({
           <ThumbsDown size={14} />
         </button>
       </div>
-
-      <button
-        type="button"
-        onClick={handleEscalateManually}
-        className="inline-flex items-center gap-1 text-ruby-700 hover:text-ruby-800 font-semibold hover:underline cursor-pointer"
-      >
-        <span>Cần khiếu nại hoặc chuyển tiếp giảng viên xem xét</span>
-        <ChevronRight size={14} />
-      </button>
     </div>
 
       {/* Citation Detail Modal */}

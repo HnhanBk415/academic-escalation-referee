@@ -31,3 +31,7 @@ npm run build
 Chạy `py -3.13 -m alembic upgrade head` từ `backend` trước khi khởi động ứng dụng.
 Database lưu trữ toàn bộ các bảng của Flow 1 (câu hỏi, quyết định, ngoại lệ, tài liệu học phần và audit trail).
 Tài liệu học phần trong `data/sample-documents/` là nguồn trích dẫn cho hỏi đáp quy chế.
+
+## Giấy phép (License)
+
+Dự án được phân phối dưới giấy phép [MIT](LICENSE).
