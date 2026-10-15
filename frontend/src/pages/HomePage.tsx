@@ -56,12 +56,6 @@ export function HomePage({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
             {/* Left Column: Headline and Call to Action */}
             <div className="lg:col-span-6 space-y-6">
-              {/* Tag metadata */}
-              <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-rose-200/80 text-ruby-800 text-xs font-bold tracking-wide uppercase shadow-xs">
-                <img src="/logo.png" alt="AER Logo" className="w-4 h-4 object-contain rounded-full" />
-                HỌC THUẬT • CÔNG NGHỆ AI • AER SYSTEM
-              </div>
-
               {/* Main Title */}
               <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-display font-bold text-stone-900 leading-[1.12] tracking-tight">
                 Academic Escalation Referee
@@ -449,131 +443,131 @@ export function HomePage({
           HÌNH CHỮ NHẬT 3: QUY TRÌNH 4 BƯỚC (NỀN HỒNG)
          ───────────────────────────────────────────────────────────── */}
       <section
-        className="w-full bg-[#fff0f3] border-b border-rose-200/80 py-16 md:py-24"
+        className="w-full bg-[#fff0f3] border-b border-rose-200/80 py-10 md:py-14"
         data-purpose="process-flow-section"
         id="process"
         data-tour="home-steps"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Section Header */}
-          <div className="max-w-3xl mb-14">
-            <h2 className="text-3xl sm:text-4xl font-display font-extrabold text-stone-900 leading-tight">
+          <div className="max-w-3xl mb-8">
+            <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-stone-900 leading-tight">
               Quy trình tiếp nhận, thẩm định, giải quyết yêu cầu học vụ{" "}
               <span className="text-ruby-700">minh bạch và đúng quy định</span>
             </h2>
           </div>
 
           {/* 4-Column Bento Flow Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             {/* Step 01 */}
-            <div className="bg-white rounded-3xl p-6 border border-rose-100 shadow-soft-card flex flex-col justify-between h-full">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-rose-100 shadow-soft-card flex flex-col justify-between h-full">
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-display text-4xl font-extrabold text-ruby-600">01</span>
-                  <span className="w-4 h-4 rounded-full bg-rose-100" />
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-display text-2xl sm:text-3xl font-extrabold text-ruby-600">01</span>
+                  <span className="w-3 h-3 rounded-full bg-rose-100" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
+                <h3 className="text-base font-bold text-stone-900 mb-1.5 min-h-0 md:min-h-[2.5rem]">
                   Sinh viên gửi yêu cầu
                 </h3>
                 <p className="text-xs text-stone-600 leading-relaxed font-normal">
                   Chọn học phần cụ thể, gửi tình huống và câu hỏi thắc mắc liên quan tới quy chế, hạn nộp, tỷ lệ điểm.
                 </p>
               </div>
-              <div className="mt-8 pt-4 border-t border-stone-100">
-                <div className="h-2 rounded-full bg-rose-100/80 w-3/4" />
+              <div className="mt-4 pt-3 border-t border-stone-100">
+                <div className="h-1.5 rounded-full bg-rose-100/80 w-3/4" />
               </div>
             </div>
 
             {/* Step 02 */}
-            <div className="bg-white rounded-3xl p-6 border border-rose-100 shadow-soft-card flex flex-col justify-between h-full">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-rose-100 shadow-soft-card flex flex-col justify-between h-full">
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-display text-4xl font-extrabold text-ruby-600">02</span>
-                  <span className="w-4 h-4 rounded-full bg-rose-100" />
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-display text-2xl sm:text-3xl font-extrabold text-ruby-600">02</span>
+                  <span className="w-3 h-3 rounded-full bg-rose-100" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
+                <h3 className="text-base font-bold text-stone-900 mb-1.5 min-h-0 md:min-h-[2.5rem]">
                   Hệ thống tiếp nhận và thẩm định
                 </h3>
                 <p className="text-xs text-stone-600 leading-relaxed font-normal">
                   AI phân tích biểu mẫu, trích xuất mã môn, đối chiếu điều khoản và kiểm tra dữ kiện học phần.
                 </p>
               </div>
-              <div className="mt-8 pt-4 border-t border-stone-100">
-                <div className="h-2 rounded-full bg-rose-100/80 w-3/4" />
+              <div className="mt-4 pt-3 border-t border-stone-100">
+                <div className="h-1.5 rounded-full bg-rose-100/80 w-3/4" />
               </div>
             </div>
 
             {/* Step 03 (Branching Hub) */}
-            <div data-tour="home-routing" className="bg-white rounded-3xl p-6 border border-rose-200/90 shadow-soft-card flex flex-col h-full justify-between">
+            <div data-tour="home-routing" className="bg-white rounded-2xl p-4 sm:p-5 border border-rose-200/90 shadow-soft-card flex flex-col h-full justify-between">
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-display text-4xl font-extrabold text-ruby-800">03</span>
-                  <span className="w-4 h-4 rounded-full bg-ruby-200" />
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-display text-2xl sm:text-3xl font-extrabold text-ruby-800">03</span>
+                  <span className="w-3 h-3 rounded-full bg-ruby-200" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
+                <h3 className="text-base font-bold text-stone-900 mb-1.5 min-h-0 md:min-h-[2.5rem]">
                   Phân luồng xử lý
                 </h3>
-                <p className="text-xs text-stone-600 leading-relaxed font-normal mb-4">
+                <p className="text-xs text-stone-600 leading-relaxed font-normal mb-3">
                   Hệ thống AI xác định hướng xử lý phù hợp
                 </p>
 
                 {/* Nested Sub-cards */}
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {/* Case: Approved */}
-                  <div className="p-3 bg-rose-50/40 rounded-xl border-l-4 border-emerald-500 shadow-xs">
-                    <span className="text-[10px] font-extrabold tracking-wide uppercase text-emerald-800 block">
+                  <div className="p-2 sm:p-2.5 bg-rose-50/40 rounded-xl border-l-4 border-emerald-500 shadow-xs">
+                    <span className="text-[9.5px] font-extrabold tracking-wide uppercase text-emerald-800 block">
                       ĐỦ CĂN CỨ THEO QUY CHẾ
                     </span>
-                    <p className="text-[11px] text-stone-600 mt-0.5">
+                    <p className="text-[10.5px] text-stone-600 mt-0.5 leading-snug">
                       AI đưa ra kết luận theo chính sách môn học kèm điều khoản trích dẫn.
                     </p>
                   </div>
 
                   {/* Case: Pending Data */}
-                  <div className="p-3 bg-rose-50/40 rounded-xl border-l-4 border-amber-500 shadow-xs">
-                    <span className="text-[10px] font-extrabold tracking-wide uppercase text-amber-800 block">
+                  <div className="p-2 sm:p-2.5 bg-rose-50/40 rounded-xl border-l-4 border-amber-500 shadow-xs">
+                    <span className="text-[9.5px] font-extrabold tracking-wide uppercase text-amber-800 block">
                       THIẾU THÔNG TIN HOẶC CHƯA RÕ
                     </span>
-                    <p className="text-[11px] text-stone-600 mt-0.5">
+                    <p className="text-[10.5px] text-stone-600 mt-0.5 leading-snug">
                       Yêu cầu sinh viên bổ sung, làm rõ thông tin trong tối đa 2 lượt tương tác.
                     </p>
                   </div>
 
                   {/* Case: Escalate to Teacher */}
-                  <div className="p-3 bg-rose-50/40 rounded-xl border-l-4 border-ruby-600 shadow-xs">
-                    <span className="text-[10px] font-extrabold tracking-wide uppercase text-ruby-800 block">
+                  <div className="p-2 sm:p-2.5 bg-rose-50/40 rounded-xl border-l-4 border-ruby-600 shadow-xs">
+                    <span className="text-[9.5px] font-extrabold tracking-wide uppercase text-ruby-800 block">
                       NGOÀI PHẠM VI HOẶC NGOẠI LỆ
                     </span>
-                    <p className="text-[11px] text-stone-600 mt-0.5">
+                    <p className="text-[10.5px] text-stone-600 mt-0.5 leading-snug">
                       Chuyển Giảng viên xem xét và đưa ra quyết định cuối cùng kèm SLA 48h.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-rose-200/50">
-                <span className="text-[10px] font-bold text-ruby-800 uppercase tracking-wider">
+              <div className="mt-3 pt-2.5 border-t border-rose-200/50">
+                <span className="text-[9.5px] font-bold text-ruby-800 uppercase tracking-wider">
                   Xử lý đa luồng thông minh
                 </span>
               </div>
             </div>
 
             {/* Step 04 */}
-            <div className="bg-white rounded-3xl p-6 border border-rose-100 shadow-soft-card flex flex-col justify-between h-full">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-rose-100 shadow-soft-card flex flex-col justify-between h-full">
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-display text-4xl font-extrabold text-ruby-600">04</span>
-                  <span className="w-4 h-4 rounded-full bg-rose-100" />
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-display text-2xl sm:text-3xl font-extrabold text-ruby-600">04</span>
+                  <span className="w-3 h-3 rounded-full bg-rose-100" />
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 mb-2 min-h-0 md:min-h-[3.5rem]">
+                <h3 className="text-base font-bold text-stone-900 mb-1.5 min-h-0 md:min-h-[2.5rem]">
                   Thông báo và theo dõi kết quả
                 </h3>
                 <p className="text-xs text-stone-600 leading-relaxed font-normal">
                   Sinh viên và giảng viên nhận thông báo kết quả kèm biên bản giải trình, lưu trữ lịch sử minh bạch và bất biến.
                 </p>
               </div>
-              <div className="mt-8 pt-4 border-t border-stone-100">
-                <div className="h-2 rounded-full bg-rose-100/80 w-3/4" />
+              <div className="mt-4 pt-3 border-t border-stone-100">
+                <div className="h-1.5 rounded-full bg-rose-100/80 w-3/4" />
               </div>
             </div>
           </div>
@@ -696,75 +690,6 @@ export function HomePage({
         </div>
       </section>
 
-      {/* ─────────────────────────────────────────────────────────────
-          HÌNH CHỮ NHẬT 6: FOOTER (NỀN TRẮNG)
-         ───────────────────────────────────────────────────────────── */}
-      <footer className="w-full bg-white border-t border-rose-100 py-12 text-sm text-stone-600" data-purpose="page-footer">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-          {/* Institutional Partner Logos Section */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-stone-100">
-            <div className="space-y-1 text-center md:text-left">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-400">
-                Đơn vị hợp tác & Nghiên cứu phát triển
-              </span>
-              <p className="text-xs text-stone-500 font-medium">
-                Hệ thống thẩm định học vụ AI phục vụ môi trường giáo dục đại học
-              </p>
-            </div>
-
-            <div className="flex items-center flex-wrap justify-center gap-6 sm:gap-8">
-              {/* Logo Trường ĐH Bách Khoa TP.HCM */}
-              <div className="flex items-center gap-2 group" title="Trường Đại học Bách Khoa - ĐHQG-HCM">
-                <img
-                  src="/logo-bk.png"
-                  alt="Đại học Bách Khoa TP.HCM"
-                  className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
-                />
-                <span className="text-xs font-bold text-stone-700 tracking-tight">
-                  HCMUT
-                </span>
-              </div>
-
-              <div className="h-6 w-px bg-stone-200 hidden sm:block" />
-
-              {/* Logo Trường ĐH Sư phạm Kỹ thuật TP.HCM */}
-              <div className="flex items-center gap-2 group" title="Trường Đại học Sư phạm Kỹ thuật TP.HCM">
-                <img
-                  src="/logo-ute.png"
-                  alt="Đại học Sư phạm Kỹ thuật TP.HCM"
-                  className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
-                />
-                <span className="text-xs font-bold text-stone-700 tracking-tight">
-                  HCM-UTE
-                </span>
-              </div>
-
-              <div className="h-6 w-px bg-stone-200 hidden sm:block" />
-
-              {/* Logo Tập đoàn VNG */}
-              <div className="flex items-center group" title="Tập đoàn Công nghệ VNG">
-                <img
-                  src="/logo-vng.png"
-                  alt="VNG Corporation"
-                  className="h-7 w-auto object-contain transition-transform group-hover:scale-105"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Copyright & System Brand */}
-          <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 gap-4">
-            <div className="flex items-center gap-2.5">
-              <img src="/logo.png" alt="AER System Logo" className="w-6 h-6 object-contain rounded-md" />
-              <span className="font-display font-bold text-ruby-800">AER System</span>
-              <span>· Academic Escalation Referee · Hệ thống AI Thẩm định Học vụ</span>
-            </div>
-            <div className="font-medium">
-              Đại học Bách Khoa TP.HCM (HCMUT) · 2026
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

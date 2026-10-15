@@ -83,9 +83,9 @@ export const TOUR_STEPS: Record<PageTourKey, TourStepItem[]> = {
     },
     {
       element: '[data-tour="home-steps"]',
-      title: "Quy trình 3 bước",
+      title: "Quy trình 4 bước",
       description:
-        "Tóm tắt cách đặt câu hỏi để AI trả lời chính xác.",
+        "Tóm tắt 4 bước tiếp nhận, thẩm định và phân luồng giải quyết yêu cầu học vụ.",
       side: "top",
       align: "center",
     },

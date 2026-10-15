@@ -202,7 +202,7 @@ export function auditEventLabel(type: string | null | undefined): string {
     case "ANSWER_RETURNED":
       return "Trả lời sinh viên";
     case "CASE_ESCALATED":
-      return "Chuyển giảng viên";
+      return "Chuyển tiếp giảng viên";
     case "OUT_OF_SCOPE_RETURNED":
       return "Ngoài phạm vi";
     case "REQUEST_REJECTED":

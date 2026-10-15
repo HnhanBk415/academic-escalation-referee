@@ -141,7 +141,7 @@ describe("Product Tour configuration & utilities", () => {
         '[data-tour="home-routing"]',
       ]);
       expect(steps[0].title).toBe("Bắt đầu nhanh");
-      expect(steps[1].title).toBe("Quy trình 3 bước");
+      expect(steps[1].title).toBe("Quy trình 4 bước");
       expect(steps[2].title).toBe("Cách AI phân luồng");
     });
 
