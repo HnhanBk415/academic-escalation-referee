@@ -429,34 +429,6 @@ export function HomePage({
               )}
             </div>
           </div>
-
-          {/* Action Role Bar (Bottom Banner) */}
-          <div className="mt-10 p-6 md:p-8 bg-rose-50/50 rounded-3xl border border-rose-200/80 shadow-soft-card flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="space-y-1 text-center md:text-left">
-              <h4 className="text-lg font-extrabold text-stone-900">
-                Trải nghiệm thử giao diện tương ứng với vai trò của bạn
-              </h4>
-              <p className="text-sm text-stone-600">
-                Lựa chọn vai trò để truy cập bản demo hệ thống với toàn quyền thao tác chức năng mô phỏng.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => onNavigate("submit")}
-                className="px-5 py-2.5 rounded-full text-xs uppercase font-extrabold tracking-wider bg-white text-ruby-800 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
-              >
-                Sinh viên
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate("inbox")}
-                className="px-6 py-2.5 rounded-full text-xs uppercase font-extrabold tracking-wider bg-ruby-800 hover:bg-ruby-900 text-white shadow-md shadow-ruby-800/20 transition-all cursor-pointer"
-              >
-                Giảng viên
-              </button>
-            </div>
-          </div>
         </div>
       </section>
 

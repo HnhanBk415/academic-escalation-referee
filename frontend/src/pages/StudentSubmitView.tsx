@@ -45,10 +45,6 @@ const QUICK_CHIPS = [
     prompt: "Hạn định hủy môn học được tính từ tuần thứ mấy theo quy chế?",
   },
   {
-    label: "Cộng điểm rèn luyện",
-    prompt: "Cộng điểm rèn luyện khi tham gia nghiên cứu khoa học đồ án được tính như thế nào?",
-  },
-  {
     label: "Đăng ký nhóm ngoại lệ",
     prompt: "Đăng ký nhóm ngoại lệ dưới 2 sinh viên hoặc 6 sinh viên được giải quyết thế nào?",
   },
