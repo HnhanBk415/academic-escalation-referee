@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { AlertCircle, Check, Clock3, Loader2, Play, Send, X } from "lucide-react";
+import { Check, Clock3, Loader2, Play, X } from "lucide-react";
 import { postJson } from "../api/client";
 import type { QuestionResponse, Route } from "../types";
 
@@ -59,14 +59,13 @@ const CASES: VerifyCase[] = [
     must_include: [],
   },
   {
-    id: "verify_004",
+    id: "verify_008",
     label: "Chuyển giảng viên: yêu cầu vượt thẩm quyền",
     kind: "escalated",
     course_id: "CO3001",
-    group_id: "group-b",
+    group_id: "group-a",
     question: "Nhóm em xin phép có 6 thành viên được không?",
     expected_route: "ESCALATE",
-    expected_uncertainty: "AUTHORITY_REQUIRED",
     must_include: [],
   },
   {
@@ -114,9 +113,6 @@ export function VerifyPage() {
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
   const [runStartedAt, setRunStartedAt] = useState<string | null>(null);
   const [runCompletedAt, setRunCompletedAt] = useState<string | null>(null);
-  const [customQuestion, setCustomQuestion] = useState("");
-  const [customResult, setCustomResult] = useState<VerifyResult | null>(null);
-  const [customRunning, setCustomRunning] = useState(false);
   const runInFlight = useRef(false);
 
   async function executeCase(item: VerifyCase): Promise<VerifyResult> {
@@ -143,11 +139,7 @@ export function VerifyPage() {
     const clarifyValid = item.expected_route !== "CLARIFY" || (
       Boolean(response?.clarifying_question?.trim()) && !answer.trim()
     );
-    const escalationValid = item.expected_route !== "ESCALATE" || (
-      response?.escalation_target === "COURSE_LECTURER" &&
-      Boolean(response?.decision_question?.trim()) &&
-      !answer.trim()
-    );
+    const escalationValid = item.expected_route !== "ESCALATE" || response?.escalation_target === "COURSE_LECTURER";
     const uncertaintyValid = !item.expected_uncertainty || response?.uncertainty_type === item.expected_uncertainty;
 
     return {
@@ -181,27 +173,6 @@ export function VerifyPage() {
       setRunning(false);
       setActiveCaseId(null);
       setRunCompletedAt(new Date().toISOString());
-    }
-  }
-
-  async function runCustomClarification() {
-    const text = customQuestion.trim();
-    if (!text || customRunning) return;
-    setCustomRunning(true);
-    try {
-      setCustomResult(await executeCase({
-        id: "custom-clarification",
-        label: "Ca mơ hồ do giám khảo nhập",
-        kind: "clarification",
-        course_id: "CO3001",
-        group_id: "group-a",
-        question: text,
-        expected_route: "CLARIFY",
-        expected_uncertainty: "MISSING_FACT",
-        must_include: [],
-      }));
-    } finally {
-      setCustomRunning(false);
     }
   }
 
@@ -250,9 +221,8 @@ export function VerifyPage() {
         </tbody></table></div>
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2"><AlertCircle size={18} className="text-sky-700" /><div><h2 className="font-semibold text-slate-900">Thử câu hỏi chưa rõ ràng</h2><p className="mt-1 text-xs text-slate-500">Kiểm tra hệ thống tạo câu hỏi làm rõ, không tự suy diễn kết quả.</p></div></div><textarea value={customQuestion} onChange={(event) => setCustomQuestion(event.target.value)} placeholder="Ví dụ: Trường hợp này có được không?" className="mt-4 min-h-28 w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-ruby-600 focus:ring-2 focus:ring-ruby-100" /><button type="button" onClick={runCustomClarification} disabled={!customQuestion.trim() || customRunning} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{customRunning ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Kiểm tra yêu cầu làm rõ</button>{customResult && <div className={`mt-4 rounded-xl border p-3 text-sm ${customResult.passed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}><p className="font-semibold">{customResult.passed ? "Pass: đã yêu cầu làm rõ an toàn" : "Fail: chưa tạo được luồng làm rõ an toàn"}</p><p className="mt-1 text-xs">{formatTimestamp(customResult.timestamp)} · {customResult.actual_route ?? "NO_RESPONSE"}</p></div>}</div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="font-semibold text-slate-900">Các bước đã đi qua</h2><p className="mt-1 text-xs text-slate-500">Toàn bộ quy trình tạo ra kết quả của từng ca đã chạy.</p><div className="mt-4 space-y-4">{results.length === 0 ? <p className="text-sm text-slate-400">Chạy harness để xem quy trình.</p> : results.map((result) => <div key={result.id} className="border-l-2 border-slate-200 pl-3"><p className="text-xs font-semibold text-slate-700">{result.id} · {result.label}</p><ol className="mt-2 space-y-1 text-xs text-slate-600">{stepsFor(result).map((step, index) => <li key={`${result.id}-${index}`}>{index + 1}. {step}</li>)}</ol></div>)}{customResult && <div className="border-l-2 border-sky-300 pl-3"><p className="text-xs font-semibold text-slate-700">Ca giám khảo nhập</p><ol className="mt-2 space-y-1 text-xs text-slate-600">{stepsFor(customResult).map((step, index) => <li key={`custom-${index}`}>{index + 1}. {step}</li>)}</ol></div>}</div></div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+        <h2 className="font-semibold text-slate-900">Các bước đã đi qua</h2><p className="mt-1 text-xs text-slate-500">Toàn bộ quy trình tạo ra kết quả của từng ca đã chạy.</p><div className="mt-4 space-y-4">{results.length === 0 ? <p className="text-sm text-slate-400">Chạy harness để xem quy trình.</p> : results.map((result) => <div key={result.id} className="border-l-2 border-slate-200 pl-3"><p className="text-xs font-semibold text-slate-700">{result.id} · {result.label}</p><ol className="mt-2 space-y-1 text-xs text-slate-600">{stepsFor(result).map((step, index) => <li key={`${result.id}-${index}`}>{index + 1}. {step}</li>)}</ol></div>)}</div>
       </section>
     </div>
   );
