@@ -285,7 +285,7 @@ export function App() {
       />
 
       {/* Main Content View with Routes */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 pt-16">
         <Routes>
           {/* Home Route */}
           <Route

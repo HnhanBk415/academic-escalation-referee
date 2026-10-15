@@ -5,8 +5,6 @@ import {
   ArrowLeft,
   Check,
   X,
-  HelpCircle,
-  Forward,
   Copy,
   Maximize2,
   Minimize2,
@@ -342,22 +340,6 @@ export function LecturerInboxView({
       activeBg: "bg-[#FFEBEE]",
       activeText: "text-[#B3261E]",
       activeBorder: "border-[#FFCDD2]",
-    },
-    {
-      key: "NEED_MORE_INFO",
-      label: "Cần thêm thông tin",
-      icon: HelpCircle,
-      activeBg: "bg-[#FFF8E1]",
-      activeText: "text-[#8C5000]",
-      activeBorder: "border-[#FFE082]",
-    },
-    {
-      key: "FORWARDED",
-      label: "Chuyển tiếp",
-      icon: Forward,
-      activeBg: "bg-rose-50",
-      activeText: "text-ruby-800",
-      activeBorder: "border-rose-200",
     },
   ];
 
@@ -746,8 +728,8 @@ export function LecturerInboxView({
                     Quyết định của Giảng viên (Thẩm định)
                   </h3>
 
-                  {/* 4-way Segmented Button */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* 2-way Decision Segmented Button */}
+                  <div className="grid grid-cols-2 gap-3">
                     {decisionOptions.map((opt) => {
                       const IconComponent = opt.icon;
                       const isSelected = decision === opt.key;

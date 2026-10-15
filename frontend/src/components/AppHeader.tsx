@@ -36,17 +36,22 @@ export function AppHeader({
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-rose-100 shadow-[0_1px_8px_rgba(190,18,60,0.05)] select-none">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-rose-100 shadow-[0_1px_8px_rgba(190,18,60,0.05)] select-none">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Left: Brand Logo & Navigation Links */}
         <div className="flex items-center gap-6 lg:gap-8">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-ruby-700 to-rose-500 flex items-center justify-center text-white shadow-md shadow-ruby-700/20 group-hover:scale-105 transition-transform">
-              <span className="font-display font-bold text-lg text-white">A</span>
-            </div>
+          <Link to="/" className="flex items-center gap-3 group" data-tour="app-logo">
+            <img
+              src="/logo.png"
+              alt="AER Logo"
+              className="w-10 h-10 object-contain rounded-xl shadow-xs group-hover:scale-105 transition-transform"
+            />
             <div className="flex flex-col">
-              <span className="font-display font-bold text-lg tracking-tight text-stone-900 group-hover:text-ruby-800 transition-colors">
+              <span className="font-display font-bold text-lg tracking-tight text-stone-900 group-hover:text-ruby-800 transition-colors leading-tight">
                 AER <span className="text-ruby-700">System</span>
+              </span>
+              <span className="text-[10px] font-medium text-stone-500 tracking-tight hidden sm:block">
+                Academic Escalation Referee
               </span>
             </div>
           </Link>

@@ -227,7 +227,7 @@ export const TOUR_STEPS: Record<PageTourKey, TourStepItem[]> = {
       element: '[data-tour="inbox-decision"]',
       title: "Ra quyết định",
       description:
-        "Chọn Phê duyệt, Từ chối, Cần thêm thông tin hoặc Chuyển tiếp, và ghi lý do bắt buộc.",
+        "Chọn Phê duyệt hoặc Từ chối, và ghi lý do bắt buộc.",
       side: "top",
       align: "center",
     },

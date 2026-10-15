@@ -57,8 +57,8 @@ export function HomePage({
             {/* Left Column: Headline and Call to Action */}
             <div className="lg:col-span-6 space-y-6">
               {/* Tag metadata */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-200/80 text-ruby-800 text-xs font-bold tracking-wide uppercase shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-ruby-600 animate-pulse" />
+              <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-rose-200/80 text-ruby-800 text-xs font-bold tracking-wide uppercase shadow-xs">
+                <img src="/logo.png" alt="AER Logo" className="w-4 h-4 object-contain rounded-full" />
                 HỌC THUẬT • CÔNG NGHỆ AI • AER SYSTEM
               </div>
 
@@ -677,13 +677,70 @@ export function HomePage({
       {/* ─────────────────────────────────────────────────────────────
           HÌNH CHỮ NHẬT 6: FOOTER (NỀN TRẮNG)
          ───────────────────────────────────────────────────────────── */}
-      <footer className="w-full bg-white py-10 text-sm text-stone-600" data-purpose="page-footer">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-display font-bold text-ruby-800">AER System</span>
-            <span>· Academic Escalation Referee · Hệ thống AI Thẩm định Học vụ</span>
+      <footer className="w-full bg-white border-t border-rose-100 py-12 text-sm text-stone-600" data-purpose="page-footer">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          {/* Institutional Partner Logos Section */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-stone-100">
+            <div className="space-y-1 text-center md:text-left">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-400">
+                Đơn vị hợp tác & Nghiên cứu phát triển
+              </span>
+              <p className="text-xs text-stone-500 font-medium">
+                Hệ thống thẩm định học vụ AI phục vụ môi trường giáo dục đại học
+              </p>
+            </div>
+
+            <div className="flex items-center flex-wrap justify-center gap-6 sm:gap-8">
+              {/* Logo Trường ĐH Bách Khoa TP.HCM */}
+              <div className="flex items-center gap-2 group" title="Trường Đại học Bách Khoa - ĐHQG-HCM">
+                <img
+                  src="/logo-bk.png"
+                  alt="Đại học Bách Khoa TP.HCM"
+                  className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
+                />
+                <span className="text-xs font-bold text-stone-700 tracking-tight">
+                  HCMUT
+                </span>
+              </div>
+
+              <div className="h-6 w-px bg-stone-200 hidden sm:block" />
+
+              {/* Logo Trường ĐH Sư phạm Kỹ thuật TP.HCM */}
+              <div className="flex items-center gap-2 group" title="Trường Đại học Sư phạm Kỹ thuật TP.HCM">
+                <img
+                  src="/logo-ute.png"
+                  alt="Đại học Sư phạm Kỹ thuật TP.HCM"
+                  className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
+                />
+                <span className="text-xs font-bold text-stone-700 tracking-tight">
+                  HCM-UTE
+                </span>
+              </div>
+
+              <div className="h-6 w-px bg-stone-200 hidden sm:block" />
+
+              {/* Logo Tập đoàn VNG */}
+              <div className="flex items-center group" title="Tập đoàn Công nghệ VNG">
+                <img
+                  src="/logo-vng.png"
+                  alt="VNG Corporation"
+                  className="h-7 w-auto object-contain transition-transform group-hover:scale-105"
+                />
+              </div>
+            </div>
           </div>
-          <div>Đại học Bách Khoa TP.HCM (HCMUT) · 2026</div>
+
+          {/* Bottom Copyright & System Brand */}
+          <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 gap-4">
+            <div className="flex items-center gap-2.5">
+              <img src="/logo.png" alt="AER System Logo" className="w-6 h-6 object-contain rounded-md" />
+              <span className="font-display font-bold text-ruby-800">AER System</span>
+              <span>· Academic Escalation Referee · Hệ thống AI Thẩm định Học vụ</span>
+            </div>
+            <div className="font-medium">
+              Đại học Bách Khoa TP.HCM (HCMUT) · 2026
+            </div>
+          </div>
         </div>
       </footer>
     </div>
