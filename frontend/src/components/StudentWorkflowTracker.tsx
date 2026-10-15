@@ -163,7 +163,7 @@ export function StudentWorkflowTracker({
               ) : isAnswer ? (
                 <span className="text-[#146C2E]">Quy chuẩn hợp lệ (Đủ thẩm quyền AI)</span>
               ) : isEscalate ? (
-                <span className="text-[#0B57D0]">Ngoại lệ thẩm quyền Giảng viên môn học</span>
+                <span className="text-ruby-800">Ngoại lệ thẩm quyền Giảng viên môn học</span>
               ) : isOutOfScope ? (
                 <span>Ngoài phạm vi giải quyết của môn học</span>
               ) : isRejected ? (
@@ -243,7 +243,7 @@ export function StudentWorkflowTracker({
               ) : isAnswer ? (
                 <span className="text-[#146C2E] font-medium">Đầy đủ căn cứ pháp lý · Trả lời tự động</span>
               ) : isEscalate ? (
-                <span className="text-[#0B57D0] font-medium">Giảng viên phụ trách xem xét & quyết định</span>
+                <span className="text-ruby-800 font-medium">Giảng viên phụ trách xem xét & quyết định</span>
               ) : isOutOfScope ? (
                 <span className="text-[var(--on-surface-variant)] font-medium">Ngoài phạm vi — liên hệ đơn vị phụ trách</span>
               ) : isRejected ? (

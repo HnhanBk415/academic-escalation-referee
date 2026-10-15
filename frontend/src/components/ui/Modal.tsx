@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export interface ModalProps {
   isOpen: boolean;
@@ -38,15 +39,15 @@ export function Modal({
     lg: "max-w-2xl",
   };
 
-  return (
+  const modalNode = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className={`w-full ${sizeWidths[size]} bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[var(--shadow-2)] border border-[var(--outline)]/40 overflow-hidden flex flex-col`}
+        className={`w-full ${sizeWidths[size]} bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-2xl border border-[var(--outline)]/40 overflow-hidden flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
@@ -55,7 +56,7 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-full text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--on-surface)] transition-colors"
+              className="p-1.5 rounded-full text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--on-surface)] transition-colors cursor-pointer"
               aria-label="Đóng"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -76,4 +77,6 @@ export function Modal({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalNode, document.body) : modalNode;
 }

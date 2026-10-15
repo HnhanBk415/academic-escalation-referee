@@ -277,7 +277,7 @@ export function App() {
   return (
     <TourProvider currentRole={currentAccount.role}>
       <div className="flex flex-col min-h-screen w-full bg-[var(--surface-dim)] text-[var(--on-surface)] overflow-x-hidden font-sans">
-        {/* Top Header */}
+      {/* Top Header */}
       <AppHeader
         currentAccountId={currentAccount.id}
         currentRole={currentAccount.role}
@@ -287,7 +287,7 @@ export function App() {
       />
 
       {/* Main Content View with Routes */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 pt-16">
         <Routes>
           {/* Home Route */}
           <Route

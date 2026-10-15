@@ -19,10 +19,10 @@ export function Chip({
 }: ChipProps) {
   return (
     <button
-      className={`inline-flex items-center gap-2 h-8 px-3 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+      className={`inline-flex items-center gap-2 h-8 px-3 rounded-[var(--radius-sm)] text-xs font-medium border transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 ${
         selected
-          ? "bg-[var(--primary-container)] border-[var(--primary)] text-[var(--primary)] font-semibold"
-          : "bg-[var(--surface)] border-[var(--outline)] text-[var(--on-surface-variant)] hover:bg-[var(--surface-container)] hover:text-[var(--on-surface)]"
+          ? "bg-stone-800 border-stone-800 text-white font-semibold shadow-xs"
+          : "bg-white border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
       } ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${className}`}
       disabled={disabled}
       {...props}
@@ -37,7 +37,11 @@ export function Chip({
             e.stopPropagation();
             onDelete();
           }}
-          className="ml-1 p-0.5 rounded-full hover:bg-[var(--surface-container-high)] text-[var(--on-surface-variant)]"
+          className={`ml-1 p-0.5 rounded-full ${
+            selected
+              ? "hover:bg-stone-700 text-stone-300"
+              : "hover:bg-stone-100 text-stone-500"
+          }`}
           aria-label="Remove"
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

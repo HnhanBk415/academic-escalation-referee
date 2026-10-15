@@ -54,9 +54,13 @@ export function AuditPage() {
     });
   }, [events, searchQuery, selectedEventType]);
 
-  const availableEventTypes = useMemo(() => {
-    return Array.from(new Set(events.map((e) => e.event_type))).filter(Boolean);
-  }, [events]);
+  const AUDIT_EVENT_FILTERS = [
+    { key: "ALL", label: "Tất cả" },
+    { key: "ANSWER_RETURNED", label: "Trả lời sinh viên" },
+    { key: "CASE_ESCALATED", label: "Chuyển tiếp giảng viên" },
+    { key: "CLARIFICATION_REQUESTED", label: "Yêu cầu làm rõ" },
+    { key: "REQUEST_REJECTED", label: "Từ chối yêu cầu" },
+  ] as const;
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -110,17 +114,12 @@ export function AuditPage() {
           <span className="text-xs font-medium text-[var(--on-surface-variant)] mr-1">
             Loại sự kiện:
           </span>
-          <Chip
-            label="Tất cả"
-            selected={selectedEventType === "ALL"}
-            onClick={() => setSelectedEventType("ALL")}
-          />
-          {availableEventTypes.map((type) => (
+          {AUDIT_EVENT_FILTERS.map((f) => (
             <Chip
-              key={type}
-              label={auditEventLabel(type)}
-              selected={selectedEventType === type}
-              onClick={() => setSelectedEventType(type)}
+              key={f.key}
+              label={f.label}
+              selected={selectedEventType === f.key}
+              onClick={() => setSelectedEventType(f.key)}
             />
           ))}
         </div>

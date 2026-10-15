@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   MessageSquare,
@@ -6,12 +6,14 @@ import {
   Inbox,
   Scale,
   FileText,
+  PanelLeftClose,
 } from "lucide-react";
 
 export interface WorkspaceRailProps {
   role: "student" | "lecturer";
   pendingCount?: number;
   queueCount?: number;
+  onToggleCollapse?: () => void;
 }
 
 interface RailItem {
@@ -25,11 +27,9 @@ export function WorkspaceRail({
   role,
   pendingCount = 0,
   queueCount = 0,
+  onToggleCollapse,
 }: WorkspaceRailProps) {
   const { feature: currentFeature } = useParams<{ feature: string }>();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const railRef = useRef<HTMLDivElement>(null);
-  const collapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const studentItems: RailItem[] = [
     {
@@ -39,7 +39,7 @@ export function WorkspaceRail({
     },
     {
       feature: "history",
-      label: "Xem các câu đã hỏi",
+      label: "Lịch sử xử lý yêu cầu",
       icon: ClipboardList,
       badge: pendingCount > 0 ? pendingCount : undefined,
     },
@@ -66,110 +66,26 @@ export function WorkspaceRail({
 
   const items = role === "student" ? studentItems : lecturerItems;
 
-  const triggerExpand = () => {
-    if (collapseTimeoutRef.current) {
-      clearTimeout(collapseTimeoutRef.current);
-      collapseTimeoutRef.current = null;
-    }
-    setIsExpanded(true);
-  };
-
-  const triggerCollapse = () => {
-    if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
-    collapseTimeoutRef.current = setTimeout(() => {
-      setIsExpanded(false);
-    }, 300);
-  };
-
-  // Mouse move listener: expand when cursor is within 96px from the left edge of screen
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (window.innerWidth < 768) return; // Desktop only
-      if (e.clientX <= 96) {
-        triggerExpand();
-      } else if (!railRef.current?.contains(e.target as Node)) {
-        // Outside the 96px trigger zone and outside the rail
-        triggerCollapse();
-      }
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      if (collapseTimeoutRef.current) clearTimeout(collapseTimeoutRef.current);
-    };
-  }, []);
-
   return (
-    <>
-      {/* Desktop Floating Rail */}
-      <aside
-        ref={railRef}
-        data-tour="workspace-rail"
-        aria-label="Thanh điều hướng tính năng"
-        onMouseEnter={triggerExpand}
-        onMouseLeave={triggerCollapse}
-        onFocus={triggerExpand}
-        onBlur={(e) => {
-          if (!railRef.current?.contains(e.relatedTarget as Node)) {
-            triggerCollapse();
-          }
-        }}
-        className={`hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center bg-[var(--surface-container)] border border-[var(--outline)]/40 rounded-[1.75rem] py-3 px-2 shadow-sm transition-[width,box-shadow] duration-200 ease-out select-none ${
-          isExpanded
-            ? "w-[13.125rem] items-stretch shadow-[var(--shadow-2)] bg-[var(--surface-container-high)]"
-            : "w-16"
-        }`}
-      >
-        <div className="flex flex-col gap-2 w-full">
-          {items.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentFeature === item.feature;
-            return (
-              <Link
-                key={item.feature}
-                to={`/workspace/${item.feature}`}
-                aria-label={item.label}
-                title={item.label}
-                className={`relative flex items-center h-12 rounded-[1.5rem] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
-                  isActive
-                    ? "bg-[var(--primary-container)] text-[var(--primary)] font-semibold"
-                    : "text-[var(--on-surface-variant)] hover:bg-[var(--surface-container-high)] hover:text-[var(--on-surface)]"
-                } ${isExpanded ? "px-3 gap-3" : "justify-center px-0"}`}
-              >
-                {/* 40px Icon Container */}
-                <div className="relative w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                  <Icon size={20} className={isActive ? "text-[var(--primary)]" : "currentColor"} />
-                  {/* Collapsed Badge */}
-                  {!isExpanded && item.badge !== undefined && (
-                    <span className="absolute -top-1 -right-1 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-[var(--error)] text-white text-xs font-semibold font-mono flex items-center justify-center shadow-xs">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-
-                {/* Expanded Label & Badge */}
-                {isExpanded && (
-                  <div className="flex-1 min-w-0 flex items-center justify-between overflow-hidden">
-                    <span className="text-xs truncate">{item.label}</span>
-                    {item.badge !== undefined && (
-                      <span className="ml-2 min-w-[1.125rem] h-[1.125rem] px-1.5 rounded-full bg-[var(--error)] text-white text-xs font-semibold font-mono flex items-center justify-center shrink-0">
-                        {item.badge}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </Link>
-            );
-          })}
+    <aside data-tour="workspace-rail" className="w-full lg:w-60 shrink-0">
+      <div className="bg-white/90 border border-rose-100 rounded-2xl p-2.5 shadow-sm space-y-1 sticky top-20 backdrop-blur-md">
+        {/* Rail Header with collapse toggle button */}
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-rose-100/60 mb-1">
+          <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+            Danh mục
+          </span>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="p-1 rounded-lg text-stone-400 hover:text-ruby-700 hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Thu gọn thanh danh mục"
+            >
+              <PanelLeftClose size={15} />
+            </button>
+          )}
         </div>
-      </aside>
 
-      {/* Mobile Bottom Navigation Bar (< 768px) */}
-      <nav
-        aria-label="Điều hướng tính năng di động"
-        className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[var(--surface-container)] border-t border-[var(--outline)]/40 flex items-center justify-around px-2 z-40 select-none shadow-[var(--shadow-1)]"
-      >
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = currentFeature === item.feature;
@@ -177,31 +93,28 @@ export function WorkspaceRail({
             <Link
               key={item.feature}
               to={`/workspace/${item.feature}`}
-              className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors relative ${
+              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-2xs ${
                 isActive
-                  ? "text-[var(--primary)] font-semibold"
-                  : "text-[var(--on-surface-variant)]"
+                  ? "bg-rose-100 text-ruby-900 border border-rose-200"
+                  : "text-stone-600 hover:text-stone-900 hover:bg-rose-50/60"
               }`}
             >
-              <div
-                className={`w-12 h-8 rounded-full flex items-center justify-center transition-colors relative ${
-                  isActive ? "bg-[var(--primary-container)]" : ""
-                }`}
-              >
-                <Icon size={18} />
-                {item.badge !== undefined && (
-                  <span className="absolute -top-1 right-2 min-w-4 h-4 px-1 rounded-full bg-[var(--error)] text-white text-xs font-semibold font-mono flex items-center justify-center">
-                    {item.badge}
-                  </span>
-                )}
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Icon
+                  size={17}
+                  className={isActive ? "text-ruby-700" : "text-stone-400"}
+                />
+                <span className="truncate tracking-tight">{item.label}</span>
               </div>
-              <span className="text-xs mt-0.5 truncate max-w-[5rem]">
-                {item.label}
-              </span>
+              {item.badge !== undefined && (
+                <span className="px-2 py-0.5 rounded-full bg-ruby-700 text-white font-bold text-xs tracking-tight shadow-sm shrink-0 ml-1.5">
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}
-      </nav>
-    </>
+      </div>
+    </aside>
   );
 }

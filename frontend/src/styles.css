@@ -3,48 +3,52 @@
    ============================================================ */
 
 :root {
-  /* Material 3 / Gmail Theme Tokens */
-  --surface:               #FFFFFF;
-  --surface-dim:           #F6F8FC;
-  --surface-container-lowest: #FFFFFF;
-  --surface-container-low: #F0F4F9;
-  --surface-container:     #EAF1FB;
-  --surface-container-high:#DDE3EA;
-  --surface-container-highest: #D3DBE5;
+  /* AER System – Ruby / Rose Red Theme Tokens (Matching des_hn) */
+  --surface:               #fff8f7;
+  --surface-dim:           #faf7f8;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fff0f1;
+  --surface-container:     #ffe9ea;
+  --surface-container-high:#ffe1e3;
+  --surface-container-highest: #ffd9dd;
 
-  --on-surface:            #1F1F1F;
-  --on-surface-variant:    #444746;
-  --outline:               #C4C7C5;
+  --on-surface:            #2b1c1e;
+  --on-surface-variant:    #5b4041;
+  --outline:               #e3bdbf;
+  --outline-variant:       #fecdd3;
 
-  --primary:               #0B57D0;
-  --on-primary:            #FFFFFF;
-  --primary-container:     #D3E3FD;
-  --on-primary-container:  #041E49;
+  --primary:               #95002a;
+  --on-primary:            #ffffff;
+  --primary-container:     #fff0f2;
+  --on-primary-container:  #95002a;
 
-  --error:                 #B3261E;
-  --on-error:              #FFFFFF;
-  --error-container:       #F9DEDC;
+  --secondary:             #b90538;
+  --secondary-container:   #dc2c4f;
 
-  --success:               #146C2E;
-  --success-container:     #C8E6C9;
+  --error:                 #ba1a1a;
+  --on-error:              #ffffff;
+  --error-container:       #ffdad6;
 
-  --warning:               #8C5000;
-  --warning-container:     #FFE082;
+  --success:               #15803d;
+  --success-container:     #dcfce7;
 
-  --bk-red:                #C51A1B;
+  --warning:               #b45309;
+  --warning-container:     #fef3c7;
+
+  --bk-red:                #be123c;
 
   /* Radii */
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 28px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
 
-  /* Elevation (Subtle Material shadows) */
-  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-2: 0 3px 6px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-3: 0 6px 12px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06);
+  /* Elevation (Soft Ruby Shadows) */
+  --shadow-1: 0 1px 3px rgba(190, 18, 60, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 4px 12px -2px rgba(190, 18, 60, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-3: 0 10px 30px -5px rgba(190, 18, 60, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
 
   /* Legacy aliases for backward compatibility */
   --r-sm: var(--radius-sm);
@@ -52,45 +56,45 @@
   --r-lg: var(--radius-lg);
   --r-xl: var(--radius-xl);
   --r-2xl: var(--radius-xl);
-  --paper: var(--surface);
+  --paper: var(--surface-container-lowest);
   --ink: var(--on-surface);
   --muted: var(--on-surface-variant);
   --line: var(--outline);
 
-  --crimson:       #C51A1B;
-  --crimson-light: #E03131;
-  --crimson-dark:  #9B111E;
-  --crimson-glow:  rgba(197, 26, 27, 0.12);
-  --crimson-soft:  #FFF5F5;
+  --crimson:       #be123c;
+  --crimson-light: #fb7185;
+  --crimson-dark:  #95002a;
+  --crimson-glow:  rgba(190, 18, 60, 0.15);
+  --crimson-soft:  #fff1f2;
 
-  --navy:          #0F172A;
-  --navy-mid:      #1E293B;
-  --navy-light:    #334155;
+  --navy:          #4c0519;
+  --navy-mid:      #881337;
+  --navy-light:    #9f1239;
 
-  --slate-700:     #334155;
-  --slate-600:     #475569;
-  --slate-500:     #64748B;
-  --slate-400:     #94A3B8;
-  --slate-300:     #CBD5E1;
-  --slate-200:     #E2E8F0;
-  --slate-100:     #F1F5F9;
-  --slate-50:      #F8FAFC;
+  --slate-700:     #475569;
+  --slate-600:     #64748b;
+  --slate-500:     #94a3b8;
+  --slate-400:     #cbd5e1;
+  --slate-300:     #e2e8f0;
+  --slate-200:     #f1f5f9;
+  --slate-100:     #f8fafc;
+  --slate-50:      #ffffff;
 
-  --green:         var(--success);
-  --green-light:   #E8F5E9;
-  --green-border:  #C8E6C9;
-  --amber:         var(--warning);
-  --amber-light:   #FFF8E1;
-  --amber-border:  #FFE082;
-  --red:           var(--error);
-  --red-light:     #FFEBEE;
-  --red-border:    #FFCDD2;
-  --blue:          var(--primary);
-  --blue-light:    var(--primary-container);
-  --blue-border:   #BBDEFB;
+  --green:         #15803d;
+  --green-light:   #f0fdf4;
+  --green-border:  #bbf7d0;
+  --amber:         #b45309;
+  --amber-light:   #fffbeb;
+  --amber-border:  #fde68a;
+  --red:           #be123c;
+  --red-light:     #fff1f2;
+  --red-border:    #fecdd3;
+  --blue:          #1d4ed8;
+  --blue-light:    #eff6ff;
+  --blue-border:   #bfdbfe;
 
   /* Typography */
-  font-family: 'Roboto', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   color: var(--on-surface);
   line-height: 1.5;
   font-synthesis: none;
@@ -370,5 +374,91 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .driver-popover.aer-tour-popover .driver-popover-arrow-side-bottom {
   border-bottom-color: var(--surface) !important;
+}
+
+/* Custom Gradients from des_hn */
+.custom-radial-glow {
+  background: radial-gradient(circle at 85% 15%, rgba(254, 205, 211, 0.45) 0%, rgba(255, 241, 242, 0) 65%);
+}
+
+.radial-header-glow {
+  background: radial-gradient(circle at 50% 0%, rgba(253, 164, 175, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+/* ============================================================
+   AER Terminal Card – 3D Depth & Elevation System
+   ============================================================ */
+
+/* Atmospheric ambient glow around and behind the card */
+.aer-terminal-glow {
+  position: absolute;
+  inset: -18px -20px -28px -20px;
+  border-radius: 2.75rem;
+  background: radial-gradient(
+    ellipse 85% 75% at 50% 25%,
+    rgba(251, 113, 133, 0.35) 0%,
+    rgba(244, 63, 94, 0.20) 45%,
+    rgba(255, 228, 230, 0.02) 80%
+  );
+  filter: blur(32px);
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Elevated White Terminal Card with multi-tiered shadows */
+.aer-terminal-card {
+  position: relative;
+  z-index: 10;
+  background: #ffffff;
+  border-radius: 1.75rem; /* 28px */
+  border: 1px solid rgba(244, 63, 94, 0.16);
+  box-shadow:
+    /* Specular rim highlight (light catching top edge) */
+    inset 0 1.5px 1px 0 #ffffff,
+    inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+    inset 0 -1px 2px 0 rgba(225, 29, 72, 0.04),
+    /* Crisp contact shadow (grounding the element) */
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    /* Near ambient shadow */
+    0 8px 16px -2px rgba(159, 18, 57, 0.10),
+    /* Mid-range warm bounce shadow */
+    0 18px 32px -4px rgba(159, 18, 57, 0.14),
+    /* Far atmospheric elevation */
+    0 32px 64px -8px rgba(190, 18, 60, 0.18),
+    /* Wide soft ambient floor bounce */
+    0 48px 80px -16px rgba(136, 19, 55, 0.10);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.35s ease;
+}
+
+.aer-terminal-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(244, 63, 94, 0.28);
+  box-shadow:
+    inset 0 1.5px 1px 0 #ffffff,
+    inset 0 0 0 1px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px 0 rgba(225, 29, 72, 0.06),
+    0 4px 8px -1px rgba(0, 0, 0, 0.08),
+    0 14px 24px -2px rgba(159, 18, 57, 0.14),
+    0 26px 44px -4px rgba(159, 18, 57, 0.18),
+    0 44px 80px -8px rgba(190, 18, 60, 0.24),
+    0 60px 100px -16px rgba(136, 19, 55, 0.14);
+}
+
+.group:hover .aer-terminal-glow {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+/* Tactile macOS style dots */
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  display: inline-block;
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.75), 0 1px 2px rgba(190, 18, 60, 0.18);
 }
 

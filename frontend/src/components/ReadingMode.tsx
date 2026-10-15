@@ -274,14 +274,14 @@ export function ReadingToolbar({
       )}
 
       {/* Right: Font size segmented control */}
-      <div className="flex items-center bg-[var(--surface-container)] rounded-[var(--radius-xl)] p-0.5 border border-[var(--outline)]/30 text-xs">
+      <div className="flex items-center bg-stone-100 rounded-[var(--radius-xl)] p-0.5 border border-stone-200 text-xs">
         <button
           type="button"
           onClick={() => onFontSizeChange("sm")}
           className={`px-2.5 py-1 rounded-[var(--radius-xl)] transition-all cursor-pointer font-medium ${
             fontSize === "sm"
-              ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-xs"
-              : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
+              ? "bg-stone-800 text-white shadow-xs"
+              : "text-stone-600 hover:text-stone-900"
           }`}
           title="Cỡ chữ nhỏ (A−: 1rem)"
         >
@@ -292,8 +292,8 @@ export function ReadingToolbar({
           onClick={() => onFontSizeChange("md")}
           className={`px-2.5 py-1 rounded-[var(--radius-xl)] transition-all cursor-pointer font-medium ${
             fontSize === "md"
-              ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-xs"
-              : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
+              ? "bg-stone-800 text-white shadow-xs"
+              : "text-stone-600 hover:text-stone-900"
           }`}
           title="Cỡ chữ vừa (A: 1.125rem - Mặc định)"
         >
@@ -304,8 +304,8 @@ export function ReadingToolbar({
           onClick={() => onFontSizeChange("lg")}
           className={`px-2.5 py-1 rounded-[var(--radius-xl)] transition-all cursor-pointer font-medium ${
             fontSize === "lg"
-              ? "bg-[var(--primary)] text-[var(--on-primary)] shadow-xs"
-              : "text-[var(--on-surface-variant)] hover:text-[var(--on-surface)]"
+              ? "bg-stone-800 text-white shadow-xs"
+              : "text-stone-600 hover:text-stone-900"
           }`}
           title="Cỡ chữ lớn (A+: 1.25rem)"
         >

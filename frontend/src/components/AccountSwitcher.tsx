@@ -25,7 +25,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     groupId: "group-a",
     courseId: "CO3001",
     initials: "A",
-    avatarBg: "#0B57D0",
+    avatarBg: "#be123c",
   },
   {
     id: "student-b1",
@@ -36,7 +36,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     groupId: "group-b",
     courseId: "CO3001",
     initials: "B",
-    avatarBg: "#146C2E",
+    avatarBg: "#9f1239",
   },
   {
     id: "lecturer-01",
@@ -45,7 +45,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     roleLabel: "Giảng viên",
     courseId: "CO3001",
     initials: "TM",
-    avatarBg: "#8C5000",
+    avatarBg: "#881337",
   },
 ];
 
