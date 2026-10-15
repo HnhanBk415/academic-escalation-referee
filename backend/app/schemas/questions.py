@@ -37,6 +37,7 @@ class QuestionResponse(BaseModel):
     escalation_target: str | None = None
     answer: str | None
     clarifying_question: str | None
+    decision_question: str | None = None
     case_id: str | None
     final_decision: str | None = None
     final_decision_reason: str | None = None

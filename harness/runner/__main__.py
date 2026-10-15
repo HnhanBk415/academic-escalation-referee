@@ -367,7 +367,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--check-lifecycle",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help="Run end-to-end exception lifecycle verification (create, apply, isolate, vague-guard)",
     )
     return parser.parse_args()

@@ -53,6 +53,7 @@ export interface QuestionResponse {
   escalation_target?: string | null;
   answer: string | null;
   clarifying_question: string | null;
+  decision_question?: string | null;
   case_id: string | null;
   final_decision: string | null;
   final_decision_reason: string | null;

@@ -1001,6 +1001,7 @@ def _build_question_response(
         escalation_target=(case.escalation_target if case else question.escalation_target),
         answer=question.answer,
         clarifying_question=question.clarifying_question,
+        decision_question=case.decision_question if case else None,
         case_id=case.id if case else None,
         final_decision=final_decision.decision if final_decision else None,
         final_decision_reason=final_decision.reason if final_decision else None,
