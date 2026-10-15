@@ -4,6 +4,11 @@ from app.core.enums import EscalationTarget, PolicyCoverage, Route, UncertaintyT
 from app.core.policy_topics import canonical_policy_topic
 
 
+# Replaced in the service layer with a question containing the course, group,
+# policy topic, and a concrete decision for the assigned reviewer.
+CONTEXTUAL_ESCALATION_QUESTION = "[CONTEXTUAL_ESCALATION_REQUIRED]"
+
+
 class RefereeDecision(BaseModel):
     route: Route
     policy_coverage: PolicyCoverage
@@ -32,7 +37,7 @@ class RefereeDecision(BaseModel):
                 value["reason_code"] = rc
             if value.get("route") in (Route.ESCALATE, "ESCALATE"):
                 if not value.get("decision_question"):
-                    value["decision_question"] = "Giảng viên có xem xét và phê duyệt yêu cầu này không?"
+                    value["decision_question"] = CONTEXTUAL_ESCALATION_QUESTION
                 if not value.get("escalation_target"):
                     value["escalation_target"] = EscalationTarget.COURSE_LECTURER
         return value

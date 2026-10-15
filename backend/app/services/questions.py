@@ -55,7 +55,7 @@ from app.schemas.questions import (
     QuestionCreate,
     QuestionResponse,
 )
-from app.schemas.referee import RefereeDecision
+from app.schemas.referee import CONTEXTUAL_ESCALATION_QUESTION, RefereeDecision
 from app.services.audit import add_audit_event
 from app.services.ids import new_id
 
@@ -508,8 +508,72 @@ def _safe_ai_failure(reason_code: str = "AI_UNAVAILABLE") -> RefereeDecision:
         uncertainty_type=UncertaintyType.AI_UNAVAILABLE,
         reason_code=reason_code,
         escalation_target=EscalationTarget.COURSE_LECTURER,
-        decision_question="Giảng viên có thể xem xét và đưa ra quyết định cho yêu cầu này không?",
+        decision_question=CONTEXTUAL_ESCALATION_QUESTION,
         confidence=0,
+    )
+
+
+def _group_label(group: Group | None) -> str:
+    if group is None:
+        return "Sinh viên chưa xác định nhóm"
+    return group.name.split(" - ", maxsplit=1)[0]
+
+
+def _request_excerpt(text: str, limit: int = 160) -> str:
+    normalized = " ".join(text.split())
+    return normalized if len(normalized) <= limit else f"{normalized[:limit].rstrip()}…"
+
+
+def _contextual_escalation_question(
+    decision: RefereeDecision,
+    *,
+    question_text: str,
+    actor: Actor,
+    course: Course,
+    group: Group | None,
+    clarification_round: int,
+) -> str:
+    """Generate an answerable reviewer question; never expose a generic fallback."""
+    group_label = _group_label(group)
+    course_label = f"{course.code}, HK{course.semester}"
+    excerpt = _request_excerpt(question_text)
+    topic = canonical_policy_topic(decision.policy_topic)
+    requested_size = re.search(r"\b\d{1,2}\b", question_text)
+
+    if topic == "GROUP_MEMBERSHIP" and requested_size:
+        return (
+            f"{group_label} ({course_label}) xin {requested_size.group(0)} thành viên; "
+            "quy chế cho phép 3-5. Giảng viên có duyệt ngoại lệ cho nhóm này đến hết học kỳ không?"
+        )
+    if any(token in question_text.casefold() for token in ("phúc khảo", "phuc khao", "điểm", "diem")):
+        return (
+            f"{actor.display_name} ({course_label}) đề nghị phúc khảo điểm trình bày. "
+            "Giảng viên có mở phúc khảo cho tiêu chí trình bày của sinh viên này không?"
+        )
+    if decision.uncertainty_type == UncertaintyType.MISSING_FACT:
+        return (
+            f"Yêu cầu của {actor.display_name} ({course_label}) vẫn thiếu dữ kiện sau "
+            f"{clarification_round} lượt làm rõ: “{excerpt}”. Giảng viên cần xác định tình huống "
+            "và điều khoản nào trước khi ra quyết định?"
+        )
+    if decision.uncertainty_type == UncertaintyType.OUT_OF_POLICY:
+        return (
+            f"Yêu cầu “{excerpt}” không thuộc quy định của {course_label}. "
+            "Giảng viên xác nhận yêu cầu này có thuộc phạm vi học phần để tiếp nhận xử lý không?"
+        )
+    if decision.uncertainty_type == UncertaintyType.CONFLICTING_EVIDENCE:
+        return (
+            f"Các tài liệu của {course_label} mâu thuẫn khi xử lý “{excerpt}”. "
+            "Giảng viên xác nhận phiên bản quy định nào phải được áp dụng?"
+        )
+    if decision.uncertainty_type == UncertaintyType.AI_UNAVAILABLE:
+        return (
+            f"Hệ thống không thể xác minh evidence cho yêu cầu “{excerpt}” của {group_label} "
+            f"({course_label}). Giảng viên vui lòng quyết định yêu cầu này theo quy định hiện hành."
+        )
+    return (
+        f"{actor.display_name} ({course_label}) gửi yêu cầu: “{excerpt}”. "
+        "Giảng viên vui lòng đưa ra quyết định cụ thể cho yêu cầu này."
     )
 
 
@@ -736,10 +800,7 @@ async def submit_question(
             uncertainty_type=UncertaintyType.MISSING_FACT,
             reason_code="CLARIFICATION_LIMIT_REACHED",
             escalation_target=EscalationTarget.COURSE_LECTURER,
-            decision_question=(
-                "Thông tin vẫn chưa đủ rõ sau hai lượt bổ sung; "
-                "giảng viên vui lòng xem xét hồ sơ này."
-            ),
+            decision_question=CONTEXTUAL_ESCALATION_QUESTION,
             confidence=0,
         )
 
@@ -751,11 +812,20 @@ async def submit_question(
             uncertainty_type=UncertaintyType.AUTHORITY_REQUIRED,
             reason_code="STUDENT_REQUESTS_WAIVER",
             escalation_target=EscalationTarget.COURSE_LECTURER,
-            decision_question="Giảng viên có phê duyệt yêu cầu vượt ngoài quy định hiện hành không?",
+            decision_question=CONTEXTUAL_ESCALATION_QUESTION,
             confidence=1,
         )
 
     decision.policy_topic = resolve_policy_topic(payload.text, decision.policy_topic)
+    if decision.route == Route.ESCALATE:
+        decision.decision_question = _contextual_escalation_question(
+            decision,
+            question_text=payload.text,
+            actor=actor,
+            course=course,
+            group=group,
+            clarification_round=clarification_round,
+        )
     eligible_exceptions = {item["id"]: item for item in exceptions}
     if decision.policy_coverage == PolicyCoverage.APPLICABLE_EXCEPTION:
         exception = eligible_exceptions.get(decision.applied_exception_id or "")
@@ -820,7 +890,7 @@ async def submit_question(
         target = EscalationTarget.COURSE_LECTURER
         assigned_reviewer_id = "lecturer-01"
         ai_summary = f"Yêu cầu ngoại lệ môn học (chuyển Giảng viên): {payload.text}"
-        decision_question = decision.decision_question or "Giảng viên có phê duyệt không?"
+        decision_question = decision.decision_question or CONTEXTUAL_ESCALATION_QUESTION
         question.escalation_target = target.value
         case = EscalationCase(
             id=new_id("case"),

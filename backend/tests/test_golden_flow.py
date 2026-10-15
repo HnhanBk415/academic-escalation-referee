@@ -26,6 +26,19 @@ async def test_answer_clarify_and_escalate_routes(client):
     assert escalate.status_code == 201, escalate.text
     assert escalate.json()["route"] == "ESCALATE"
     assert escalate.json()["case_id"]
+    assert "6" in escalate.json()["decision_question"]
+    assert "3-5" in escalate.json()["decision_question"]
+
+
+@pytest.mark.asyncio
+async def test_appeal_escalation_has_a_specific_reviewer_question(client):
+    appeal = await ask(client, "student-a1", "Em muốn phúc khảo điểm trình bày.")
+    assert appeal.status_code == 201, appeal.text
+    body = appeal.json()
+    assert body["route"] == "ESCALATE"
+    assert body["escalation_target"] == "COURSE_LECTURER"
+    assert "phúc khảo" in body["decision_question"].casefold()
+    assert "trình bày" in body["decision_question"].casefold()
 
 
 @pytest.mark.asyncio

@@ -25,6 +25,13 @@ def evaluate_response(case: dict, status_code: int, body: dict) -> dict:
     missing_document_ids = sorted(required_document_ids - actual_document_ids)
     required = [phrase for phrase in case.get("must_include", []) if phrase.casefold() not in answer]
     forbidden = [phrase for phrase in case.get("forbidden_claims", []) if phrase.casefold() in answer]
+    decision_question = (body.get("decision_question") or "").casefold()
+    required_decision_question_terms = case.get("expected_decision_question_terms", [])
+    missing_decision_question_terms = [
+        phrase
+        for phrase in required_decision_question_terms
+        if phrase.casefold() not in decision_question
+    ]
     citation_ok = expected_route != "ANSWER" or (
         all(
             citation.get("chunk_id")
@@ -46,6 +53,7 @@ def evaluate_response(case: dict, status_code: int, body: dict) -> dict:
         and document_ok
         and not required
         and not forbidden
+        and not missing_decision_question_terms
         and citation_ok
         and schema_ok
     )
@@ -64,6 +72,7 @@ def evaluate_response(case: dict, status_code: int, body: dict) -> dict:
         "citation_valid": citation_ok,
         "missing_required_phrases": required,
         "forbidden_claims_found": forbidden,
+        "missing_decision_question_terms": missing_decision_question_terms,
         "passed": passed,
         "evidence": citations,
     }
@@ -318,9 +327,9 @@ async def run(args: argparse.Namespace) -> int:
                 print(f"    Error: {lifecycle_result['error']}", flush=True)
 
     passed_count = sum(result["passed"] for result in results)
-    routine_cases = [r for r in results if r.get("category") == "routine"]
-    over_escalated = [r for r in routine_cases if r.get("actual_route") == "ESCALATE"]
-    over_escalation_rate = round(len(over_escalated) / len(routine_cases) * 100, 2) if routine_cases else 0.0
+    automated_cases = [r for r in results if r.get("expected_route") != "ESCALATE"]
+    over_escalated = [r for r in automated_cases if r.get("actual_route") == "ESCALATE"]
+    over_escalation_rate = round(len(over_escalated) / len(automated_cases) * 100, 2) if automated_cases else 0.0
 
     escalate_cases = [r for r in results if r.get("expected_route") == "ESCALATE"]
     under_escalated = [r for r in escalate_cases if r.get("actual_route") != "ESCALATE"]
@@ -344,7 +353,7 @@ async def run(args: argparse.Namespace) -> int:
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(
         f"\nSummary: {passed_count}/{len(results)} passed. "
-        f"Over-escalation: {over_escalation_rate}% (0/{len(routine_cases)}), "
+        f"Over-escalation: {over_escalation_rate}% (0/{len(automated_cases)}), "
         f"Under-escalation: {under_escalation_rate}% (0/{len(escalate_cases)}). "
         f"Report: {report_path}",
         flush=True,
