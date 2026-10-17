@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import date
 from pathlib import Path
 
 from sqlalchemy import select
@@ -7,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
 from app.ai.factory import build_ai_provider
-from app.core.enums import ActorRole
+from app.core.enums import ActorRole, DocumentStatus
 from app.db.session import SessionLocal
-from app.models import Actor, Course, Group, GroupMembership
+from app.models import Actor, Course, Document, Group, GroupMembership
 
 
 def _find_data_root() -> Path:
@@ -31,10 +32,10 @@ def load_demo_config() -> dict:
     return {
         "lecturers": [{"id": "lecturer-01", "display_name": "TS. Trần Minh Tuấn"}],
         "academic_affairs": [
-            {"id": "academic-affairs-01", "display_name": "Phòng Đào tạo demo"}
+            {"id": "academic-affairs-01", "display_name": "Phòng Đào tạo"}
         ],
         "students": [
-            {"id": "demo-student", "display_name": "Sinh viên demo"},
+            {"id": "demo-student", "display_name": "Sinh viên mẫu"},
             {"id": "student-a1", "display_name": "Nguyễn Văn A (Student A1)"},
             {"id": "student-b1", "display_name": "Trần Thị B (Student B1)"},
             {"id": "student-dadn-a1", "display_name": "Lê Văn C (DADN A1)"},
@@ -73,7 +74,17 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             existing.display_name = display_name
             existing.role = ActorRole.ACADEMIC_AFFAIRS
 
-    # 3. Seed Students from config
+    # 3. Seed staff for the service-specific review queue.
+    for item in cfg.get("clinic_staff", []):
+        actor_id = item["id"]
+        existing = await session.get(Actor, actor_id)
+        if existing is None:
+            session.add(Actor(id=actor_id, display_name=item.get("display_name", actor_id), role=ActorRole.CLINIC))
+        else:
+            existing.display_name = item.get("display_name", actor_id)
+            existing.role = ActorRole.CLINIC
+
+    # 4. Seed Students from config
     student_ids: list[str] = []
     for item in cfg.get("students", []):
         actor_id = item["id"]
@@ -128,6 +139,52 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
         create_default_groups=False,
     )
     await session.commit()
+
+    # Index the service policies through the same Document -> Chunk -> embedding
+    # pipeline. Service scopes are internal and are never offered as courses.
+    from app.ingestion.service import ingest_document
+
+    service_catalog_path = _find_data_root() / "service-catalog.json"
+    service_catalog = json.loads(service_catalog_path.read_text(encoding="utf-8"))
+    for service in service_catalog["services"]:
+        scope = service.get("retrieval_scope")
+        source = service.get("policy_source")
+        if not scope or not source or not scope.startswith("SERVICE-"):
+            continue
+        source_file = _find_data_root().parent / source
+        if not source_file.is_file():
+            print(f"[Seed] Missing service policy: {source}", flush=True)
+            continue
+        if await session.get(Course, scope) is None:
+            session.add(Course(id=scope, code=scope, name=service["display_name"], semester="SERVICE"))
+            await session.commit()
+        document_id = f"service-policy-{service['service_id']}"
+        document = await session.get(Document, document_id)
+        if document is None:
+            document = Document(
+                id=document_id,
+                course_id=scope,
+                title=f"Policy {service['display_name']}",
+                document_type="MARKDOWN",
+                source_path=source,
+                version=service["policy_version"],
+                status=DocumentStatus.PENDING,
+                effective_from=date(2025, 1, 1),
+                effective_until=date(2030, 12, 31),
+                content_hash="",
+            )
+            session.add(document)
+        else:
+            document.course_id = scope
+            document.source_path = source
+            document.version = service["policy_version"]
+            document.effective_until = date(2030, 12, 31)
+        await session.commit()
+        try:
+            result = await ingest_document(session, document_id, provider=embedding_provider)
+            print(f"[Seed] Indexed {source}: {result.chunk_count} chunks", flush=True)
+        except Exception as exc:
+            print(f"[Seed] Failed to index service policy {source}: {exc}", flush=True)
 
     # 6. Seed configured groups and memberships.
     configured_groups = cfg.get("groups", [])

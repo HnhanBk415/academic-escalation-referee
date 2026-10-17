@@ -1,0 +1,10 @@
+{
+  "academic_affairs": [
+    {"record_id": "DEMO-AA-REQ-001", "actor_id": "demo-student-01", "kind": "transcript_request", "status": "PROCESSING"},
+    {"record_id": "DEMO-AA-REQ-002", "actor_id": "demo-student-01", "kind": "transcript_request", "status": "READY"}
+  ],
+  "clinic": [
+    {"record_id": "DEMO-CLINIC-APT-001", "actor_id": "demo-student-01", "time_slot": "Thứ Ba 09:00–09:30", "status": "CONFIRMED"},
+    {"record_id": "DEMO-CLINIC-APT-002", "actor_id": "demo-student-02", "time_slot": "Thứ Năm 14:00–14:30", "status": "CANCELLED"}
+  ]
+}

@@ -319,6 +319,37 @@ class PolicyVersion(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ServiceRequest(Base):
+    __tablename__ = "service_requests"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_service_requests_actor_id"),
+        Index("ix_service_requests_actor_created", "actor_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actors.id"), index=True)
+    request_id: Mapped[str] = mapped_column(String(64), index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    text: Mapped[str] = mapped_column(Text)
+    service_id: Mapped[str] = mapped_column(String(50), index=True)
+    intent: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    reason_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float)
+    slots: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    missing_fields: Mapped[list[str]] = mapped_column(JSON, default=list)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    policy_source: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    policy_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by: Mapped[str | None] = mapped_column(ForeignKey("actors.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (

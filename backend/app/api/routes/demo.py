@@ -24,6 +24,7 @@ from app.models import (
     PolicyVersion,
     Question,
     RetrievalEvidence,
+    ServiceRequest,
 )
 from app.schemas.demo import (
     DemoCatalogResponse,
@@ -49,7 +50,11 @@ async def get_demo_catalog(
             status_code=500,
         )
 
-    courses = (await session.scalars(select(Course).order_by(Course.code))).all()
+    courses = (
+        await session.scalars(
+            select(Course).where(~Course.id.like("SERVICE-%")).order_by(Course.code)
+        )
+    ).all()
     groups = (await session.scalars(select(Group).order_by(Group.name))).all()
     groups_by_course: dict[str, list[Group]] = {}
     for group in groups:
@@ -87,6 +92,7 @@ async def reset_demo(
         HumanDecision,
         EscalationCase,
         RetrievalEvidence,
+        ServiceRequest,
         Question,
         # Policy updates retain source_chunk_id, and policy versions retain
         # document_id. Delete these dependent rows before their sources so

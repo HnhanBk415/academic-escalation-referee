@@ -1,0 +1,482 @@
+<!DOCTYPE html><html lang="vi" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>AER System - Kiểm chứng hệ thống (Verify Harness)</title>
+<!-- Google Fonts: Space Grotesk & Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ruby: {
+              50: '#fff1f2',
+              100: '#ffe4e6',
+              200: '#fecdd3',
+              500: '#f43f5e',
+              600: '#e11d48',
+              700: '#be123c',
+              800: '#9f1239',
+              900: '#881337',
+            },
+            surface: {
+              base: '#fbfbfe',
+              card: '#ffffff',
+              border: '#f1f5f9'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Space Grotesk', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-styling">
+    body {
+      background-color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+    }
+    .font-display {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 antialiased flex flex-col justify-between">
+<!-- BEGIN: MainHeader -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs" data-purpose="top-navigation">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+<!-- Logo & Brand Identity -->
+<div class="flex items-center space-x-8">
+<a class="flex items-center space-x-3 group" href="#" title="Academic Escalation Referee">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-ruby-700 to-rose-500 flex items-center justify-center text-white shadow-md shadow-ruby-700/20">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div class="flex flex-col">
+<span class="font-display font-bold text-lg text-slate-900 tracking-tight leading-none">AER System</span>
+
+</div>
+</a>
+<!-- Main Navigation Links -->
+<nav aria-label="Menu chính" class="hidden md:flex items-center space-x-1">
+<a class="px-3.5 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors" href="#">Trang chủ</a>
+<a class="px-3.5 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors" href="#">Không gian làm việc</a>
+<a aria-current="page" class="px-3.5 py-2 text-sm font-semibold text-ruby-700 bg-ruby-50 rounded-lg border border-ruby-100/60 transition-colors relative" href="#">
+            Verify Harness
+            <span class="absolute bottom-0 left-3 right-3 h-0.5 bg-ruby-700 rounded-full"></span>
+</a>
+
+</nav>
+</div>
+<!-- User Profile / Meta Action -->
+<div class="flex items-center space-x-4">
+
+<div class="flex items-center space-x-3 pl-2 border-l border-slate-200">
+
+<div class="hidden sm:block text-left text-xs">
+<p class="font-semibold text-slate-800">Admin Thẩm định</p>
+<p class="text-slate-500">Ban Đào Tạo</p>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- END: MainHeader -->
+<!-- BEGIN: MainContent -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+<!-- Title & Action Bar -->
+<section class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-7" data-purpose="page-header">
+<div>
+<h1 class="font-display text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+          Kiểm chứng hệ thống
+          
+</h1>
+<p class="text-slate-500 text-sm mt-1">Tự động kiểm tra 16 ca thẩm định phân luồng, trích xuất và đo lường độ chính xác</p>
+</div>
+<!-- Action Button -->
+<div>
+<button class="inline-flex items-center justify-center gap-2.5 px-5 py-2.5 bg-ruby-700 hover:bg-ruby-800 active:bg-ruby-900 text-white font-medium text-sm rounded-xl shadow-sm hover:shadow-md transition-all duration-150 ease-in-out cursor-pointer group" type="button">
+<svg class="w-4 h-4 fill-current transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+<path d="M5 3l14 9-14 9V3z"></path>
+</svg>
+<span class="">Chạy toàn bộ Verify</span>
+</button>
+</div>
+</section>
+<!-- BEGIN: BentoOverviewMetrics -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8" data-purpose="metrics-dashboard">
+<!-- Card 1: Tỷ lệ đạt -->
+<div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-xs font-semibold text-slate-600 tracking-wide uppercase">Tỷ lệ đạt</span>
+<span class="w-2 h-2 rounded-full bg-slate-300"></span>
+</div>
+<div class="mt-4 mb-2">
+<span class="font-display text-3xl font-bold text-slate-800 tracking-tight">—</span>
+</div>
+</div>
+<div class="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+<span class="">0/16 ca đã chạy - 0 Đạt</span>
+<span class="font-medium text-slate-400">Target 95%</span>
+</div>
+</div>
+<!-- Card 2: Tỷ lệ chuyển thừa -->
+<div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-xs font-semibold text-slate-600 tracking-wide uppercase">Tỷ lệ chuyển thừa</span>
+<span class="w-2 h-2 rounded-full bg-slate-300"></span>
+</div>
+<div class="mt-4 mb-2">
+<span class="font-display text-3xl font-bold text-slate-800 tracking-tight">—</span>
+</div>
+</div>
+<div class="pt-4 border-t border-slate-100 text-xs text-slate-500 truncate" title="Đẩy thừa ca quy chuẩn lên giảng viên">
+          Đẩy thừa ca quy chuẩn lên giảng viên
+        </div>
+</div>
+<!-- Card 3: Tỷ lệ bỏ sót -->
+<div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-xs font-semibold text-slate-600 tracking-wide uppercase">Tỷ lệ bỏ sót</span>
+<span class="w-2 h-2 rounded-full bg-slate-300"></span>
+</div>
+<div class="mt-4 mb-2">
+<span class="font-display text-3xl font-bold text-slate-800 tracking-tight">—</span>
+</div>
+</div>
+<div class="pt-4 border-t border-slate-100 text-xs text-slate-500 truncate" title="Bỏ sót ca cần chuyển lên thẩm quyền">
+          Bỏ sót ca cần chuyển lên thẩm quyền
+        </div>
+</div>
+<!-- Card 4: Tổng thời gian xử lý & Matrix -->
+<div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all">
+<div>
+<div class="flex items-center justify-between mb-1">
+<span class="text-xs font-semibold text-slate-600 tracking-wide uppercase">Tổng thời gian xử lý</span>
+<span class="text-[11px] text-slate-400 font-medium">/ 90 s mục tiêu</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-display text-2xl font-bold text-slate-800">0,0</span>
+<span class="text-sm font-medium text-slate-500">s</span>
+<span class="text-[11px] text-slate-400 ml-auto">Chưa có dữ liệu chạy</span>
+</div>
+<!-- 16-Grid Matrix Representation -->
+<div class="grid grid-cols-8 gap-1 mt-3.5 mb-2.5" title="Trạng thái 16 ca test">
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">01</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">02</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">03</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">04</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">05</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">06</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">07</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">08</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">09</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">10</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">11</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">12</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">13</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">14</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">15</div>
+<div class="h-6 flex items-center justify-center text-[10px] font-mono bg-slate-100 text-slate-600 rounded">16</div>
+</div>
+</div>
+<!-- Legend Chú thích độ trễ -->
+<div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-medium">
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-xs bg-emerald-400"></span> &lt; 2 s</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-xs bg-amber-400"></span> 2–5 s</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-xs bg-rose-500"></span> &gt; 5 s</span>
+</div>
+</div>
+</section>
+<!-- END: BentoOverviewMetrics -->
+<!-- BEGIN: DetailedResultsTable -->
+<section class="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden" data-purpose="test-cases-table-container">
+<!-- Table Header Title -->
+<div class="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+<div>
+<h2 class="font-display text-base font-semibold text-slate-900">Kết quả từng ca kiểm thử</h2>
+<p class="text-xs text-slate-500">Toàn bộ 16 ca mẫu thẩm định quy chuẩn và ngoại lệ đồ án</p>
+</div>
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600">
+          Chế độ tĩnh: Sẵn sàng chạy
+        </span>
+</div>
+<!-- Responsive Table View -->
+<div class="overflow-x-auto">
+<table class="w-full text-left text-sm" id="verify-testcase-table">
+<thead>
+<tr class="border-b border-slate-200 bg-slate-50/80 text-xs font-medium text-slate-500 uppercase tracking-wider">
+<th class="py-3.5 px-6 font-semibold w-48" scope="col">Mã ca · Nhóm</th>
+<th class="py-3.5 px-6 font-semibold" scope="col">Nội dung câu hỏi</th>
+<th class="py-3.5 px-6 font-semibold w-44" scope="col">Phân luồng dự kiến</th>
+<th class="py-3.5 px-6 font-semibold w-36 text-center" scope="col">Kết quả thực tế</th>
+<th class="py-3.5 px-6 font-semibold w-28 text-center" scope="col">Độ trễ</th>
+<th class="py-3.5 px-6 font-semibold w-32 text-right" scope="col">Kết quả</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 font-normal">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_001</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  Quy chuẩn
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Số thành viên nhóm</p>
+<p class="text-slate-500 text-xs mt-0.5">Một nhóm đồ án được có bao nhiêu thành viên?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ANSWER
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_002</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  Quy chuẩn
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Rubric – phân bổ điểm</p>
+<p class="text-slate-500 text-xs mt-0.5">Rubric chấm điểm báo cáo và sản phẩm như thế nào?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ANSWER
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_003</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  Quy chuẩn
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Tiêu chí trình bày</p>
+<p class="text-slate-500 text-xs mt-0.5">Tiêu chí trình bày chiếm bao nhiêu phần trăm?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ANSWER
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_004</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  Quy chuẩn
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Tiêu chí hợp tác nhóm</p>
+<p class="text-slate-500 text-xs mt-0.5">Tiêu chí hợp tác nhóm trong rubric chiếm bao nhiêu?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ANSWER
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_005</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  Quy chuẩn
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Quy định nhóm (student B)</p>
+<p class="text-slate-500 text-xs mt-0.5">Quy định số lượng sinh viên trong nhóm là gì?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ANSWER
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 6 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_006</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                  Thiếu dữ kiện
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Câu hỏi mơ hồ – ‘trường hợp này’</p>
+<p class="text-slate-500 text-xs mt-0.5">Trường hợp này có được không?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                  CLARIFY
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 7 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_007</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                  Thiếu dữ kiện
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Câu hỏi mơ hồ – ‘cái này’</p>
+<p class="text-slate-500 text-xs mt-0.5">Cái này áp dụng cho em không?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                  CLARIFY
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 8 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_008</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-rose-50 text-ruby-700 border border-rose-200/60">
+                  Thẩm quyền
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Xin phép 6 thành viên</p>
+<p class="text-slate-500 text-xs mt-0.5">Nhóm em xin phép có 6 thành viên được không?</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<div class="inline-flex items-center gap-1.5 flex-wrap">
+<span class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                    ESCALATE
+                  </span>
+<span class="px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
+                    Giảng viên
+                  </span>
+</div>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 9 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_009</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-rose-50 text-ruby-700 border border-rose-200/60">
+                  Thẩm quyền
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Phúc khảo điểm trình bày</p>
+<p class="text-slate-500 text-xs mt-0.5">Em muốn phúc khảo điểm trình bày.</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<div class="inline-flex items-center gap-1.5 flex-wrap">
+<span class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                    ESCALATE
+                  </span>
+<span class="px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
+                    Giảng viên
+                  </span>
+</div>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+<!-- Row 10 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3.5 px-6 align-top">
+<div class="font-mono text-xs font-semibold text-slate-800">verify_010</div>
+<span class="inline-block mt-1 text-[11px] px-2 py-0.5 rounded font-medium bg-rose-50 text-ruby-700 border border-rose-200/60">
+                  Thẩm quyền
+                </span>
+</td>
+<td class="py-3.5 px-6 align-top">
+<p class="font-semibold text-slate-800 text-xs">Nộp bài trễ – xin ngoại lệ</p>
+<p class="text-slate-500 text-xs mt-0.5">Cho em xin ngoại lệ để nộp bài trễ ba ngày.</p>
+</td>
+<td class="py-3.5 px-6 align-top">
+<div class="inline-flex items-center gap-1.5 flex-wrap">
+<span class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                    ESCALATE
+                  </span>
+<span class="px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
+                    Giảng viên
+                  </span>
+</div>
+</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-center text-slate-400 font-mono text-xs">—</td>
+<td class="py-3.5 px-6 align-top text-right text-xs text-slate-500">Chờ chạy</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination / Footer meta -->
+<div class="px-6 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between text-xs text-slate-500">
+<div class="">Hiển thị 10 / 16 ca thẩm định kiểm thử tự động</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1 bg-white border border-slate-200 rounded text-slate-400 cursor-not-allowed" type="button">Trang trước</button>
+<button class="px-3 py-1 bg-white border border-slate-200 rounded text-slate-700 hover:bg-slate-50" type="button">Trang sau</button>
+</div>
+</div>
+</section>
+<!-- END: DetailedResultsTable -->
+</main>
+<!-- END: MainContent -->
+<!-- BEGIN: MainFooter -->
+<footer class="mt-8 border-t border-slate-200/80 bg-white py-4" data-purpose="site-footer">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+
+<div class="flex items-center space-x-4">
+
+
+</div>
+</div>
+</footer>
+<!-- END: MainFooter -->
+
+
+</body></html>

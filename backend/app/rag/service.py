@@ -249,7 +249,7 @@ async def _keyword_search(
     query_tokens = _tokens(question)
     items: list[dict] = []
     for chunk, document in await _candidate_chunks(session, course_id):
-        chunk_tokens = _tokens(chunk.content)
+        chunk_tokens = _tokens(f"{chunk.heading or ''} {chunk.content}")
         score = len(query_tokens & chunk_tokens) / max(len(query_tokens), 1)
         if score:
             items.append(

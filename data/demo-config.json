@@ -24,14 +24,23 @@
   "academic_affairs": [
     {
       "id": "academic-affairs-01",
-      "display_name": "Phòng Đào tạo demo"
+      "display_name": "Phòng Đào tạo"
     }
+  ],
+  "clinic_staff": [
+    {"id": "clinic-staff-01", "display_name": "Nhân viên Trạm Y tế"}
   ],
   "students": [
     {
       "id": "demo-student",
       "display_name": "Sinh viên demo"
     },
+    {"id": "demo-student-01", "display_name": "Sinh viên mẫu 01"},
+    {"id": "demo-student-02", "display_name": "Sinh viên mẫu 02"},
+    {"id": "demo-student-03", "display_name": "Sinh viên mẫu 03"},
+    {"id": "demo-student-04", "display_name": "Sinh viên mẫu 04"},
+    {"id": "demo-student-05", "display_name": "Sinh viên mẫu 05"},
+    {"id": "demo-student-06", "display_name": "Sinh viên mẫu 06"},
     {
       "id": "student-a1",
       "display_name": "Nguyễn Văn A (Student A1)"
@@ -78,7 +87,8 @@
       "name": "Nhóm A - DADN HK242",
       "semester": "242",
       "member_ids": [
-        "student-dadn-a1"
+        "student-dadn-a1",
+        "demo-student-01"
       ]
     },
     {
@@ -87,7 +97,11 @@
       "name": "Nhóm B - DADN HK242",
       "semester": "242",
       "member_ids": [
-        "student-dadn-b1"
+        "student-dadn-b1",
+        "demo-student-03",
+        "demo-student-04",
+        "demo-student-05",
+        "demo-student-06"
       ]
     }
   ]

@@ -30,6 +30,7 @@ if (-not (Test-Path ".venv")) {
 # Activate and run
 .\.venv\Scripts\Activate.ps1
 python -m alembic upgrade head
+python -m app.db.seed
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Pop-Location

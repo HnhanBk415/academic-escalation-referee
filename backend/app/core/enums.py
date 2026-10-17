@@ -5,6 +5,7 @@ class ActorRole(StrEnum):
     STUDENT = "STUDENT"
     LECTURER = "LECTURER"
     ACADEMIC_AFFAIRS = "ACADEMIC_AFFAIRS"
+    CLINIC = "CLINIC"
 
 
 class EscalationTarget(StrEnum):

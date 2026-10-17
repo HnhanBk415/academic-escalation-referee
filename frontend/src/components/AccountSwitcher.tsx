@@ -19,24 +19,12 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     id: "student-a1",
     role: "student",
-    name: "Nguyễn Văn A",
-    roleLabel: "Sinh viên",
-    groupLabel: "Nhóm 01",
+    name: "User (Sinh viên)",
+    roleLabel: "User",
     groupId: "group-a",
     courseId: "CO3001",
-    initials: "A",
+    initials: "U",
     avatarBg: "#be123c",
-  },
-  {
-    id: "student-b1",
-    role: "student",
-    name: "Trần Thị B",
-    roleLabel: "Sinh viên",
-    groupLabel: "Nhóm 02",
-    groupId: "group-b",
-    courseId: "CO3001",
-    initials: "B",
-    avatarBg: "#9f1239",
   },
   {
     id: "lecturer-01",
@@ -44,7 +32,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     name: "TS. Trần Minh Tuấn",
     roleLabel: "Giảng viên",
     courseId: "CO3001",
-    initials: "TM",
+    initials: "GV",
     avatarBg: "#881337",
   },
 ];
@@ -134,13 +122,6 @@ export function AccountSwitcher({
           </p>
           <p className="text-xs text-[var(--on-surface-variant)] leading-none mt-0.5 truncate">
             {currentAccount.roleLabel}
-            {currentAccount.role === "student"
-              ? activeGroupLabel
-                ? ` · ${activeGroupLabel}`
-                : currentAccount.groupLabel
-                ? ` · ${currentAccount.groupLabel}`
-                : ""
-              : ""}
           </p>
         </div>
 
@@ -194,13 +175,6 @@ export function AccountSwitcher({
                     </p>
                     <p className="text-xs text-[var(--on-surface-variant)] truncate">
                       {acc.roleLabel}
-                      {acc.role === "student"
-                        ? acc.id === currentAccount.id && activeGroupLabel
-                          ? ` · ${activeGroupLabel}`
-                          : acc.groupLabel
-                          ? ` · ${acc.groupLabel}`
-                          : ""
-                        : ""}
                     </p>
                   </div>
                   {isSelected && (

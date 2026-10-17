@@ -1,0 +1,69 @@
+{
+  "services": [
+    {
+      "service_id": "academic_affairs",
+      "display_name": "Phòng Đào tạo",
+      "organization_id": "academic_affairs",
+      "supported_intents": ["course_registration", "transcript_request", "request_status", "policy_faq"],
+      "required_fields": {"request_status": ["record_id"], "course_registration": ["course_code"]},
+      "allowed_actions": ["answer_policy", "read_record", "create_case"],
+      "required_role": "STUDENT",
+      "approval_rule": "Human staff handles registration and official documents",
+      "sla_hours": 48,
+      "connector_type": "mock",
+      "policy_source": "data/service-policies/academic-affairs.md",
+      "policy_version": "AA-POLICY-v3",
+      "retrieval_scope": "SERVICE-AA",
+      "support_status": "active"
+    },
+    {
+      "service_id": "faculty_cs",
+      "display_name": "Khoa Khoa học Máy tính / giảng viên",
+      "organization_id": "faculty_cs",
+      "supported_intents": ["add_group_member", "group_exception", "grade_inquiry", "policy_faq"],
+      "required_fields": {"add_group_member": ["group_id", "member_ref"]},
+      "allowed_actions": ["answer_policy", "create_case", "add_member_to_group"],
+      "required_role": "STUDENT",
+      "approval_rule": "Lecturer approval required for every membership change",
+      "sla_hours": 48,
+      "connector_type": "mock",
+      "policy_source": "data/sample-documents/DADN/dadn-group-policy-v1.md",
+      "policy_version": "v1",
+      "retrieval_scope": "DADN-HK242",
+      "retrieval_scopes": {"DADN": "DADN-HK242", "CO3001": "CO3001"},
+      "support_status": "active"
+    },
+    {
+      "service_id": "clinic",
+      "display_name": "Trạm Y tế",
+      "organization_id": "clinic",
+      "supported_intents": ["hours", "contact", "policy_faq", "appointment_request", "appointment_cancel", "appointment_status"],
+      "required_fields": {"appointment_request": ["time_slot"], "appointment_cancel": ["record_id"], "appointment_status": ["record_id"]},
+      "allowed_actions": ["answer_policy", "read_record", "create_case"],
+      "required_role": "STUDENT",
+      "approval_rule": "Staff confirms appointment requests",
+      "sla_hours": 24,
+      "connector_type": "mock",
+      "policy_source": "data/service-policies/clinic.md",
+      "policy_version": "CLINIC-POLICY-v3",
+      "retrieval_scope": "SERVICE-CLINIC",
+      "support_status": "active"
+    },
+    {
+      "service_id": "triage_desk",
+      "display_name": "Bộ phận điều phối",
+      "organization_id": "academic_affairs",
+      "supported_intents": ["manual_review"],
+      "required_fields": {},
+      "allowed_actions": ["create_case"],
+      "required_role": "STUDENT",
+      "approval_rule": "Manual routing by academic affairs",
+      "sla_hours": 48,
+      "connector_type": "mock",
+      "policy_source": null,
+      "policy_version": null,
+      "retrieval_scope": null,
+      "support_status": "active"
+    }
+  ]
+}

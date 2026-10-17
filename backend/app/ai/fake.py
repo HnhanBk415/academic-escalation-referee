@@ -9,16 +9,93 @@ from app.core.policy_topics import (
     policy_topics_in_text,
 )
 from app.schemas.referee import AIHealth, RefereeDecision
+from app.schemas.service_routing import ServiceClassification
 
 
 class FakeProvider:
     """Deterministic provider for tests and local workflow development."""
 
+    async def classify_service(self, text: str, catalog: list[dict]) -> ServiceClassification:
+        folded = unicodedata.normalize("NFD", text.casefold())
+        folded = "".join(char for char in folded if unicodedata.category(char) != "Mn")
+        folded = folded.replace("đ", "d")
+        asks_policy = any(word in folded for word in ("quy dinh", "thu tuc", "quy trinh", "dieu kien", "cach "))
+
+        if any(word in folded for word in ("ren luyen", "hoc bong", "cong tac sinh vien")):
+            service_id, intent = "student_affairs", "policy_faq"
+        elif any(word in folded for word in ("tram y te", "y te", "lich kham", "kham benh")):
+            service_id = "clinic"
+            intent = (
+                "policy_faq" if asks_policy else
+                "appointment_cancel" if "huy" in folded else
+                "appointment_status" if any(word in folded for word in ("trang thai", "toi dau")) else
+                "appointment_request" if any(word in folded for word in ("dat", "hen", "lich")) else
+                "hours" if any(word in folded for word in ("gio", "mo cua", "lam viec")) else
+                "contact"
+            )
+        elif any(word in folded for word in ("dang ky mon", "dang ky hoc phan", "rut mon", "bang diem", "phong dao tao")):
+            service_id = "academic_affairs"
+            intent = (
+                "request_status" if any(word in folded for word in ("trang thai", "toi dau", "ho so")) else
+                "policy_faq" if asks_policy else
+                "course_registration" if any(word in folded for word in ("dang ky", "rut mon")) else
+                "transcript_request" if "bang diem" in folded else "policy_faq"
+            )
+        elif any(word in folded for word in ("dadn", "co3001", "do an", "giang vien", "nhom", "rubric")):
+            service_id = "faculty_cs"
+            intent = (
+                "group_exception" if any(word in folded for word in ("6 thanh vien", "sau thanh vien", "nhom day", "ngoai le", "vuot")) else
+                "add_group_member" if any(word in folded for word in ("them", "bo sung", "gia nhap")) and "nhom" in folded else
+                "grade_inquiry" if any(word in folded for word in ("diem", "rubric", "tieu chi cham")) else
+                "policy_faq"
+            )
+        else:
+            return ServiceClassification(service_id="triage_desk", intent="manual_review", confidence=0.3)
+
+        entry = next((item for item in catalog if item["service_id"] == service_id), None)
+        if entry is None or intent not in entry["supported_intents"]:
+            return ServiceClassification(service_id="triage_desk", intent="manual_review", confidence=0.3)
+
+        slots: dict[str, str] = {}
+        for key, pattern in (
+            ("group_id", r"\bdadn-group-[a-z0-9_-]+\b"),
+            ("member_ref", r"\bdemo-student-\d+\b"),
+            ("record_id", r"\bDEMO-(?:AA-REQ|CLINIC-APT)-\d+\b"),
+            ("course_code", r"\b(?:DADN|CO\d{4})\b"),
+        ):
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                slots[key] = match.group(0).upper() if key in ("record_id", "course_code") else match.group(0)
+        time = re.search(r"\b\d{1,2}:\d{2}(?:\s*[–-]\s*\d{1,2}:\d{2})?\b", text)
+        if time:
+            slots["time_slot"] = time.group(0)
+        if service_id == "academic_affairs" and intent == "policy_faq":
+            if any(word in folded for word in ("bang diem", "hoc ba")):
+                slots["topic"] = "transcript"
+            elif any(word in folded for word in ("dang ky", "rut mon", "hoc phan")):
+                slots["topic"] = "registration"
+        return ServiceClassification(service_id=service_id, intent=intent, slots=slots, confidence=0.95)
+
     @staticmethod
     def _extractive_answer(question: str, evidence: list[dict]) -> str:
         """Return a short, grounded local-development answer without pretending to summarize."""
-        content = str(evidence[0]["content"]).strip()
         lowered_question = question.casefold()
+        question_tokens = set(re.findall(r"\w+", lowered_question, flags=re.UNICODE))
+        best = max(
+            evidence,
+            key=lambda item: len(
+                question_tokens
+                & set(
+                    re.findall(
+                        r"\w+",
+                        f"{item.get('heading', '')} {item.get('content', '')}".casefold(),
+                        flags=re.UNICODE,
+                    )
+                )
+            ),
+            default=evidence[0],
+        )
+        content = str(best["content"]).strip()
         rubric_tokens = ("điểm", "rubric", "tỷ lệ", "phần trăm", "tiêu chí", "chấm")
         if any(token in lowered_question for token in rubric_tokens):
             percentages = re.findall(r"[●•]\s*([^●•\n]{1,100}?\d+\s*%)", content)

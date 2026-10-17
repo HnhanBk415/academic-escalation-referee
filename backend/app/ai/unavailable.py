@@ -1,10 +1,16 @@
 from app.schemas.referee import AIHealth, RefereeDecision
+from app.schemas.service_routing import ServiceClassification
 
 
 class UnavailableProvider:
     def __init__(self, mode: str, detail: str) -> None:
         self.mode = mode
         self.detail = detail
+
+    async def classify_service(
+        self, text: str, catalog: list[dict]
+    ) -> ServiceClassification:
+        raise RuntimeError(self.detail)
 
     async def embed(
         self,

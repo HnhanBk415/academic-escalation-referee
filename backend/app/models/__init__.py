@@ -15,6 +15,7 @@ from app.models.entities import (
     PolicyVersion,
     Question,
     RetrievalEvidence,
+    ServiceRequest,
 )
 
 __all__ = [
@@ -34,5 +35,6 @@ __all__ = [
     "PolicyVersion",
     "Question",
     "RetrievalEvidence",
+    "ServiceRequest",
 ]
 
