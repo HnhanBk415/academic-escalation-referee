@@ -13,9 +13,20 @@ export interface DemoAccount {
   courseId: string;
   initials: string;
   avatarBg: string;
+  serviceStaff?: boolean;
 }
 
 export const DEMO_ACCOUNTS: DemoAccount[] = [
+  {
+    id: "demo-student-01",
+    role: "student",
+    name: "Sinh viên demo DADN",
+    roleLabel: "Sinh viên · nhóm DADN",
+    groupId: "dadn-group-a",
+    courseId: "DADN-HK242",
+    initials: "SV",
+    avatarBg: "#0369a1",
+  },
   {
     id: "student-a1",
     role: "student",
@@ -34,6 +45,36 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     courseId: "CO3001",
     initials: "GV",
     avatarBg: "#881337",
+  },
+  {
+    id: "academic-affairs-01",
+    role: "lecturer",
+    name: "Nhân viên Phòng Đào tạo",
+    roleLabel: "Hộp thư · Phòng Đào tạo",
+    courseId: "CO3001",
+    initials: "ĐT",
+    avatarBg: "#7c3aed",
+    serviceStaff: true,
+  },
+  {
+    id: "clinic-staff-01",
+    role: "lecturer",
+    name: "Nhân viên Trạm Y tế",
+    roleLabel: "Hộp thư · Trạm Y tế",
+    courseId: "CO3001",
+    initials: "YT",
+    avatarBg: "#059669",
+    serviceStaff: true,
+  },
+  {
+    id: "student-affairs-01",
+    role: "lecturer",
+    name: "Nhân viên PCTSV",
+    roleLabel: "Hộp thư · PCTSV",
+    courseId: "CO3001",
+    initials: "CT",
+    avatarBg: "#d97706",
+    serviceStaff: true,
   },
 ];
 

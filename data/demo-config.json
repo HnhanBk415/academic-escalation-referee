@@ -30,6 +30,9 @@
   "clinic_staff": [
     {"id": "clinic-staff-01", "display_name": "Nhân viên Trạm Y tế"}
   ],
+  "student_affairs_staff": [
+    {"id": "student-affairs-01", "display_name": "Nhân viên Phòng Công tác Sinh viên"}
+  ],
   "students": [
     {
       "id": "demo-student",

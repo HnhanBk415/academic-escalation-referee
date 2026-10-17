@@ -10,6 +10,7 @@ interface AppHeaderProps {
   aiOnline: boolean;
   onSelectAccount: (account: DemoAccount) => void;
   activeGroupLabel?: string;
+  defaultWorkspaceFeature?: string;
 }
 
 export function AppHeader({
@@ -18,6 +19,7 @@ export function AppHeader({
   aiOnline,
   onSelectAccount,
   activeGroupLabel,
+  defaultWorkspaceFeature,
 }: AppHeaderProps) {
   const location = useLocation();
   const pathname = location.pathname;
@@ -40,8 +42,8 @@ export function AppHeader({
     };
   }, [isHelpOpen]);
 
-  const defaultWorkspaceFeature = currentRole === "student" ? "ask" : "inbox";
-  const workspacePath = `/workspace/${defaultWorkspaceFeature}`;
+  const workspaceFeature = defaultWorkspaceFeature ?? (currentRole === "student" ? "ask" : "inbox");
+  const workspacePath = `/workspace/${workspaceFeature}`;
 
   const navItems = [
     { label: "Trang chủ", path: "/", exact: true },

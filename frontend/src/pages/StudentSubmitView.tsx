@@ -52,24 +52,24 @@ export interface ClarificationTurnItem {
 interface QuickChip {
   label: string;
   prompt: string;
-  category: "group_auto" | "group_escalate" | "trick_mhx" | "rule" | "record" | "clinic";
+  category: "group_add" | "group_escalate" | "volunteer" | "rule" | "record" | "clinic";
 }
 
 const QUICK_CHIPS: QuickChip[] = [
   {
-    label: "Thêm bạn vào nhóm 1 người (Được tự thêm auto)",
-    prompt: "Em muốn thêm bạn student-b1 vào nhóm đồ án của em (nhóm em hiện có 1 người)",
-    category: "group_auto",
+    label: "Thêm thành viên vào nhóm đồ án",
+    prompt: "Em muốn thêm bạn student-b1 vào nhóm đồ án của em",
+    category: "group_add",
   },
   {
-    label: "Thêm bạn vào nhóm đã có 5 bạn (Vượt mức qua Giảng viên)",
-    prompt: "Nhóm em đã có 5 bạn rồi, em muốn xin thêm bạn thứ 6 vào nhóm đồ án",
+    label: "Xin thêm thành viên khi nhóm đã có 5 bạn",
+    prompt: "Nhóm em hiện tại đã có 5 bạn, em muốn xin thêm bạn thứ 6 vào nhóm đồ án",
     category: "group_escalate",
   },
   {
-    label: "Đăng ký Mùa hè xanh (Trick lỏ Đoàn - Hội)",
+    label: "Đăng ký tham gia Mùa hè xanh (Đoàn - Hội)",
     prompt: "Em muốn đăng ký tham gia chiến dịch tình nguyện Mùa hè xanh năm nay",
-    category: "trick_mhx",
+    category: "volunteer",
   },
   {
     label: "Quy định số lượng thành viên nhóm",
@@ -87,6 +87,23 @@ const QUICK_CHIPS: QuickChip[] = [
     category: "clinic",
   },
 ];
+
+// Dữ liệu thành viên nhóm theo dữ liệu đồ án
+const KNOWN_GROUP_ROSTERS: Record<string, { members: string[]; maxLimit: number }> = {
+  "group-a": { members: ["student-a1 (Trưởng nhóm)"], maxLimit: 5 },
+  "group-b": { members: ["student-b1 (Trưởng nhóm)"], maxLimit: 5 },
+  "dadn-group-a": { members: ["student-dadn-a1 (Trưởng nhóm)", "demo-student-01"], maxLimit: 5 },
+  "dadn-group-b": {
+    members: [
+      "student-dadn-b1 (Trưởng nhóm)",
+      "demo-student-03",
+      "demo-student-04",
+      "demo-student-05",
+      "demo-student-06",
+    ],
+    maxLimit: 5,
+  },
+};
 
 export function StudentSubmitView({
   actorId,
@@ -119,7 +136,6 @@ export function StudentSubmitView({
   // Group membership flow state
   const [needsCourseClarification, setNeedsCourseClarification] = useState(false);
   const [isAddMemberIntent, setIsAddMemberIntent] = useState(false);
-  const [currentGroupSize, setCurrentGroupSize] = useState<"1" | "5">("1"); // "1": nhóm 1 người (tự thêm auto), "5": nhóm 5 người (vượt định mức)
   const [memberRefInput, setMemberRefInput] = useState("student-b1");
   const [autoAddSuccess, setAutoAddSuccess] = useState<{
     courseCode: string;
@@ -169,7 +185,7 @@ export function StudentSubmitView({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Helper: Detect "trick lỏ" Mùa hè xanh & tình nguyện
+  // Helper: Nhận diện Mùa hè xanh & tình nguyện Đoàn - Hội
   const isVolunteerOrMhx = (text: string) => {
     const lowered = text.toLowerCase();
     return (
@@ -206,7 +222,7 @@ export function StudentSubmitView({
   const detectCatalogService = (text: string) => {
     const lowered = text.toLowerCase();
 
-    // 1. "Trick lỏ" Mùa Hè Xanh -> Đoàn Thanh niên / Hội Sinh viên
+    // 1. Mùa Hè Xanh & Hoạt động phong trào -> Đoàn Thanh niên / Hội Sinh viên
     if (isVolunteerOrMhx(lowered)) {
       return {
         service: "youth_union",
@@ -248,6 +264,47 @@ export function StudentSubmitView({
     return null;
   };
 
+  // Tự động nhận diện sĩ số và thành viên nhóm từ dữ liệu nhóm hoặc ngữ cảnh câu hỏi
+  const getActiveGroupRoster = () => {
+    const isExceededQuery =
+      query.includes("5 bạn") ||
+      query.includes("5 người") ||
+      query.includes("thứ 6") ||
+      query.includes("6 bạn");
+
+    if (isExceededQuery) {
+      return {
+        currentCount: 5,
+        maxLimit: 5,
+        members: [
+          "student-dadn-b1 (Trưởng nhóm)",
+          "demo-student-03",
+          "demo-student-04",
+          "demo-student-05",
+          "demo-student-06",
+        ],
+        isExceeded: true,
+      };
+    }
+
+    const roster = KNOWN_GROUP_ROSTERS[effectiveGroupId];
+    if (roster) {
+      return {
+        currentCount: roster.members.length,
+        maxLimit: roster.maxLimit,
+        members: roster.members,
+        isExceeded: roster.members.length >= roster.maxLimit,
+      };
+    }
+
+    return {
+      currentCount: 1,
+      maxLimit: 5,
+      members: ["User (Trưởng nhóm)"],
+      isExceeded: false,
+    };
+  };
+
   // Reset chat
   const handleResetChat = () => {
     setQuery("");
@@ -286,7 +343,7 @@ export function StudentSubmitView({
     setTimeout(() => {
       setActiveStepIndex(2);
 
-      // Check trick lỏ Mùa hè xanh & Non-course services first
+      // Check Mùa hè xanh & Non-course services first
       const catalogMatch = detectCatalogService(text);
       if (catalogMatch) {
         setTimeout(() => {
@@ -303,13 +360,6 @@ export function StudentSubmitView({
       if (isCourseRelated(text)) {
         const isAddMember = text.toLowerCase().includes("thêm bạn") || text.toLowerCase().includes("thêm thành viên");
         setIsAddMemberIntent(isAddMember);
-
-        // Tự động nhận diện sĩ số nhóm nếu có trong câu hỏi
-        if (text.includes("5 bạn") || text.includes("5 người") || text.includes("thứ 6") || text.includes("6 bạn")) {
-          setCurrentGroupSize("5");
-        } else {
-          setCurrentGroupSize("1");
-        }
 
         setTimeout(() => {
           setActiveStepIndex(3); // Bước 3: Làm rõ môn & nhóm đồ án
@@ -348,28 +398,28 @@ export function StudentSubmitView({
     setError("");
 
     try {
-      // 1. Logic Thêm thành viên nhóm theo đúng yêu cầu người dùng:
-      // "nếu nhóm nó có 1 người, thì được tự thêm auto mà, nào vượt mới qua giảng viên chứ nhờ"
+      // 1. Xử lý Thêm thành viên nhóm: Hệ thống tự hiểu sĩ số nhóm
       if (isAddMemberIntent) {
         setNeedsCourseClarification(false);
+        const roster = getActiveGroupRoster();
 
-        if (currentGroupSize === "1") {
-          // NHÓM 1 NGƯỜI -> ĐƯỢC TỰ ĐỘNG THÊM (AUTO-APPROVED)
+        if (!roster.isExceeded) {
+          // Nhóm chưa đạt sĩ số tối đa -> Tiếp nhận và cập nhật trực tiếp
           setAutoAddSuccess({
             courseCode: selectedCourse?.code || selectedCourseId,
             groupName: selectedGroup?.name || "Nhóm 01",
             memberRef: memberRefInput.trim() || "student-b1",
           });
-          setActiveStepIndex(4); // Hoàn tất tự động
+          setActiveStepIndex(4);
         } else {
-          // NHÓM 5 NGƯỜI (VƯỢT ĐỊNH MỨC) -> QUA GIẢNG VIÊN DUYỆT
+          // Nhóm đã đủ 5 bạn (vượt mức tối đa) -> Chuyển Giảng viên phê duyệt ngoại lệ
           setEscalateToLecturer({
             courseCode: selectedCourse?.code || selectedCourseId,
             groupName: selectedGroup?.name || "Nhóm 01",
             memberRef: memberRefInput.trim() || "student-b1",
-            reason: "Nhóm hiện tại đã có 5 bạn. Xin kết nạp thêm thành viên thứ 6 vượt định mức tối đa theo quy chế.",
+            reason: "Nhóm hiện tại đã có 5 bạn (đạt sĩ số tối đa). Xin kết nạp thêm thành viên vượt định mức theo quy chế.",
           });
-          setActiveStepIndex(4); // Chờ Giảng viên duyệt
+          setActiveStepIndex(4);
         }
         setBusy(false);
         return;
@@ -413,13 +463,6 @@ export function StudentSubmitView({
   const handleChipClick = (chip: QuickChip) => {
     setQuery(chip.prompt);
     setError("");
-
-    // Set group size if specific chip
-    if (chip.category === "group_auto") {
-      setCurrentGroupSize("1");
-    } else if (chip.category === "group_escalate") {
-      setCurrentGroupSize("5");
-    }
   };
 
   // Gửi làm rõ bổ sung (theo backend question clarification)
@@ -486,7 +529,7 @@ export function StudentSubmitView({
       num: 4,
       title: "Phê duyệt / Thực thi",
       desc: autoAddSuccess
-        ? "Tự động thêm thành công"
+        ? "Đã cập nhật thành viên"
         : escalateToLecturer
         ? "Chờ Giảng viên duyệt"
         : isStep4Done
@@ -615,7 +658,7 @@ export function StudentSubmitView({
           >
             {isIdle && "Sẵn sàng tiếp nhận"}
             {needsCourseClarification && "Cần làm rõ môn / nhóm đồ án"}
-            {autoAddSuccess && "Tự động thêm thành công"}
+            {autoAddSuccess && "Đã cập nhật thành viên thành công"}
             {escalateToLecturer && "Cần Giảng viên phê duyệt ngoại lệ"}
             {catalogResult && "Đã điều phối đơn vị"}
             {!isIdle && !needsCourseClarification && !autoAddSuccess && !escalateToLecturer && !catalogResult && "Đang xử lý…"}
@@ -799,24 +842,11 @@ export function StudentSubmitView({
                 </div>
               </div>
 
-              {/* Tình huống Thêm thành viên: Cho chọn số thành viên hiện tại của nhóm */}
-              {isAddMemberIntent && (
-                <div className="pt-3 border-t border-stone-100 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 mb-1">
-                        Sĩ số nhóm hiện tại của bạn:
-                      </label>
-                      <select
-                        value={currentGroupSize}
-                        onChange={(e) => setCurrentGroupSize(e.target.value as "1" | "5")}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs font-semibold text-stone-800 bg-stone-50 focus:bg-white focus:outline-none focus:border-ruby-600 cursor-pointer"
-                      >
-                        <option value="1">Nhóm có 1 người (Được tự thêm auto theo quy chế)</option>
-                        <option value="5">Nhóm đã có 5 bạn (Vượt mức ➔ Cần Giảng viên duyệt)</option>
-                      </select>
-                    </div>
-
+              {/* Tình huống Thêm thành viên: Hệ thống tự động nhận diện sĩ số nhóm */}
+              {isAddMemberIntent && (() => {
+                const roster = getActiveGroupRoster();
+                return (
+                  <div className="pt-3 border-t border-stone-100 space-y-3">
                     <div>
                       <label className="block text-xs font-bold text-stone-700 mb-1">
                         Mã sinh viên cần thêm vào nhóm:
@@ -826,22 +856,41 @@ export function StudentSubmitView({
                         value={memberRefInput}
                         onChange={(e) => setMemberRefInput(e.target.value)}
                         placeholder="Ví dụ: student-b1 hoặc demo-student-02"
-                        className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-ruby-600 bg-stone-50"
+                        className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-ruby-600 bg-white"
                       />
                     </div>
-                  </div>
 
-                  {currentGroupSize === "1" ? (
-                    <p className="text-[11px] text-emerald-800 font-medium bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                      💡 Nhóm hiện có 1 người: Hệ thống sẽ <strong>tự động thêm thành viên ngay lập tức</strong> mà không cần chuyển Giảng viên phê duyệt.
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-amber-800 font-medium bg-amber-50 p-2 rounded-lg border border-amber-200">
-                      ⚠️ Nhóm đã có 5 người: Thêm thành viên thứ 6 sẽ <strong>vượt sĩ số tối đa</strong> của quy chế và phải được chuyển đến Giảng viên xem xét cấp ngoại lệ.
-                    </p>
-                  )}
-                </div>
-              )}
+                    <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-stone-700">Trạng thái nhóm hiện tại:</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                            roster.isExceeded
+                              ? "bg-amber-100 text-amber-900 border border-amber-300"
+                              : "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                          }`}
+                        >
+                          {roster.currentCount} / {roster.maxLimit} thành viên
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-stone-600 leading-relaxed">
+                        <span className="font-medium text-stone-700">Thành viên hiện tại:</span>{" "}
+                        {roster.members.join(", ")}
+                      </div>
+
+                      {roster.isExceeded ? (
+                        <div className="text-[11px] text-amber-900 font-medium bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                          ⚠️ Nhóm hiện đã đạt sĩ số tối đa ({roster.maxLimit} bạn). Yêu cầu bổ sung thành viên sẽ được hệ thống chuyển tiếp đến Giảng viên xem xét phê duyệt ngoại lệ.
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-emerald-900 font-medium bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                          ✓ Nhóm hiện có {roster.currentCount} bạn (chưa vượt trần {roster.maxLimit} bạn). Hệ thống sẽ xác thực và cập nhật thành viên trực tiếp vào danh sách nhóm.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex justify-end pt-1">
@@ -867,7 +916,7 @@ export function StudentSubmitView({
           </div>
         )}
 
-        {/* TRƯỜNG HỢP 2: NHÓM 1 NGƯỜI -> TỰ THÊM AUTO THÀNH CÔNG */}
+        {/* TRƯỜNG HỢP 2: THÊM THÀNH VIÊN HỢP LỆ THÀNH CÔNG */}
         {autoAddSuccess && (
           <div className="bg-emerald-50/90 border-2 border-emerald-300 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in">
             <div className="flex items-start justify-between gap-3">
@@ -877,15 +926,15 @@ export function StudentSubmitView({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-emerald-950">
-                    Tự động thực hiện thành công (AUTO-COMPLETED)
+                    Cập nhật danh sách nhóm thành công
                   </h3>
                   <p className="text-xs text-emerald-800 mt-0.5">
-                    Theo quy chế ghép nhóm đồ án: Nhóm có 1 thành viên được quyền tự động kết nạp thêm thành viên mà không cần Giảng viên duyệt.
+                    Căn cứ Quy chế học phần đồ án: Sĩ số nhóm hợp lệ (dưới 5 thành viên), hệ thống đã xác thực và ghi nhận thành viên mới vào danh sách nhóm thành công.
                   </p>
                 </div>
               </div>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase">
-                TỰ ĐỘNG THÊM AUTO
+                HỢP LỆ · ĐÃ CẬP NHẬT
               </span>
             </div>
 
@@ -901,7 +950,7 @@ export function StudentSubmitView({
                 </div>
                 <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
                   <span className="font-bold text-emerald-900 font-mono">2. {autoAddSuccess.memberRef}</span>
-                  <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">Mới thêm (Auto)</span>
+                  <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">Mới tiếp nhận</span>
                 </div>
               </div>
 
@@ -916,7 +965,7 @@ export function StudentSubmitView({
           </div>
         )}
 
-        {/* TRƯỜNG HỢP 3: NHÓM 5 NGƯỜI (VƯỢT ĐỊNH MỨC) -> QUA GIẢNG VIÊN DUYỆT */}
+        {/* TRƯỜNG HỢP 3: VƯỢT ĐỊNH MỨC -> CHUYỂN GIẢNG VIÊN DUYỆT */}
         {escalateToLecturer && (
           <div className="bg-rose-50/90 border-2 border-rose-300 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in">
             <div className="flex items-start justify-between gap-3">
@@ -926,15 +975,15 @@ export function StudentSubmitView({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-stone-900">
-                    Yêu cầu vượt định mức chuẩn (Cần Giảng viên phê duyệt ngoại lệ)
+                    Yêu cầu vượt định mức quy chế (Chuyển Giảng viên phê duyệt ngoại lệ)
                   </h3>
                   <p className="text-xs text-rose-800 mt-0.5">
-                    Quy chế quy định nhóm đồ án tối đa 5 sinh viên. Việc xin thêm thành viên thứ 6 phải được Giảng viên phê duyệt ngoại lệ.
+                    Quy chế quy định nhóm đồ án tối đa 5 sinh viên. Nhóm đã đạt sĩ số tối đa nên yêu cầu bổ sung thành viên đã được chuyển tiếp đến Giảng viên xem xét ngoại lệ.
                   </p>
                 </div>
               </div>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300 uppercase">
-                CHỜ GIẢNG VIÊN DUYỆT
+                AWAITING_APPROVAL
               </span>
             </div>
 

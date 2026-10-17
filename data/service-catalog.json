@@ -3,24 +3,40 @@
     {
       "service_id": "academic_affairs",
       "display_name": "Phòng Đào tạo",
+      "routing_description": "Đầu mối hành chính đào tạo cấp trường: đăng ký/rút học phần, lịch và mốc học vụ, hồ sơ/bảng điểm/chứng từ đào tạo, bảo lưu/tiếp tục học, điều chỉnh hồ sơ đào tạo, tiến trình tín chỉ và rà soát tốt nghiệp. Tài liệu hoặc dữ liệu hiện hành chưa có thì tiếp nhận cho chuyên viên xác minh, không tự kết luận. Điểm rèn luyện, học bổng và hỗ trợ sinh viên thuộc student_affairs; điểm môn, rubric và quy chế CO3001/DADN thuộc faculty_cs.",
       "organization_id": "academic_affairs",
-      "supported_intents": ["course_registration", "transcript_request", "request_status", "policy_faq"],
-      "required_fields": {"request_status": ["record_id"], "course_registration": ["course_code"]},
+      "supported_intents": ["course_registration", "transcript_request", "request_status", "policy_faq", "academic_admin_request", "academic_data_check"],
+      "intent_descriptions": {
+        "course_registration": "Yêu cầu thực hiện hoặc kiểm tra đăng ký/rút học phần; không chỉ hỏi cách làm",
+        "transcript_request": "Yêu cầu cấp/tiếp nhận bảng điểm hoặc chứng từ học vụ; không chỉ hỏi quy trình",
+        "request_status": "Tra trạng thái một hồ sơ đã tạo thuộc Phòng Đào tạo",
+        "policy_faq": "Hỏi thông tin, phạm vi hoặc quy trình học vụ; trả lời theo nguồn service policy đã truy xuất, còn dữ liệu theo học kỳ thiếu thì chuyển chuyên viên xác minh",
+        "academic_admin_request": "Muốn Phòng Đào tạo tiếp nhận hoặc xử lý thủ tục hành chính đào tạo chưa có intent riêng: lịch/mốc học vụ, bảo lưu hoặc tiếp tục học, điều chỉnh hồ sơ, tiến trình tín chỉ, công nhận tín chỉ, rà soát tốt nghiệp hay giấy tờ/hồ sơ đào tạo khác. Trích xuất topic ngắn gọn từ yêu cầu; không tự thay đổi dữ liệu hoặc quyết định.",
+        "academic_data_check": "Hỏi một dữ kiện học vụ hiện hành, theo học kỳ hoặc cá nhân cần tra/xác minh: điều kiện hoặc kết quả học phần, chỗ lớp, lịch học/thi, thời hạn, kết quả/điểm, tín chỉ tích lũy, tiến trình hoặc tình trạng tốt nghiệp. Chuyển Phòng Đào tạo xác minh; không suy đoán từ tài liệu chung."
+      },
+      "required_fields": {"request_status": ["record_id"], "course_registration": ["course_code"], "academic_admin_request": ["topic"], "academic_data_check": ["topic"]},
       "allowed_actions": ["answer_policy", "read_record", "create_case"],
       "required_role": "STUDENT",
       "approval_rule": "Human staff handles registration and official documents",
       "sla_hours": 48,
       "connector_type": "mock",
       "policy_source": "data/service-policies/academic-affairs.md",
-      "policy_version": "AA-POLICY-v3",
+      "policy_version": "AA-POLICY-v4",
       "retrieval_scope": "SERVICE-AA",
       "support_status": "active"
     },
     {
       "service_id": "faculty_cs",
       "display_name": "Khoa Khoa học Máy tính / giảng viên",
+      "routing_description": "Phụ trách quy chế, rubric, điểm môn học và yêu cầu nhóm đồ án thuộc CO3001 hoặc DADN.",
       "organization_id": "faculty_cs",
       "supported_intents": ["add_group_member", "group_exception", "grade_inquiry", "policy_faq"],
+      "intent_descriptions": {
+        "add_group_member": "Yêu cầu thêm thành viên vào nhóm đồ án",
+        "group_exception": "Xin ngoại lệ quy chế nhóm đồ án",
+        "grade_inquiry": "Hỏi rubric hoặc kết quả điểm của môn/đồ án",
+        "policy_faq": "Hỏi quy chế của CO3001 hoặc DADN"
+      },
       "required_fields": {"add_group_member": ["group_id", "member_ref"]},
       "allowed_actions": ["answer_policy", "create_case", "add_member_to_group"],
       "required_role": "STUDENT",
@@ -36,8 +52,17 @@
     {
       "service_id": "clinic",
       "display_name": "Trạm Y tế",
+      "routing_description": "Phụ trách giờ tiếp nhận, liên hệ và yêu cầu lịch hẹn tại Trạm Y tế.",
       "organization_id": "clinic",
       "supported_intents": ["hours", "contact", "policy_faq", "appointment_request", "appointment_cancel", "appointment_status"],
+      "intent_descriptions": {
+        "hours": "Hỏi thời gian làm việc hoặc giờ tiếp nhận",
+        "contact": "Hỏi đầu mối liên hệ",
+        "policy_faq": "Hỏi quy trình dịch vụ của Trạm Y tế",
+        "appointment_request": "Yêu cầu đặt lịch",
+        "appointment_cancel": "Yêu cầu hủy lịch",
+        "appointment_status": "Tra trạng thái lịch hẹn"
+      },
       "required_fields": {"appointment_request": ["time_slot"], "appointment_cancel": ["record_id"], "appointment_status": ["record_id"]},
       "allowed_actions": ["answer_policy", "read_record", "create_case"],
       "required_role": "STUDENT",
@@ -50,8 +75,32 @@
       "support_status": "active"
     },
     {
+      "service_id": "student_affairs",
+      "display_name": "Phòng Công tác Sinh viên (PCTSV)",
+      "routing_description": "Phụ trách công tác sinh viên như điểm/kết quả rèn luyện, học bổng, hỗ trợ và hồ sơ công tác sinh viên. PCTSV là viết tắt của Phòng Công tác Sinh viên. Điểm rèn luyện khác với điểm môn học hoặc bảng điểm; không chuyển các yêu cầu này sang Phòng Đào tạo.",
+      "organization_id": "student_affairs",
+      "supported_intents": ["conduct_score_lookup", "conduct_score_review", "request_status", "policy_faq"],
+      "intent_descriptions": {
+        "conduct_score_lookup": "Hỏi kết quả/điểm rèn luyện cá nhân; không có điểm tự động, cần nhân viên kiểm tra",
+        "conduct_score_review": "Báo thiếu/sai kết quả rèn luyện hoặc xin xem xét; nhân viên xử lý, AI không tự sửa điểm",
+        "request_status": "Tra trạng thái hồ sơ Công tác Sinh viên thuộc chính người gửi",
+        "policy_faq": "Hỏi quy trình hoặc thông tin chung thuộc Công tác Sinh viên"
+      },
+      "required_fields": {"conduct_score_lookup": ["semester"], "conduct_score_review": ["semester"], "request_status": ["record_id"]},
+      "allowed_actions": ["answer_policy", "read_record", "create_case"],
+      "required_role": "STUDENT",
+      "approval_rule": "Student affairs staff reviews conduct score requests; no automatic score lookup or change",
+      "sla_hours": 48,
+      "connector_type": "mock",
+      "policy_source": "data/service-policies/student-affairs.md",
+      "policy_version": "SA-POLICY-v1",
+      "retrieval_scope": "SERVICE-SA",
+      "support_status": "active"
+    },
+    {
       "service_id": "triage_desk",
       "display_name": "Bộ phận điều phối",
+      "routing_description": "Nhận yêu cầu chưa khớp service catalog hoặc chưa đủ độ tin cậy để xác định đúng đơn vị.",
       "organization_id": "academic_affairs",
       "supported_intents": ["manual_review"],
       "required_fields": {},

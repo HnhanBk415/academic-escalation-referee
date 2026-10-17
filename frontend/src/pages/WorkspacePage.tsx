@@ -7,6 +7,7 @@ import { StudentHistoryView } from "./StudentHistoryView";
 import { LecturerInboxView } from "./LecturerInboxView";
 import { ExceptionsView } from "./ExceptionsView";
 import { DocumentProcessingPage } from "./DocumentProcessingPage";
+import { ServiceRequestsInboxView } from "./ServiceRequestsInboxView";
 import type { DemoCatalog } from "../types";
 
 interface WorkspacePageProps {
@@ -17,11 +18,11 @@ interface WorkspacePageProps {
   selectedGroupId: string;
   onSelectCourse: (courseId: string) => void;
   onSelectGroup: (groupId: string) => void;
-  selectedQuestionId?: string;
   onQuestionSubmitted: (questionId: string) => void;
   onDecisionMade: () => void;
   pendingCount: number;
   queueCount: number;
+  serviceStaff?: boolean;
 }
 
 export function WorkspacePage({
@@ -32,11 +33,11 @@ export function WorkspacePage({
   selectedGroupId,
   onSelectCourse,
   onSelectGroup,
-  selectedQuestionId,
   onQuestionSubmitted,
   onDecisionMade,
   pendingCount,
   queueCount,
+  serviceStaff = false,
 }: WorkspacePageProps) {
   const { feature } = useParams<{ feature: string }>();
   const navigate = useNavigate();
@@ -65,20 +66,17 @@ export function WorkspacePage({
 
   // Validate allowed features per role
   const studentFeatures = ["ask", "history"];
-  const lecturerFeatures = ["inbox", "exceptions", "documents"];
+  const lecturerFeatures = serviceStaff
+    ? ["service-requests"]
+    : ["inbox", "service-requests", "exceptions", "documents"];
 
   if (role === "student" && (!feature || !studentFeatures.includes(feature))) {
     return <Navigate to="/workspace/ask" replace />;
   }
 
   if (role === "lecturer" && (!feature || !lecturerFeatures.includes(feature))) {
-    return <Navigate to="/workspace/inbox" replace />;
+    return <Navigate to={serviceStaff ? "/workspace/service-requests" : "/workspace/inbox"} replace />;
   }
-
-  const handleNavigateToHistory = (questionId: string) => {
-    onQuestionSubmitted(questionId);
-    navigate(`/workspace/history/${questionId}`);
-  };
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)] flex-1 flex flex-col bg-[#faf7f8]">
@@ -90,6 +88,7 @@ export function WorkspacePage({
               role={role}
               pendingCount={pendingCount}
               queueCount={queueCount}
+              serviceStaff={serviceStaff}
               onToggleCollapse={handleToggleSidebar}
             />
           )}
@@ -120,7 +119,10 @@ export function WorkspacePage({
                 onSelectCourse={onSelectCourse}
                 onSelectGroup={onSelectGroup}
                 onSubmitted={onQuestionSubmitted}
-                onViewHistory={handleNavigateToHistory}
+                onViewHistory={(questionId) => {
+                  onQuestionSubmitted(questionId);
+                  navigate(`/workspace/history/${questionId}`);
+                }}
               />
             )}
 
@@ -135,6 +137,10 @@ export function WorkspacePage({
 
             {role === "lecturer" && feature === "inbox" && (
               <LecturerInboxView onDecisionMade={onDecisionMade} />
+            )}
+
+            {role === "lecturer" && feature === "service-requests" && (
+              <ServiceRequestsInboxView actorId={actorId} onUpdated={onDecisionMade} />
             )}
 
             {role === "lecturer" && feature === "exceptions" && (

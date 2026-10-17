@@ -1,92 +1,112 @@
-# Phòng Đào tạo — policy tiếp nhận dịch vụ
+# Phòng Đào tạo — policy tiếp nhận và hướng dẫn nghiệp vụ học vụ
 
-> **TÀI LIỆU MÔ PHỎNG — KHÔNG PHẢI QUY ĐỊNH CHÍNH THỨC**  
-> Service: `academic_affairs` · Đơn vị chịu trách nhiệm: Phòng Đào tạo · Phiên bản: `AA-POLICY-v3`.  
-> Tài liệu này chỉ mô tả quy trình mẫu của ứng dụng, không phải quy chế trường và không cấp chứng từ chính thức.
+> **TÀI LIỆU MÔ PHỎNG — KHÔNG PHẢI QUY ĐỊNH CHÍNH THỨC**
+> Service: `academic_affairs` · Đơn vị chịu trách nhiệm: Phòng Đào tạo · Phiên bản: `AA-POLICY-v4`.
+> Tài liệu mô tả phạm vi tiếp nhận và giới hạn của ứng dụng. Đây không phải quy chế của trường, không xác nhận quyền lợi học vụ và không cấp chứng từ chính thức.
 
-## Phạm vi và quyết định xử lý
+## Phạm vi rộng của Phòng Đào tạo
 
-| Nhu cầu sau khi định tuyến | Dữ kiện cần có | Backend được làm | Trạng thái đúng |
-|---|---|---|---|
-| Hỏi thủ tục đăng ký hoặc rút học phần | Chủ đề câu hỏi | Trả lời quy trình mẫu bên dưới, kèm nguồn và phiên bản | `ANSWERED` |
-| Hỏi điều kiện của một học phần cụ thể | Mã học phần; dữ liệu điều kiện tiên quyết, chỗ trống, lịch học đã duyệt | Chuyển nhân viên vì bộ dữ liệu hiện chưa có các điều kiện đó | `WAITING_FOR_STAFF` |
-| Yêu cầu đăng ký hoặc rút học phần | Mã học phần | Hỏi mã học phần nếu thiếu; sau đó tạo yêu cầu cho Phòng Đào tạo kiểm tra, chưa cập nhật hệ thống đăng ký | `NEEDS_INFO` hoặc `WAITING_FOR_STAFF` |
-| Hỏi cách xin bảng điểm | Chủ đề câu hỏi | Trả lời hướng dẫn mẫu, kèm nguồn và phiên bản | `ANSWERED` |
-| Xin bảng điểm/chứng từ | Nội dung yêu cầu | Tạo hồ sơ chờ nhân viên; không phát hành chứng từ | `WAITING_FOR_STAFF` |
-| Hỏi tình trạng hồ sơ | Mã hồ sơ `DEMO-AA-REQ-*` | Chỉ đọc bản ghi thuộc sinh viên đang đăng nhập | `NEEDS_INFO`, `COMPLETED` hoặc `WAITING_FOR_STAFF` |
+Phòng Đào tạo là đầu mối hành chính cho các vấn đề liên quan trực tiếp đến quá trình tổ chức học tập và hồ sơ đào tạo. Trong ứng dụng, phạm vi tiếp nhận gồm:
 
-## Hỏi về đăng ký học phần
+1. **Kế hoạch học tập:** đăng ký/rút học phần, khối lượng học tập, điều kiện học phần, thời khóa biểu và xung đột lịch.
+2. **Lịch và hoạt động học vụ:** lịch năm học, thời gian đăng ký, lịch thi, điều kiện dự thi và các mốc học vụ.
+3. **Kết quả và hồ sơ đào tạo:** bảng điểm, xác nhận học vụ, trích lục hồ sơ, tình trạng yêu cầu và đề nghị điều chỉnh thông tin đào tạo.
+4. **Tiến trình học:** bảo lưu/tạm dừng học, tiếp tục học, chuyển đổi lộ trình hoặc chương trình, công nhận/tích lũy tín chỉ và rà soát điều kiện tốt nghiệp.
+5. **Thủ tục đào tạo khác:** các đề nghị hành chính gắn với quá trình học nhưng chưa có quy trình riêng trong Service Catalog.
 
-Sinh viên có thể hỏi cách gửi yêu cầu đăng ký hoặc rút học phần. Hệ thống hướng dẫn cung cấp mã học phần để Phòng Đào tạo kiểm tra. Câu trả lời này chỉ mô tả **cách tiếp nhận**, không xác nhận đủ điều kiện đăng ký.
+Các mục trên xác định **đầu mối tiếp nhận**, không khẳng định trường đang có một thủ tục cụ thể, thời hạn cụ thể, điều kiện được duyệt hay hệ thống dữ liệu để tự tra cứu. Với nội dung chưa có nguồn đã duyệt, ứng dụng tạo hồ sơ chờ chuyên viên Phòng Đào tạo; không tự đưa ra kết luận.
 
-Hệ thống chưa có nguồn quy định được duyệt về điều kiện tiên quyết, số chỗ, xung đột lịch và thời hạn đăng ký. Nếu câu hỏi cần kết luận về một trong các điều kiện đó, chuyển nhân viên Phòng Đào tạo thay vì suy đoán.
+### Ranh giới giữa các đơn vị
 
-### Thông tin hiện có và chưa có
+- **Phòng Đào tạo:** đăng ký/rút học phần, lịch học vụ, bảng điểm/chứng từ đào tạo, hồ sơ học tập, tiến trình và thủ tục đào tạo.
+- **Phòng Công tác Sinh viên (`student_affairs`):** điểm rèn luyện, học bổng, hỗ trợ và hồ sơ công tác sinh viên. Điểm rèn luyện không phải điểm môn học hoặc bảng điểm.
+- **Khoa/giảng viên (`faculty_cs`):** nội dung môn học, rubric, kết quả môn/đồ án và quy định nhóm CO3001/DADN. Phòng Đào tạo không quyết định điểm hoặc ngoại lệ chuyên môn của môn học.
+- **Trạm Y tế (`clinic`):** thông tin và yêu cầu thuộc dịch vụ y tế.
+- Nếu không thể xác định hợp lý đơn vị hoặc dịch vụ, chuyển `triage_desk` để điều phối; không ép yêu cầu vào Phòng Đào tạo chỉ vì chưa có dịch vụ phù hợp.
 
-- Có thể hướng dẫn cách gửi yêu cầu và giải thích trạng thái của hồ sơ mô phỏng.
-- Chưa có dữ liệu học phần theo học kỳ về điều kiện tiên quyết, sức chứa, thời khóa biểu, lịch sử đăng ký hoặc thời hạn mở/đóng.
-- Mã học phần như `CO3001` hoặc `DADN` chỉ giúp xác định yêu cầu; tự nó không chứng minh sinh viên đủ điều kiện.
-- Nếu câu hỏi cần một dữ kiện chưa có trong kho, yêu cầu được chuyển chuyên viên Phòng Đào tạo. Không được suy ra câu trả lời từ tên học phần hoặc quy trình chung.
+## Cách chọn kết quả cho từng yêu cầu
 
-## Đăng ký hoặc rút học phần
+| Loại yêu cầu | Cách xử lý an toàn | Trạng thái thường dùng |
+|---|---|---|
+| Hỏi quy trình được mô tả rõ trong policy | Trả lời ngắn gọn, chỉ dựa vào tài liệu đã truy xuất và kèm trích dẫn/phiên bản | `ANSWERED` |
+| Hỏi dữ kiện hiện hành hoặc điều kiện cần nguồn theo học kỳ | Nói rõ nguồn chưa có; tạo yêu cầu cho chuyên viên xác minh | `WAITING_FOR_STAFF` |
+| Muốn Phòng Đào tạo thực hiện hoặc kiểm tra một thủ tục | Hỏi tên thủ tục nếu chưa rõ; khi xác định được nhu cầu thì tạo hồ sơ, không giả nhận đã xử lý | `NEEDS_INFO` hoặc `WAITING_FOR_STAFF` |
+| Thiếu một dữ kiện thiết yếu để xác định hồ sơ | Chỉ hỏi trường còn thiếu, như mã học phần hoặc mã yêu cầu | `NEEDS_INFO` |
+| Xin quyết định, ngoại lệ, phê duyệt hoặc sửa dữ liệu chính thức | Không tự quyết định; chuyển chuyên viên/người có thẩm quyền trong Phòng Đào tạo | `WAITING_FOR_STAFF` |
+| Ngoài phạm vi hoặc không rõ đầu mối | Chuyển đúng service khác nếu catalog có; nếu chưa xác định được thì chuyển điều phối | `WAITING_FOR_STAFF` tại đơn vị phù hợp hoặc `triage_desk` |
 
-Sinh viên cung cấp mã học phần, ví dụ `DADN` hoặc `CO3001`. Khi thiếu mã, hệ thống hỏi đúng trường còn thiếu. Khi đã có mã, hệ thống ghi nhận yêu cầu và chuyển Phòng Đào tạo kiểm tra. **Không** ghi vào SIS/LMS, không thay đổi danh sách lớp và không thông báo đăng ký đã hoàn tất.
+## Những gì kho dữ liệu hiện có thể và chưa thể xác nhận
 
-Thông điệp sau tiếp nhận: “Yêu cầu của bạn đã được chuyển Phòng Đào tạo để kiểm tra điều kiện và xử lý. Vui lòng theo dõi trạng thái hồ sơ.”
+Tài liệu này cho phép hệ thống giải thích phạm vi tiếp nhận, giới hạn dữ liệu và cách yêu cầu được chuyển xử lý. Hiện chưa có nguồn học kỳ đã được phê duyệt trong service dataset để kết luận:
 
-## Hỏi về bảng điểm
+- lịch mở/đóng đăng ký, hạn rút học phần hoặc lịch năm học hiện hành;
+- điều kiện tiên quyết, điều kiện dự thi, sức chứa lớp, chỗ còn trống, thời khóa biểu và xung đột lịch;
+- lịch thi, phòng thi, kết quả thi, điểm môn học, điểm tích lũy hoặc thứ hạng;
+- thủ tục chính thức, biểu mẫu, thời hạn và điều kiện xét bảo lưu, tiếp tục học, chuyển chương trình, công nhận tín chỉ hoặc tốt nghiệp;
+- hồ sơ học tập cụ thể, việc đã đăng ký thành công hay việc chứng từ đã được phát hành;
+- khoản phải đóng, miễn giảm học phí hoặc nghĩa vụ tài chính.
 
-Sinh viên có thể gửi yêu cầu bảng điểm và theo dõi trạng thái bằng mã hồ sơ mẫu. Hệ thống không có dữ liệu điểm và không xuất bảng điểm. Bản ghi `READY` chỉ có nghĩa là **hồ sơ mô phỏng** đã sẵn sàng cho bước xử lý của nhân viên.
+Không suy ra các dữ kiện này từ mã học phần (`CO3001`, `DADN`), tên chương trình, tài liệu của học kỳ khác hoặc kiến thức chung. Nếu người dùng cần kết luận cụ thể, tạo hồ sơ để Phòng Đào tạo xác minh nguồn hiện hành.
 
-## Yêu cầu bảng điểm
+## Hỏi đáp và tiếp nhận theo chủ đề
 
-Hệ thống tiếp nhận nội dung và chuyển nhân viên Phòng Đào tạo. Trạng thái yêu cầu là `WAITING_FOR_STAFF`; không trả tệp, điểm số hoặc lời xác nhận đã cấp bảng điểm.
+### Đăng ký, rút học phần và kế hoạch học tập
 
-## Tra trạng thái hồ sơ
+**Em muốn đăng ký/rút một học phần thì làm sao?**
+Ứng dụng có thể tiếp nhận yêu cầu kèm mã học phần để Phòng Đào tạo kiểm tra. Việc gửi yêu cầu không làm thay đổi đăng ký và không đồng nghĩa đã vào lớp hoặc rút môn thành công.
 
-Chỉ tra mã `DEMO-AA-REQ-*` trong dữ liệu mẫu và chỉ trả bản ghi của chính người gửi. Các trạng thái có thể hiển thị: `RECEIVED` (đã nhận), `PROCESSING` (đang xử lý), `NEEDS_INFO` (cần bổ sung), `READY` (sẵn sàng trong mô phỏng). Mã không tồn tại hoặc không thuộc người gửi phải chuyển nhân viên rà soát; không đoán trạng thái.
+**Môn CO3001/DADN có điều kiện gì, còn chỗ hay bị trùng lịch không?**
+Kho hiện chưa có điều kiện theo học kỳ, số chỗ hoặc thời khóa biểu đã duyệt. Phòng Đào tạo cần xác minh; hệ thống không kết luận chỉ từ mã môn.
 
-## Câu hỏi thường gặp
+**Em cần tư vấn học kỳ này nên đăng ký bao nhiêu tín chỉ?**
+Ứng dụng chưa có hồ sơ học tập, kế hoạch chương trình và quy tắc khối lượng học tập của từng sinh viên. Có thể tạo yêu cầu cho chuyên viên rà soát; không đưa lời khuyên cá nhân như một quyết định chính thức.
 
-Các câu trả lời dưới đây chỉ dùng trong phạm vi dữ liệu mô phỏng của policy này. Nếu câu hỏi cần quy định chính thức, dữ liệu theo học kỳ hoặc quyền quyết định của nhân viên, không suy đoán; chuyển Phòng Đào tạo hoặc hỏi bổ sung đúng thông tin còn thiếu.
+### Lịch học vụ, lịch học và lịch thi
 
-### Đăng ký môn, rút môn và điều kiện học phần
+**Khi nào mở đăng ký, hạn rút môn là ngày nào? Lịch thi khi nào?**
+Tài liệu không có lịch học vụ hiện hành. Hệ thống không lấy lịch từ kỳ trước; yêu cầu tra ngày cụ thể được chuyển Phòng Đào tạo xác minh.
 
-**Em đăng ký môn / rút môn như thế nào?**  
-Gửi mã học phần để Phòng Đào tạo tiếp nhận và kiểm tra. Hệ thống chỉ tạo yêu cầu; không tự đăng ký, rút môn hoặc xác nhận bạn đã được thêm vào lớp.
+**Lịch học/phòng học của em ở đâu?**
+Ứng dụng không kết nối thời khóa biểu hoặc hệ thống lớp. Có thể tiếp nhận mã học phần/lớp và chuyển chuyên viên kiểm tra; không tự tạo lịch hoặc xác nhận phòng học.
 
-**Khi nào mở đăng ký, hạn chót rút môn là ngày nào?**  
-Policy hiện không có lịch đăng ký theo học kỳ hoặc thời hạn đã được phê duyệt. Cần nhân viên Phòng Đào tạo xác nhận; không lấy ngày từ học kỳ khác để trả lời.
+### Bảng điểm, kết quả và giấy tờ
 
-**Em có đủ điều kiện học CO3001 / DADN không? Môn còn chỗ không, lịch có trùng không?**  
-Nguồn hiện có không chứa điều kiện tiên quyết, số chỗ, danh sách lớp hoặc thời khóa biểu theo học kỳ. Mã môn giúp định danh yêu cầu nhưng không đủ để kết luận; chuyển Phòng Đào tạo kiểm tra.
+**Em xin bảng điểm hoặc giấy xác nhận học vụ như thế nào?**
+Ứng dụng có thể ghi nhận loại giấy tờ cần xin và chuyển Phòng Đào tạo. Bản mô phỏng không xuất tệp, không xác nhận đã cấp và không chứa điểm thật.
 
-**Em đã gửi yêu cầu đăng ký rồi, vậy đã vào lớp chưa?**  
-Việc tiếp nhận yêu cầu không đồng nghĩa đăng ký thành công. Hệ thống không kết nối SIS/LMS; hãy tra mã hồ sơ của chính bạn hoặc chờ Phòng Đào tạo xác nhận.
+**Điểm môn học của em sai, em muốn phúc khảo thì sao?**
+Điểm môn học và quyết định chuyên môn thuộc giảng viên/khoa phụ trách. Nếu liên quan môn CO3001/DADN, yêu cầu được chuyển `faculty_cs`; không nhầm điểm môn học với điểm rèn luyện của `student_affairs`.
 
-### Bảng điểm và hồ sơ
+**Em muốn sửa thông tin trong hồ sơ đào tạo.**
+Hệ thống có thể tiếp nhận mô tả trường thông tin cần rà soát và chuyển Phòng Đào tạo. Không tự cập nhật hồ sơ chính thức; nhân viên xác minh quyền sở hữu và bằng chứng trước khi xử lý.
 
-**Xin bảng điểm ở đâu / cần làm gì?**  
-Gửi yêu cầu bảng điểm để Phòng Đào tạo tiếp nhận và xử lý. Bản demo không có điểm thật và không phát hành bảng điểm hay chứng từ.
+### Bảo lưu, tiếp tục học, chuyển chương trình và tín chỉ
 
-**Trạng thái `READY` nghĩa là đã cấp bảng điểm chưa?**  
-Không. `READY` chỉ mô tả hồ sơ mô phỏng đã sẵn sàng cho bước xử lý tiếp theo; nó không chứng minh bảng điểm đã được tạo hoặc cấp.
+**Em muốn bảo lưu/tạm dừng học, quay lại học hoặc chuyển chương trình.**
+Đây là nhóm yêu cầu thuộc tiến trình đào tạo. Tài liệu hiện không nêu điều kiện, biểu mẫu hoặc thời hạn chính thức; ứng dụng chỉ tạo hồ sơ cho chuyên viên xác nhận quy trình và giấy tờ cần thiết.
 
-**Em tra hồ sơ bằng cách nào?**  
-Cung cấp mã `DEMO-AA-REQ-*`. Chỉ được trả trạng thái của hồ sơ thuộc chính người gửi. Nếu thiếu mã, hỏi mã hồ sơ; nếu mã không tồn tại hoặc quyền sở hữu không xác minh được, không tiết lộ dữ liệu và chuyển nhân viên rà soát.
+**Em muốn công nhận tín chỉ hoặc kiểm tra mình đủ điều kiện tốt nghiệp chưa.**
+Chưa có bảng kết quả, kế hoạch chương trình hoặc quy tắc xét tốt nghiệp cá nhân để tự tính. Phòng Đào tạo cần rà soát hồ sơ và quyết định; không khẳng định số tín chỉ còn thiếu hay tình trạng tốt nghiệp.
 
-### Ngoài phạm vi policy này
+### Học phí, điểm rèn luyện và hỗ trợ sinh viên
 
-**Học phí, lịch thi, phúc khảo, điểm môn học hoặc giấy tờ khác thì sao?**  
-Tài liệu này không có quy định hoặc dữ liệu để kết luận những nội dung đó. Nếu Service Catalog có dịch vụ phù hợp thì định tuyến sang dịch vụ ấy; nếu không xác định được đầu mối, tạo yêu cầu cho `triage_desk`. Không tự tạo câu trả lời từ quy trình đăng ký học phần.
+**Học phí, miễn giảm, học bổng hoặc hỗ trợ sinh viên thì hỏi ở đâu?**
+Tài liệu Phòng Đào tạo không chứa dữ liệu tài chính hoặc quy trình hỗ trợ. Nếu catalog có đơn vị phụ trách tương ứng thì định tuyến sang đơn vị đó; nếu chưa có, chuyển `triage_desk` để xác định đầu mối. Không tự kết luận về số tiền hoặc điều kiện hưởng.
 
-**Em muốn khiếu nại hoặc xin ngoại lệ về điều kiện học phần.**  
-Không tự phê duyệt hoặc khẳng định được miễn điều kiện. Ghi nhận nội dung và chuyển người có thẩm quyền tại Phòng Đào tạo; hỏi bổ sung mã học phần hoặc thông tin hồ sơ nếu cần để tiếp nhận.
+**Điểm rèn luyện của em bao nhiêu?**
+Định tuyến đến `student_affairs`, không phải Phòng Đào tạo. Không tra cứu hoặc sửa điểm rèn luyện tự động.
 
-## Trách nhiệm và audit
+## Thông tin bổ sung và quyền riêng tư
 
-- Yêu cầu không rõ đích tiếp nhận đi vào `triage_desk`; yêu cầu đã xác định thuộc Phòng Đào tạo nhưng thiếu thẩm quyền hoặc nguồn policy thì giữ tại hàng Phòng Đào tạo.
-- Mỗi yêu cầu hiển thị đơn vị nhận, trạng thái, bước tiếp theo, SLA theo Service Catalog, request ID và phiên bản nguồn nếu có.
-- AI chỉ đề xuất intent và trích xuất dữ kiện. Backend kiểm tra catalog, quyền và kết quả mock trước khi trả lời.
-- Không dùng tên thật, mã số sinh viên thật, điểm thật hoặc thông tin định danh thật trong dữ liệu mẫu.
-- Nội dung trong tài liệu này chỉ phục vụ luồng trình diễn; trước khi dùng thực tế, đơn vị phụ trách phải thay bằng quy định đã phê duyệt và cập nhật phiên bản trong Service Catalog.
+- Chỉ hỏi dữ kiện tối thiểu cần cho loại yêu cầu: mã học phần cho yêu cầu liên quan học phần; mã hồ sơ khi tra một yêu cầu đã tạo; tên thủ tục nếu yêu cầu hành chính chưa rõ.
+- Không yêu cầu người dùng gửi mật khẩu, mã xác thực, CCCD hoặc dữ liệu nhạy cảm không cần thiết trong hội thoại.
+- Chỉ đọc hồ sơ khi backend xác minh hồ sơ thuộc actor hiện tại. Không tìm thấy hoặc không xác minh được quyền sở hữu thì không tiết lộ trạng thái; chuyển nhân viên rà soát.
+- Mã hồ sơ mẫu `DEMO-AA-REQ-*` và các trạng thái `RECEIVED`, `PROCESSING`, `NEEDS_INFO`, `READY` chỉ là dữ liệu trình diễn. `READY` không có nghĩa bảng điểm/chứng từ đã được cấp.
+
+## Thực hiện, thẩm quyền và audit
+
+- AI đề xuất service, intent và dữ kiện; backend kiểm tra catalog, quyền, trường bắt buộc và action allowlist.
+- Với yêu cầu chưa có connector đã duyệt, chỉ tạo hồ sơ chờ Phòng Đào tạo. Không ghi SIS/LMS, không sửa hồ sơ học tập, không đăng ký/rút môn và không phát hành giấy tờ.
+- Chỉ báo đã hoàn tất khi có thao tác được backend cho phép và đã xác minh kết quả. Trạng thái tiếp nhận không phải kết quả nghiệp vụ.
+- Hồ sơ lưu đơn vị nhận, trạng thái, bước tiếp theo, SLA catalog, request ID, căn cứ/trích dẫn và phiên bản policy nếu có.
+- Toàn bộ nội dung là mô phỏng. Trước khi dùng thật, Phòng Đào tạo phải thay nội dung bằng quy định được phê duyệt và cập nhật phiên bản trong Service Catalog.

@@ -2,7 +2,6 @@
 
 import json
 import re
-import unicodedata
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -22,7 +21,7 @@ from app.services.audit import add_audit_event
 from app.services.ids import new_id
 
 DATA_ROOT = Path(__file__).resolve().parents[3] / "data"
-SLOT_KEYS = {"group_id", "member_ref", "record_id", "time_slot", "course_code", "topic"}
+SLOT_KEYS = {"group_id", "member_ref", "record_id", "time_slot", "course_code", "semester", "topic"}
 CLINIC_SAFETY_MESSAGE = (
     "Nếu bạn cần hỗ trợ y tế khẩn cấp, hãy liên hệ ngay cơ sở y tế "
     "hoặc dịch vụ cấp cứu phù hợp tại nơi bạn đang ở."
@@ -251,7 +250,14 @@ async def _advance(session: AsyncSession, item: ServiceRequest, provider: AIProv
     if item.missing_fields:
         item.status = "NEEDS_INFO"
         item.reason_code = "MISSING_REQUIRED_INFORMATION"
-        item.result = {"next_step": f"Bổ sung: {', '.join(item.missing_fields)}"}
+        if item.service_id == "academic_affairs" and item.intent == "academic_admin_request":
+            question = "Bạn muốn Phòng Đào tạo hỗ trợ thủ tục học vụ nào? Ví dụ: bảo lưu/tiếp tục học, điều chỉnh hồ sơ, công nhận tín chỉ hoặc rà soát tốt nghiệp."
+            item.result = {"clarifying_question": question, "next_step": question}
+        elif item.service_id == "academic_affairs" and item.intent == "academic_data_check":
+            question = "Bạn cần tra hoặc xác minh thông tin học vụ nào? Nếu có, hãy nêu học phần, hồ sơ hoặc học kỳ liên quan."
+            item.result = {"clarifying_question": question, "next_step": question}
+        else:
+            item.result = {"next_step": f"Bổ sung: {', '.join(item.missing_fields)}"}
         return
     if item.service_id == "triage_desk":
         item.status = "WAITING_FOR_STAFF"
@@ -307,6 +313,43 @@ async def _advance(session: AsyncSession, item: ServiceRequest, provider: AIProv
                 "record": record, "action": "read_record", "verified": True,
                 "data_label": "DỮ LIỆU GIẢ LẬP",
             }
+        return
+    if item.service_id == "student_affairs" and item.intent in (
+        "conduct_score_lookup", "conduct_score_review"
+    ):
+        if "create_case" not in service["allowed_actions"]:
+            item.status = "WAITING_FOR_STAFF"
+            item.reason_code = "MANUAL_REVIEW_REQUIRED"
+            item.result = {"next_step": "Phòng Công tác Sinh viên tiếp nhận yêu cầu."}
+            return
+        item.status = "WAITING_FOR_STAFF"
+        item.reason_code = "MANUAL_REVIEW_REQUIRED"
+        item.result = {
+            "message": "Đã tiếp nhận yêu cầu về kết quả rèn luyện để nhân viên kiểm tra.",
+            "next_step": "Phòng Công tác Sinh viên xác minh dữ liệu; hệ thống không tra hoặc sửa điểm tự động.",
+            "data_label": "DỮ LIỆU GIẢ LẬP",
+        }
+        return
+    if item.service_id == "academic_affairs" and item.intent == "academic_data_check":
+        item.status = "WAITING_FOR_STAFF"
+        item.reason_code = "POLICY_SOURCE_UNAVAILABLE"
+        item.result = {
+            "message": "Đã ghi nhận câu hỏi cần dữ liệu học vụ hiện hành hoặc hồ sơ cá nhân.",
+            "next_step": "Chuyên viên Phòng Đào tạo xác minh nguồn theo học kỳ hoặc hồ sơ có thẩm quyền rồi phản hồi.",
+        }
+        return
+    if item.service_id == "academic_affairs" and item.intent == "academic_admin_request":
+        if "create_case" not in service["allowed_actions"]:
+            item.status = "WAITING_FOR_STAFF"
+            item.reason_code = "MANUAL_REVIEW_REQUIRED"
+            item.result = {"next_step": "Phòng Đào tạo tiếp nhận và xác minh yêu cầu."}
+            return
+        item.status = "WAITING_FOR_STAFF"
+        item.reason_code = "MANUAL_REVIEW_REQUIRED"
+        item.result = {
+            "message": "Đã tiếp nhận yêu cầu hành chính học vụ và chuyển Phòng Đào tạo.",
+            "next_step": "Chuyên viên Phòng Đào tạo xác minh quy trình, thông tin cần bổ sung và thẩm quyền xử lý.",
+        }
         return
     rubric_question = (
         item.service_id == "faculty_cs"
@@ -382,23 +425,6 @@ async def _advance(session: AsyncSession, item: ServiceRequest, provider: AIProv
             source_document = documents[citations[0]["document_id"]]
             item.policy_source = source_document.source_path
             item.policy_version = source_document.version
-        if item.service_id == "academic_affairs" and any(
-            term in item.text.casefold()
-            for term in (
-                "điều kiện tiên quyết", "điều kiện học", "được đăng ký không",
-                "đăng ký được không", "còn chỗ", "còn suất", "chỗ trống",
-                "số chỗ", "sức chứa", "lịch học", "trùng lịch",
-                "đủ điều kiện", "hạn đăng ký",
-            )
-        ):
-            item.status = "WAITING_FOR_STAFF"
-            item.reason_code = "POLICY_SOURCE_UNAVAILABLE"
-            item.result = {
-                "message": "Kho tài liệu hiện chưa có dữ liệu đã duyệt để kết luận điều kiện học phần này.",
-                "next_step": "Phòng Đào tạo kiểm tra thông tin học phần và phản hồi.",
-                "citations": citations,
-            }
-            return
         if (
             route == Route.ANSWER.value
             and decision.answer
@@ -438,6 +464,8 @@ async def _advance(session: AsyncSession, item: ServiceRequest, provider: AIProv
                 next_step = "Giảng viên phụ trách xem xét và quyết định."
             elif item.service_id == "clinic":
                 next_step = "Nhân viên Trạm Y tế xem xét và phản hồi."
+            elif item.service_id == "student_affairs":
+                next_step = "Nhân viên Phòng Công tác Sinh viên xem xét và phản hồi."
             else:
                 next_step = "Chuyên viên Phòng Đào tạo xem xét và phản hồi."
             item.result = {
@@ -501,19 +529,6 @@ async def create_service_request(
     proposed_service_id, proposed_intent = service_id, intent
     service = _service(service_id)
     reason = None
-    # An explicit registration action belongs to Academic Affairs. A question
-    # about the registration process remains a policy query for service RAG.
-    normalized_text = unicodedata.normalize("NFD", safe_text.casefold())
-    normalized_text = "".join(
-        char for char in normalized_text if unicodedata.category(char) != "Mn"
-    ).replace("đ", "d")
-    explicit_registration = service_id == "academic_affairs" and any(
-        phrase in normalized_text
-        for phrase in ("em muon dang ky", "dang ky giup em", "dang ky cho em", "em xin dang ky")
-    )
-    if explicit_registration:
-        service_id, intent = "academic_affairs", "course_registration"
-        service = _service(service_id)
     if service is None or intent not in service["supported_intents"]:
         service_id, intent, reason = "triage_desk", "manual_review", "SERVICE_NOT_YET_CATALOGED"
     elif confidence < 0.75:
@@ -522,6 +537,7 @@ async def create_service_request(
         "add_group_member",
         "course_registration",
         "transcript_request",
+        "academic_admin_request",
         "appointment_request",
         "appointment_cancel",
     } and actor.role != service.get("required_role"):
@@ -584,6 +600,7 @@ async def get_service_request(
             and item.service_id in ("academic_affairs", "triage_desk")
         )
         or (actor.role == ActorRole.CLINIC and item.service_id == "clinic")
+        or (actor.role == ActorRole.STUDENT_AFFAIRS and item.service_id == "student_affairs")
     )
     if not owns_request and not assigned_department:
         raise AppError("SERVICE_REQUEST_NOT_AUTHORIZED", "Không có quyền xem yêu cầu.", status_code=403)
@@ -776,6 +793,7 @@ async def review_service_request(
             and item.service_id in ("academic_affairs", "triage_desk")
         )
         or (actor.role == ActorRole.CLINIC and item.service_id == "clinic")
+        or (actor.role == ActorRole.STUDENT_AFFAIRS and item.service_id == "student_affairs")
     )
     if not assigned_department:
         raise AppError("ROLE_NOT_AUTHORIZED", "Tài khoản không phụ trách hàng đợi này.", status_code=403)

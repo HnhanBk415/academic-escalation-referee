@@ -72,6 +72,8 @@ async def list_items(
         query = query.where(ServiceRequest.service_id.in_(("academic_affairs", "triage_desk")))
     elif current.role == ActorRole.CLINIC:
         query = query.where(ServiceRequest.service_id == "clinic")
+    elif current.role == ActorRole.STUDENT_AFFAIRS:
+        query = query.where(ServiceRequest.service_id == "student_affairs")
     else:
         query = query.where(ServiceRequest.actor_id == current.id)
     if status:

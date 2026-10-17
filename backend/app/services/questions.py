@@ -24,6 +24,7 @@ from app.core.enums import (
     UncertaintyType,
 )
 from app.core.errors import AppError
+from app.core.privacy import redact_text
 from app.core.policy_topics import (
     canonical_policy_topic,
     infer_policy_topic,
@@ -547,6 +548,9 @@ async def submit_question(
     parent_question_id: str | None = None,
     clarification_round: int = 0,
 ) -> QuestionResponse:
+    # Redact before the question, audit event, retrieval query, or AI prompt is
+    # written or sent outside this intake boundary.
+    safe_text = redact_text(payload.text)
     actor = await session.get(Actor, payload.actor_id)
     if actor is None:
         raise AppError("ACTOR_NOT_FOUND", "Không tìm thấy người dùng.", status_code=404)
@@ -562,7 +566,7 @@ async def submit_question(
         actor_id=actor.id,
         group_id=group.id if group else None,
         course_id=course.id,
-        text=payload.text,
+        text=safe_text,
         status=QuestionStatus.SUBMITTED,
     )
     session.add(question)
@@ -574,7 +578,12 @@ async def submit_question(
         entity_type="question",
         entity_id=question.id,
         request_id=request_id,
-        input_snapshot=payload.model_dump(),
+        input_snapshot={
+            "actor_id": payload.actor_id,
+            "course_id": payload.course_id,
+            "group_id": payload.group_id,
+            "text": safe_text,
+        },
     )
     add_audit_event(
         session,
@@ -610,7 +619,7 @@ async def submit_question(
     evidence = await retrieve_evidence(
         session,
         provider=provider,
-        question=payload.text,
+        question=safe_text,
         course_id=course.id,
     )
     exceptions = await _load_exceptions(
@@ -625,7 +634,7 @@ async def submit_question(
         group_id=group.id if group else None,
         course_id=course.id,
     )
-    selected_policy_update = _applicable_policy_update(payload.text, policy_updates)
+    selected_policy_update = _applicable_policy_update(safe_text, policy_updates)
     update_document_ids = {
         str(update["source_document_id"])
         for update in policy_updates
@@ -672,7 +681,7 @@ async def submit_question(
     await session.commit()
 
     decision = _guardrail_decision(
-        payload.text,
+        safe_text,
         has_group=group is not None,
         has_conflicting_evidence=False,
     )
@@ -680,13 +689,13 @@ async def submit_question(
         # A lecturer-approved scoped exception is a hard precedence rule; the
         # provider receives it too, but cannot accidentally answer from a
         # newer/older document instead.
-        decision = _approved_exception_decision(payload.text, exceptions, evidence)
+        decision = _approved_exception_decision(safe_text, exceptions, evidence)
     if decision is None and selected_policy_update:
-        if not _is_waiver_request(payload.text):
+        if not _is_waiver_request(safe_text):
             decision = _policy_update_decision(selected_policy_update, evidence)
     if decision is None and has_conflicting_evidence:
         decision = _guardrail_decision(
-            payload.text,
+            safe_text,
             has_group=group is not None,
             has_conflicting_evidence=True,
         )
@@ -697,7 +706,7 @@ async def submit_question(
     if decision is None:
         try:
             decision = await provider.decide(
-                payload.text,
+                safe_text,
                 {
                     "actor_id": actor.id,
                     "group_id": group.id if group else None,
@@ -732,7 +741,7 @@ async def submit_question(
         decision = RefereeDecision(
             route=Route.ESCALATE,
             policy_coverage=PolicyCoverage.UNRESOLVED,
-            policy_topic=resolve_policy_topic(payload.text, decision.policy_topic),
+                policy_topic=resolve_policy_topic(safe_text, decision.policy_topic),
             uncertainty_type=UncertaintyType.MISSING_FACT,
             reason_code="CLARIFICATION_LIMIT_REACHED",
             escalation_target=EscalationTarget.COURSE_LECTURER,
@@ -743,11 +752,11 @@ async def submit_question(
             confidence=0,
         )
 
-    if _is_waiver_request(payload.text) and decision.route == Route.ANSWER:
+    if _is_waiver_request(safe_text) and decision.route == Route.ANSWER:
         decision = RefereeDecision(
             route=Route.ESCALATE,
             policy_coverage=PolicyCoverage.REQUESTS_WAIVER,
-            policy_topic=resolve_policy_topic(payload.text, decision.policy_topic),
+            policy_topic=resolve_policy_topic(safe_text, decision.policy_topic),
             uncertainty_type=UncertaintyType.AUTHORITY_REQUIRED,
             reason_code="STUDENT_REQUESTS_WAIVER",
             escalation_target=EscalationTarget.COURSE_LECTURER,
@@ -755,7 +764,7 @@ async def submit_question(
             confidence=1,
         )
 
-    decision.policy_topic = resolve_policy_topic(payload.text, decision.policy_topic)
+    decision.policy_topic = resolve_policy_topic(safe_text, decision.policy_topic)
     eligible_exceptions = {item["id"]: item for item in exceptions}
     if decision.policy_coverage == PolicyCoverage.APPLICABLE_EXCEPTION:
         exception = eligible_exceptions.get(decision.applied_exception_id or "")
@@ -772,14 +781,14 @@ async def submit_question(
             == expected_scope_ids.get(str(exception.get("scope_type")))
             and (
                 canonical_policy_topic(str(exception.get("policy_topic"))) == "GENERAL"
-                or infer_policy_topic(payload.text) == decision.policy_topic
+                or infer_policy_topic(safe_text) == decision.policy_topic
             )
         )
         if not exception_is_valid:
             ai_failed = True
             ai_failure_snapshot = {"failure_type": "INVALID_APPLIED_EXCEPTION_REFERENCE"}
             decision = _safe_ai_failure("INVALID_APPLIED_EXCEPTION_REFERENCE")
-            decision.policy_topic = resolve_policy_topic(payload.text, decision.policy_topic)
+            decision.policy_topic = resolve_policy_topic(safe_text, decision.policy_topic)
         else:
             question.applied_exception_id = str(decision.applied_exception_id)
     duration_ms = round((perf_counter() - started) * 1000)
@@ -819,7 +828,7 @@ async def submit_question(
         # Every request requiring a human decision belongs to the demo lecturer.
         target = EscalationTarget.COURSE_LECTURER
         assigned_reviewer_id = "lecturer-01"
-        ai_summary = f"Yêu cầu ngoại lệ môn học (chuyển Giảng viên): {payload.text}"
+        ai_summary = f"Yêu cầu ngoại lệ môn học (chuyển Giảng viên): {safe_text}"
         decision_question = decision.decision_question or "Giảng viên có phê duyệt không?"
         question.escalation_target = target.value
         case = EscalationCase(

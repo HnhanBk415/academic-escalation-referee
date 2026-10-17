@@ -14,6 +14,7 @@ export interface WorkspaceRailProps {
   pendingCount?: number;
   queueCount?: number;
   onToggleCollapse?: () => void;
+  serviceStaff?: boolean;
 }
 
 interface RailItem {
@@ -28,6 +29,7 @@ export function WorkspaceRail({
   pendingCount = 0,
   queueCount = 0,
   onToggleCollapse,
+  serviceStaff = false,
 }: WorkspaceRailProps) {
   const { feature: currentFeature } = useParams<{ feature: string }>();
 
@@ -45,24 +47,21 @@ export function WorkspaceRail({
     },
   ];
 
-  const lecturerItems: RailItem[] = [
-    {
-      feature: "inbox",
-      label: "Câu hỏi cần duyệt",
-      icon: Inbox,
-      badge: queueCount > 0 ? queueCount : undefined,
-    },
-    {
-      feature: "exceptions",
-      label: "Ngoại lệ đã duyệt",
-      icon: Scale,
-    },
-    {
-      feature: "documents",
-      label: "Tải quy chế",
-      icon: FileText,
-    },
-  ];
+  const lecturerItems: RailItem[] = serviceStaff
+    ? [
+        { feature: "service-requests", label: "Hộp thư dịch vụ", icon: Inbox },
+      ]
+    : [
+        {
+          feature: "inbox",
+          label: "Câu hỏi cần duyệt",
+          icon: Inbox,
+          badge: queueCount > 0 ? queueCount : undefined,
+        },
+        { feature: "service-requests", label: "Yêu cầu dịch vụ", icon: ClipboardList },
+        { feature: "exceptions", label: "Ngoại lệ đã duyệt", icon: Scale },
+        { feature: "documents", label: "Tải quy chế", icon: FileText },
+      ];
 
   const items = role === "student" ? studentItems : lecturerItems;
 

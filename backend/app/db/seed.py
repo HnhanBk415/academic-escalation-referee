@@ -84,6 +84,22 @@ async def seed_demo(session: AsyncSession, provider: AIProvider | None = None) -
             existing.display_name = item.get("display_name", actor_id)
             existing.role = ActorRole.CLINIC
 
+    # 4. Seed staff for the student affairs service queue.
+    for item in cfg.get("student_affairs_staff", []):
+        actor_id = item["id"]
+        existing = await session.get(Actor, actor_id)
+        if existing is None:
+            session.add(
+                Actor(
+                    id=actor_id,
+                    display_name=item.get("display_name", actor_id),
+                    role=ActorRole.STUDENT_AFFAIRS,
+                )
+            )
+        else:
+            existing.display_name = item.get("display_name", actor_id)
+            existing.role = ActorRole.STUDENT_AFFAIRS
+
     # 4. Seed Students from config
     student_ids: list[str] = []
     for item in cfg.get("students", []):

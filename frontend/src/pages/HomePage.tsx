@@ -14,7 +14,7 @@ import {
 import type { DemoCatalog } from "../types";
 
 type Role = "student" | "lecturer" | "academic_affairs";
-type Destination = "submit" | "history" | "inbox" | "exceptions" | "operations" | "audit";
+type Destination = "workspace" | "history" | "inbox" | "exceptions" | "operations" | "audit";
 
 interface HomePageProps {
   role: Role;
@@ -71,10 +71,10 @@ export function HomePage({
                 <button
                   type="button"
                   data-tour="home-hero"
-                  onClick={() => onNavigate("submit")}
+                  onClick={() => onNavigate("workspace")}
                   className="inline-flex items-center gap-2 px-7 py-3.5 text-base font-bold text-white bg-ruby-800 hover:bg-ruby-900 rounded-full shadow-ruby-glow transition-all transform hover:scale-105 cursor-pointer"
                 >
-                  <span>Gửi yêu cầu phân tích</span>
+                  <span>Mở không gian làm việc</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       d="M14 5l7 7m0 0l-7 7m7-7H3"
@@ -394,9 +394,9 @@ export function HomePage({
                       <FileText size={22} />
                     </div>
                     <div>
-                      <h4 className="text-base font-bold text-stone-900 mb-1">Đề nghị yêu cầu</h4>
+                      <h4 className="text-base font-bold text-stone-900 mb-1">Tiếp nhận trong không gian làm việc</h4>
                       <p className="text-sm text-stone-600 leading-relaxed font-normal">
-                        Gửi yêu cầu học vụ, tự động xử lý theo quy chế hoặc chuyển giảng viên xem xét minh bạch và nhanh chóng.
+                        Sinh viên mô tả nhu cầu trong không gian làm việc; hệ thống phân luồng, hỏi bổ sung và theo dõi kết quả tại đó.
                       </p>
                     </div>
                   </div>
@@ -678,11 +678,11 @@ export function HomePage({
               <div className="lg:col-span-5 flex flex-col sm:w-80 lg:w-full lg:max-w-xs lg:ml-auto">
                 <button
                   type="button"
-                  onClick={() => onNavigate("submit")}
+                  onClick={() => onNavigate("workspace")}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-white hover:bg-stone-50 text-ruby-800 font-bold text-sm shadow-md transition-all transform hover:scale-[1.02] cursor-pointer"
                 >
                   <span className="text-xs">▷</span>
-                  <span>Gửi yêu cầu thử nghiệm</span>
+                  <span>Mở không gian làm việc</span>
                 </button>
               </div>
             </div>

@@ -68,6 +68,26 @@ export interface QuestionResponse {
   actor_id?: string | null;
 }
 
+export interface ServiceRequestResponse {
+  id: string;
+  request_id: string;
+  actor_id: string;
+  service_id: string;
+  organization_id: string;
+  intent: string;
+  status: string;
+  reason_code: string | null;
+  confidence: number;
+  slots: Record<string, string>;
+  missing_fields: string[];
+  result: Record<string, unknown>;
+  policy_source: string | null;
+  policy_version: string | null;
+  sla_due_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CaseSummary {
   id: string;
   question_id: string;

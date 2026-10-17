@@ -21,8 +21,14 @@ class FakeProvider:
         folded = folded.replace("đ", "d")
         asks_policy = any(word in folded for word in ("quy dinh", "thu tuc", "quy trinh", "dieu kien", "cach "))
 
-        if any(word in folded for word in ("ren luyen", "hoc bong", "cong tac sinh vien")):
-            service_id, intent = "student_affairs", "policy_faq"
+        if any(word in folded for word in ("ren luyen", "hoc bong", "cong tac sinh vien", "pctsv")):
+            service_id = "student_affairs"
+            intent = (
+                "request_status" if any(word in folded for word in ("trang thai", "ho so")) else
+                "conduct_score_review" if any(word in folded for word in ("sai", "thieu", "khieu nai", "phuc tra", "dieu chinh")) and "ren luyen" in folded else
+                "conduct_score_lookup" if "ren luyen" in folded and any(word in folded for word in ("diem", "ket qua", "bao nhieu", "tra cuu")) else
+                "policy_faq"
+            )
         elif any(word in folded for word in ("tram y te", "y te", "lich kham", "kham benh")):
             service_id = "clinic"
             intent = (
@@ -60,12 +66,15 @@ class FakeProvider:
         for key, pattern in (
             ("group_id", r"\bdadn-group-[a-z0-9_-]+\b"),
             ("member_ref", r"\bdemo-student-\d+\b"),
-            ("record_id", r"\bDEMO-(?:AA-REQ|CLINIC-APT)-\d+\b"),
+            ("record_id", r"\bDEMO-(?:AA-REQ|CLINIC-APT|SA-REQ)-\d+\b"),
             ("course_code", r"\b(?:DADN|CO\d{4})\b"),
         ):
             match = re.search(pattern, text, flags=re.IGNORECASE)
             if match:
                 slots[key] = match.group(0).upper() if key in ("record_id", "course_code") else match.group(0)
+        semester = re.search(r"(?:hk|học\s*kỳ|học\s*ki)\s*[-:]?\s*(\d{2,4})", text, flags=re.IGNORECASE)
+        if semester:
+            slots["semester"] = semester.group(1)
         time = re.search(r"\b\d{1,2}:\d{2}(?:\s*[–-]\s*\d{1,2}:\d{2})?\b", text)
         if time:
             slots["time_slot"] = time.group(0)

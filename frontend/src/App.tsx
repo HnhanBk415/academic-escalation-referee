@@ -84,7 +84,7 @@ function resolveSelectedGroup(
 }
 
 function getInitialAccount(): DemoAccount {
-  let acc = DEMO_ACCOUNTS[0]; // student-a1 by default
+  let acc = DEMO_ACCOUNTS[0]; // DADN demo student by default
   try {
     const savedId = localStorage.getItem(ACCOUNT_STORAGE_KEY);
     if (savedId) {
@@ -98,6 +98,11 @@ function getInitialAccount(): DemoAccount {
   return acc;
 }
 
+function getDefaultWorkspaceFeature(account: DemoAccount): string {
+  if (account.role === "student") return "ask";
+  return account.serviceStaff ? "service-requests" : "inbox";
+}
+
 export function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -108,7 +113,6 @@ export function App() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>(() =>
     resolveSelectedGroup(currentAccount, currentAccount.courseId, null)
   );
-  const [selectedQuestionId, setSelectedQuestionId] = useState<string | undefined>();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [queueCount, setQueueCount] = useState<number>(0);
   const [ai, setAi] = useState<AIHealth | null>(null);
@@ -231,8 +235,7 @@ export function App() {
     setSelectedGroupId(resolvedGroup);
     saveGroupForAccountCourse(account.id, targetCourseId, resolvedGroup);
 
-    const defaultFeature = account.role === "student" ? "ask" : "inbox";
-    navigate(`/workspace/${defaultFeature}`);
+    navigate(`/workspace/${getDefaultWorkspaceFeature(account)}`);
     void refreshCounts();
   };
 
@@ -248,15 +251,14 @@ export function App() {
     saveGroupForAccountCourse(currentAccount.id, selectedCourseId, groupId);
   };
 
-  const handleQuestionSubmitted = (questionId: string) => {
-    setSelectedQuestionId(questionId);
+  const handleQuestionSubmitted = (_questionId: string) => {
     void refreshCounts();
   };
 
   const handleHomeNavigate = (destination: string) => {
-    if (destination === "submit") navigate("/workspace/ask");
+    if (destination === "workspace") navigate("/workspace");
     else if (destination === "history") navigate("/workspace/history");
-    else if (destination === "inbox") navigate("/workspace/inbox");
+    else if (destination === "inbox") navigate(currentAccount.serviceStaff ? "/workspace/service-requests" : "/workspace/inbox");
     else if (destination === "exceptions") navigate("/workspace/exceptions");
     else if (destination === "audit") navigate("/audit");
     else if (destination === "operations") navigate("/workspace/inbox");
@@ -284,6 +286,7 @@ export function App() {
         aiOnline={ai?.available ?? false}
         onSelectAccount={handleSelectAccount}
         activeGroupLabel={activeGroupLabel}
+        defaultWorkspaceFeature={getDefaultWorkspaceFeature(currentAccount)}
       />
 
       {/* Main Content View with Routes */}
@@ -317,11 +320,11 @@ export function App() {
                 selectedGroupId={selectedGroupId}
                 onSelectCourse={handleSelectCourse}
                 onSelectGroup={handleSelectGroup}
-                selectedQuestionId={selectedQuestionId}
                 onQuestionSubmitted={handleQuestionSubmitted}
                 onDecisionMade={refreshCounts}
                 pendingCount={pendingCount}
                 queueCount={queueCount}
+                serviceStaff={currentAccount.serviceStaff}
               />
             }
           />
@@ -336,11 +339,11 @@ export function App() {
                 selectedGroupId={selectedGroupId}
                 onSelectCourse={handleSelectCourse}
                 onSelectGroup={handleSelectGroup}
-                selectedQuestionId={selectedQuestionId}
                 onQuestionSubmitted={handleQuestionSubmitted}
                 onDecisionMade={refreshCounts}
                 pendingCount={pendingCount}
                 queueCount={queueCount}
+                serviceStaff={currentAccount.serviceStaff}
               />
             }
           />
@@ -348,7 +351,7 @@ export function App() {
             path="/workspace"
             element={
               <Navigate
-                to={`/workspace/${currentAccount.role === "student" ? "ask" : "inbox"}`}
+                to={`/workspace/${getDefaultWorkspaceFeature(currentAccount)}`}
                 replace
               />
             }

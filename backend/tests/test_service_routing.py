@@ -13,6 +13,7 @@ from app.models import (
     Question,
     ServiceRequest,
 )
+from app.schemas.service_routing import ServiceClassification
 
 STUDENT = {"X-Demo-Actor-ID": "demo-student-01"}
 LECTURER = {"X-Demo-Actor-ID": "lecturer-01"}
@@ -56,7 +57,7 @@ async def test_dadn_pdf_is_indexed_and_service_request_answers_rubric_with_citat
 async def test_catalog_route_clarification_and_staff_handoff(client):
     catalog = (await client.get("/api/v1/service-requests/catalog", headers=STUDENT)).json()
     assert {item["service_id"] for item in catalog} == {
-        "academic_affairs", "faculty_cs", "clinic", "triage_desk"
+        "academic_affairs", "faculty_cs", "clinic", "student_affairs", "triage_desk"
     }
 
     missing = await client.post(
@@ -92,10 +93,10 @@ async def test_catalog_route_clarification_and_staff_handoff(client):
 
     unknown = await client.post(
         "/api/v1/service-requests", headers=STUDENT,
-        json={"text": "Em cần hỏi về điểm rèn luyện"},
+        json={"text": "Em cần xin giấy xác nhận tạm trú"},
     )
     assert unknown.json()["service_id"] == "triage_desk"
-    assert unknown.json()["reason_code"] == "SERVICE_NOT_YET_CATALOGED"
+    assert unknown.json()["reason_code"] == "LOW_ROUTING_CONFIDENCE"
     assert unknown.json()["status"] == "WAITING_FOR_STAFF"
     handoff = await client.post(
         f"/api/v1/service-requests/{unknown.json()['id']}/handoff",
@@ -106,6 +107,109 @@ async def test_catalog_route_clarification_and_staff_handoff(client):
     assert handoff.json()["status"] == "FORWARDED"
     assert handoff.json()["service_id"] == "triage_desk"
     assert handoff.json()["result"]["destination_name"] == "Phòng Công tác Sinh viên"
+
+
+@pytest.mark.asyncio
+async def test_broad_academic_affairs_intents_are_received_by_staff(client):
+    class FixedRouteProvider(FakeProvider):
+        def __init__(self, intent, topic=None):
+            self.intent = intent
+            self.topic = topic
+
+        async def classify_service(self, text, catalog):
+            slots = {"topic": self.topic} if self.topic else {}
+            return ServiceClassification(
+                service_id="academic_affairs", intent=self.intent, slots=slots, confidence=0.99
+            )
+
+    try:
+        for intent, topic, expected_reason in (
+            ("academic_admin_request", "bảo lưu việc học", "MANUAL_REVIEW_REQUIRED"),
+            ("academic_data_check", "lịch thi học kỳ hiện hành", "POLICY_SOURCE_UNAVAILABLE"),
+        ):
+            app.dependency_overrides[get_ai_provider] = lambda intent=intent, topic=topic: FixedRouteProvider(intent, topic)
+            response = await client.post(
+                "/api/v1/service-requests", headers=STUDENT,
+                json={"text": "Tôi cần Phòng Đào tạo hỗ trợ việc học vụ này"},
+            )
+            assert response.status_code == 201, response.text
+            body = response.json()
+            assert body["service_id"] == "academic_affairs"
+            assert body["intent"] == intent
+            assert body["status"] == "WAITING_FOR_STAFF"
+            assert body["reason_code"] == expected_reason
+            assert body["policy_version"] == "AA-POLICY-v4"
+
+        app.dependency_overrides[get_ai_provider] = lambda: FixedRouteProvider("academic_admin_request")
+        missing = await client.post(
+            "/api/v1/service-requests", headers=STUDENT,
+            json={"text": "Tôi cần Phòng Đào tạo hỗ trợ việc học vụ này"},
+        )
+        assert missing.json()["status"] == "NEEDS_INFO"
+        assert missing.json()["missing_fields"] == ["topic"]
+        assert "thủ tục học vụ nào" in missing.json()["result"]["clarifying_question"]
+    finally:
+        app.dependency_overrides.pop(get_ai_provider, None)
+
+    policy_faq = await client.post(
+        "/api/v1/service-requests", headers=STUDENT,
+        json={"text": "Thủ tục xin bảng điểm học vụ như thế nào?"},
+    )
+    assert policy_faq.status_code == 201, policy_faq.text
+    assert policy_faq.json()["service_id"] == "academic_affairs"
+    assert policy_faq.json()["intent"] == "policy_faq"
+    assert policy_faq.json()["status"] == "ANSWERED"
+    assert policy_faq.json()["result"]["citations"]
+    assert policy_faq.json()["policy_version"] == "AA-POLICY-v4"
+
+
+@pytest.mark.asyncio
+async def test_student_affairs_conduct_score_routes_to_its_own_staff_queue(client):
+    lookup = await client.post(
+        "/api/v1/service-requests", headers=STUDENT,
+        json={"text": "Cho em hỏi kết quả rèn luyện của em trong học kỳ 261"},
+    )
+    assert lookup.status_code == 201, lookup.text
+    body = lookup.json()
+    assert body["service_id"] == "student_affairs"
+    assert body["organization_id"] == "student_affairs"
+    assert body["intent"] == "conduct_score_lookup"
+    assert body["status"] == "WAITING_FOR_STAFF"
+    assert body["reason_code"] == "MANUAL_REVIEW_REQUIRED"
+    assert body["slots"]["semester"] == "261"
+    assert "không tra hoặc sửa điểm tự động" in body["result"]["next_step"]
+
+    staff_queue = await client.get(
+        "/api/v1/service-requests",
+        headers={"X-Demo-Actor-ID": "student-affairs-01"},
+    )
+    assert staff_queue.status_code == 200
+    assert any(item["id"] == body["id"] for item in staff_queue.json())
+
+    reviewed = await client.post(
+        f"/api/v1/service-requests/{body['id']}/review",
+        headers={"X-Demo-Actor-ID": "student-affairs-01"},
+        json={"message": "Đã nhận để kiểm tra theo học kỳ được cung cấp.", "outcome": "wait"},
+    )
+    assert reviewed.status_code == 200, reviewed.text
+    assert reviewed.json()["service_id"] == "student_affairs"
+    assert reviewed.json()["status"] == "WAITING_FOR_STAFF"
+
+    missing_semester = await client.post(
+        "/api/v1/service-requests", headers=STUDENT,
+        json={"text": "Em muốn hỏi điểm rèn luyện hiện tại của em"},
+    )
+    assert missing_semester.json()["service_id"] == "student_affairs"
+    assert missing_semester.json()["status"] == "NEEDS_INFO"
+    assert missing_semester.json()["missing_fields"] == ["semester"]
+    clarified = await client.post(
+        f"/api/v1/service-requests/{missing_semester.json()['id']}/clarify",
+        headers=STUDENT,
+        json={"text": "Học kỳ 261"},
+    )
+    assert clarified.status_code == 200, clarified.text
+    assert clarified.json()["service_id"] == "student_affairs"
+    assert clarified.json()["status"] == "WAITING_FOR_STAFF"
 
 
 @pytest.mark.asyncio
