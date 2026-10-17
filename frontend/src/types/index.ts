@@ -72,6 +72,7 @@ export interface ServiceRequestResponse {
   id: string;
   request_id: string;
   actor_id: string;
+  text: string;
   service_id: string;
   organization_id: string;
   intent: string;

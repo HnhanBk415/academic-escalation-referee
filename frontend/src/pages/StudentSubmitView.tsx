@@ -13,22 +13,17 @@ import {
   AlertTriangle,
   ArrowRight,
   ShieldAlert,
-  ShieldCheck,
-  XCircle,
   BookOpen,
   Sparkles,
   Building2,
-  UserCheck,
   HelpCircle,
   Layers,
   MessageSquare,
   FileCheck2,
   Flag,
   Users,
-  CheckCircle2,
 } from "lucide-react";
-import { DEMO_ACCOUNTS } from "../components/AccountSwitcher";
-import type { Citation, DemoCatalog, QuestionResponse } from "../types";
+import type { Citation, DemoCatalog, QuestionResponse, ServiceRequestResponse } from "../types";
 
 interface StudentSubmitViewProps {
   actorId?: string;
@@ -88,23 +83,6 @@ const QUICK_CHIPS: QuickChip[] = [
   },
 ];
 
-// Dữ liệu thành viên nhóm theo dữ liệu đồ án
-const KNOWN_GROUP_ROSTERS: Record<string, { members: string[]; maxLimit: number }> = {
-  "group-a": { members: ["student-a1 (Trưởng nhóm)"], maxLimit: 5 },
-  "group-b": { members: ["student-b1 (Trưởng nhóm)"], maxLimit: 5 },
-  "dadn-group-a": { members: ["student-dadn-a1 (Trưởng nhóm)", "demo-student-01"], maxLimit: 5 },
-  "dadn-group-b": {
-    members: [
-      "student-dadn-b1 (Trưởng nhóm)",
-      "demo-student-03",
-      "demo-student-04",
-      "demo-student-05",
-      "demo-student-06",
-    ],
-    maxLimit: 5,
-  },
-};
-
 export function StudentSubmitView({
   actorId,
   catalog,
@@ -135,19 +113,11 @@ export function StudentSubmitView({
 
   // Group membership flow state
   const [needsCourseClarification, setNeedsCourseClarification] = useState(false);
-  const [isAddMemberIntent, setIsAddMemberIntent] = useState(false);
-  const [memberRefInput, setMemberRefInput] = useState("student-b1");
-  const [autoAddSuccess, setAutoAddSuccess] = useState<{
-    courseCode: string;
-    groupName: string;
-    memberRef: string;
-  } | null>(null);
-  const [escalateToLecturer, setEscalateToLecturer] = useState<{
-    courseCode: string;
-    groupName: string;
-    memberRef: string;
-    reason: string;
-  } | null>(null);
+  const [memberRefInput, setMemberRefInput] = useState("");
+  const [serviceClarificationText, setServiceClarificationText] = useState("");
+  const [serviceRequestResult, setServiceRequestResult] = useState<ServiceRequestResponse | null>(null);
+  const [serviceConfirmBusy, setServiceConfirmBusy] = useState(false);
+  const addMemberIdempotencyKey = useRef<string | null>(null);
 
   // Standard clarification states
   const [clarificationText, setClarificationText] = useState("");
@@ -264,55 +234,19 @@ export function StudentSubmitView({
     return null;
   };
 
-  // Tự động nhận diện sĩ số và thành viên nhóm từ dữ liệu nhóm hoặc ngữ cảnh câu hỏi
-  const getActiveGroupRoster = () => {
-    const isExceededQuery =
-      query.includes("5 bạn") ||
-      query.includes("5 người") ||
-      query.includes("thứ 6") ||
-      query.includes("6 bạn");
-
-    if (isExceededQuery) {
-      return {
-        currentCount: 5,
-        maxLimit: 5,
-        members: [
-          "student-dadn-b1 (Trưởng nhóm)",
-          "demo-student-03",
-          "demo-student-04",
-          "demo-student-05",
-          "demo-student-06",
-        ],
-        isExceeded: true,
-      };
-    }
-
-    const roster = KNOWN_GROUP_ROSTERS[effectiveGroupId];
-    if (roster) {
-      return {
-        currentCount: roster.members.length,
-        maxLimit: roster.maxLimit,
-        members: roster.members,
-        isExceeded: roster.members.length >= roster.maxLimit,
-      };
-    }
-
-    return {
-      currentCount: 1,
-      maxLimit: 5,
-      members: ["User (Trưởng nhóm)"],
-      isExceeded: false,
-    };
-  };
-
   // Reset chat
   const handleResetChat = () => {
     setQuery("");
     setResult(null);
     setCatalogResult(null);
     setNeedsCourseClarification(false);
-    setAutoAddSuccess(null);
-    setEscalateToLecturer(null);
+    setMemberRefInput("");
+    setServiceClarificationText("");
+    setServiceRequestResult(null);
+    setNeedsCourseClarification(false);
+    setMemberRefInput("");
+    setServiceClarificationText("");
+    addMemberIdempotencyKey.current = null;
     setError("");
     setActiveStepIndex(0);
     setConversationTurns([]);
@@ -328,11 +262,11 @@ export function StudentSubmitView({
 
     setResult(null);
     setCatalogResult(null);
-    setAutoAddSuccess(null);
-    setEscalateToLecturer(null);
+    setServiceRequestResult(null);
     setError("");
     setFeedback(null);
     setSelectedCitation(null);
+    addMemberIdempotencyKey.current = null;
 
     const text = query.trim();
 
@@ -358,9 +292,6 @@ export function StudentSubmitView({
 
       // Check Course/Project related
       if (isCourseRelated(text)) {
-        const isAddMember = text.toLowerCase().includes("thêm bạn") || text.toLowerCase().includes("thêm thành viên");
-        setIsAddMemberIntent(isAddMember);
-
         setTimeout(() => {
           setActiveStepIndex(3); // Bước 3: Làm rõ môn & nhóm đồ án
           setNeedsCourseClarification(true);
@@ -393,69 +324,95 @@ export function StudentSubmitView({
       setError("Vui lòng chọn môn học.");
       return;
     }
+    if (!effectiveGroupId) {
+      setError("Học phần này chưa có nhóm để gửi yêu cầu.");
+      return;
+    }
+    if (serviceRequestResult?.status === "NEEDS_INFO") {
+      await handleClarifyServiceRequest();
+      return;
+    }
 
     setBusy(true);
     setError("");
 
     try {
-      // 1. Xử lý Thêm thành viên nhóm: Hệ thống tự hiểu sĩ số nhóm
-      if (isAddMemberIntent) {
-        setNeedsCourseClarification(false);
-        const roster = getActiveGroupRoster();
-
-        if (!roster.isExceeded) {
-          // Nhóm chưa đạt sĩ số tối đa -> Tiếp nhận và cập nhật trực tiếp
-          setAutoAddSuccess({
-            courseCode: selectedCourse?.code || selectedCourseId,
-            groupName: selectedGroup?.name || "Nhóm 01",
-            memberRef: memberRefInput.trim() || "student-b1",
-          });
-          setActiveStepIndex(4);
-        } else {
-          // Nhóm đã đủ 5 bạn (vượt mức tối đa) -> Chuyển Giảng viên phê duyệt ngoại lệ
-          setEscalateToLecturer({
-            courseCode: selectedCourse?.code || selectedCourseId,
-            groupName: selectedGroup?.name || "Nhóm 01",
-            memberRef: memberRefInput.trim() || "student-b1",
-            reason: "Nhóm hiện tại đã có 5 bạn (đạt sĩ số tối đa). Xin kết nạp thêm thành viên vượt định mức theo quy chế.",
-          });
-          setActiveStepIndex(4);
-        }
-        setBusy(false);
-        return;
-      }
-
-      // 2. Câu hỏi quy chế môn học -> Gửi tới backend /api/v1/questions
-      const res = await postJson<QuestionResponse>("/api/v1/questions", {
-        actor_id: actorId || "student-a1",
-        course_id: selectedCourseId,
+      addMemberIdempotencyKey.current ??= `service-${
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      }`;
+      const slots: Record<string, string> = {
         group_id: effectiveGroupId,
-        text: query.trim(),
-      });
+        course_code: selectedCourse?.code || selectedCourseId,
+      };
+      if (memberRefInput.trim()) slots.member_ref = memberRefInput.trim();
 
-      setCurrentRequestId(getLastRequestId());
-      setResult(res);
+      const serviceRequest = await postJson<ServiceRequestResponse>(
+        "/api/v1/service-requests",
+        { text: query.trim(), slots },
+        { "Idempotency-Key": addMemberIdempotencyKey.current }
+      );
+      setServiceRequestResult(serviceRequest);
+      setCurrentRequestId(serviceRequest.request_id);
       setNeedsCourseClarification(false);
-      setActiveStepIndex(4);
-
-      if (res.route === "CLARIFY") {
-        setConversationTurns([
-          {
-            round: res.clarification_round || 0,
-            questionText: query.trim(),
-            clarifyingQuestion: res.clarifying_question,
-            route: res.route,
-          },
-        ]);
-      }
-
-      if (onSubmitted && res.question_id) {
-        onSubmitted(res.question_id);
-      }
+      setActiveStepIndex(serviceRequest.status === "NEEDS_INFO" ? 3 : 4);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xử lý yêu cầu. Vui lòng thử lại.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleClarifyServiceRequest() {
+    if (!serviceRequestResult || serviceRequestResult.status !== "NEEDS_INFO") return;
+    if (serviceRequestResult.missing_fields.includes("member_ref") && !memberRefInput.trim()) {
+      setError("Vui lòng nhập mã sinh viên cần thêm vào nhóm.");
+      return;
+    }
+
+    setServiceConfirmBusy(true);
+    setError("");
+    try {
+      const slots: Record<string, string> = {
+        group_id: effectiveGroupId,
+        course_code: selectedCourse?.code || selectedCourseId,
+      };
+      if (memberRefInput.trim()) slots.member_ref = memberRefInput.trim();
+      const clarification = serviceClarificationText.trim() || memberRefInput.trim() || "Thông tin bổ sung cho yêu cầu.";
+      const updated = await postJson<ServiceRequestResponse>(
+        `/api/v1/service-requests/${serviceRequestResult.id}/clarify`,
+        { text: clarification, slots }
+      );
+      setServiceRequestResult(updated);
+      setCurrentRequestId(updated.request_id);
+      setNeedsCourseClarification(false);
+      setServiceClarificationText("");
+      setActiveStepIndex(updated.status === "NEEDS_INFO" ? 3 : 4);
+    } catch (err) {
+      setCurrentRequestId(getLastRequestId());
+      setError(err instanceof Error ? err.message : "Không thể gửi thông tin bổ sung.");
+    } finally {
+      setServiceConfirmBusy(false);
+    }
+  }
+
+  async function handleConfirmServiceRequest() {
+    if (!serviceRequestResult || serviceRequestResult.status !== "AWAITING_CONFIRMATION") return;
+    setServiceConfirmBusy(true);
+    setError("");
+    try {
+      const updated = await postJson<ServiceRequestResponse>(
+        `/api/v1/service-requests/${serviceRequestResult.id}/confirm`,
+        {}
+      );
+      setServiceRequestResult(updated);
+      setCurrentRequestId(updated.request_id);
+    } catch (err) {
+      setCurrentRequestId(getLastRequestId());
+      setError(err instanceof Error ? err.message : "Không thể xác nhận yêu cầu.");
+    } finally {
+      setServiceConfirmBusy(false);
     }
   }
 
@@ -528,16 +485,20 @@ export function StudentSubmitView({
     {
       num: 4,
       title: "Phê duyệt / Thực thi",
-      desc: autoAddSuccess
-        ? "Đã cập nhật thành viên"
-        : escalateToLecturer
+      desc: serviceRequestResult?.status === "AWAITING_CONFIRMATION"
+        ? "Chờ bạn xác nhận preview"
+        : serviceRequestResult?.status === "AWAITING_APPROVAL"
         ? "Chờ Giảng viên duyệt"
+        : serviceRequestResult?.status === "WAITING_FOR_STAFF"
+        ? "Đã chuyển đơn vị phụ trách"
+        : serviceRequestResult?.status === "COMPLETED"
+        ? "Đã hoàn tất và xác minh"
         : isStep4Done
         ? "Hoàn tất giải quyết"
         : "Đơn vị giải quyết",
       completed: isStep4Done,
       active: isStep4Done,
-      alert: Boolean(escalateToLecturer),
+      alert: serviceRequestResult?.status === "WAITING_FOR_STAFF" || serviceRequestResult?.status === "AWAITING_APPROVAL",
     },
   ];
 
@@ -559,7 +520,7 @@ export function StudentSubmitView({
           </div>
 
           {/* Reset button when active */}
-          {(result || catalogResult || needsCourseClarification || autoAddSuccess || escalateToLecturer) && (
+          {(result || catalogResult || needsCourseClarification || serviceRequestResult) && (
             <button
               type="button"
               onClick={handleResetChat}
@@ -647,9 +608,9 @@ export function StudentSubmitView({
                 ? "bg-stone-100 text-stone-600"
                 : needsCourseClarification
                 ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
-                : autoAddSuccess
+                : serviceRequestResult?.status === "COMPLETED"
                 ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
-                : escalateToLecturer
+                : serviceRequestResult?.status === "WAITING_FOR_STAFF" || serviceRequestResult?.status === "AWAITING_APPROVAL"
                 ? "bg-rose-100 text-rose-900 border border-rose-300"
                 : catalogResult
                 ? "bg-sky-100 text-sky-900 border border-sky-300"
@@ -658,10 +619,9 @@ export function StudentSubmitView({
           >
             {isIdle && "Sẵn sàng tiếp nhận"}
             {needsCourseClarification && "Cần làm rõ môn / nhóm đồ án"}
-            {autoAddSuccess && "Đã cập nhật thành viên thành công"}
-            {escalateToLecturer && "Cần Giảng viên phê duyệt ngoại lệ"}
+            {serviceRequestResult && `Trạng thái: ${serviceRequestResult.status}`}
             {catalogResult && "Đã điều phối đơn vị"}
-            {!isIdle && !needsCourseClarification && !autoAddSuccess && !escalateToLecturer && !catalogResult && "Đang xử lý…"}
+            {!isIdle && !needsCourseClarification && !serviceRequestResult && !catalogResult && "Đang xử lý…"}
           </span>
         </div>
 
@@ -842,55 +802,6 @@ export function StudentSubmitView({
                 </div>
               </div>
 
-              {/* Tình huống Thêm thành viên: Hệ thống tự động nhận diện sĩ số nhóm */}
-              {isAddMemberIntent && (() => {
-                const roster = getActiveGroupRoster();
-                return (
-                  <div className="pt-3 border-t border-stone-100 space-y-3">
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 mb-1">
-                        Mã sinh viên cần thêm vào nhóm:
-                      </label>
-                      <input
-                        type="text"
-                        value={memberRefInput}
-                        onChange={(e) => setMemberRefInput(e.target.value)}
-                        placeholder="Ví dụ: student-b1 hoặc demo-student-02"
-                        className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-xs focus:outline-none focus:border-ruby-600 bg-white"
-                      />
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-stone-700">Trạng thái nhóm hiện tại:</span>
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
-                            roster.isExceeded
-                              ? "bg-amber-100 text-amber-900 border border-amber-300"
-                              : "bg-emerald-100 text-emerald-900 border border-emerald-300"
-                          }`}
-                        >
-                          {roster.currentCount} / {roster.maxLimit} thành viên
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-stone-600 leading-relaxed">
-                        <span className="font-medium text-stone-700">Thành viên hiện tại:</span>{" "}
-                        {roster.members.join(", ")}
-                      </div>
-
-                      {roster.isExceeded ? (
-                        <div className="text-[11px] text-amber-900 font-medium bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                          ⚠️ Nhóm hiện đã đạt sĩ số tối đa ({roster.maxLimit} bạn). Yêu cầu bổ sung thành viên sẽ được hệ thống chuyển tiếp đến Giảng viên xem xét phê duyệt ngoại lệ.
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-emerald-900 font-medium bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                          ✓ Nhóm hiện có {roster.currentCount} bạn (chưa vượt trần {roster.maxLimit} bạn). Hệ thống sẽ xác thực và cập nhật thành viên trực tiếp vào danh sách nhóm.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
 
             <div className="flex justify-end pt-1">
@@ -907,7 +818,7 @@ export function StudentSubmitView({
                   </>
                 ) : (
                   <>
-                    <span>Xác nhận môn học & Tiếp tục xử lý</span>
+                    <span>Gửi yêu cầu để AI phân loại</span>
                     <ArrowRight size={15} />
                   </>
                 )}
@@ -916,101 +827,126 @@ export function StudentSubmitView({
           </div>
         )}
 
-        {/* TRƯỜNG HỢP 2: THÊM THÀNH VIÊN HỢP LỆ THÀNH CÔNG */}
-        {autoAddSuccess && (
-          <div className="bg-emerald-50/90 border-2 border-emerald-300 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in">
+        {serviceRequestResult && (
+          <div className="bg-white border border-rose-200 rounded-3xl p-5 shadow-soft-card space-y-4 animate-in fade-in">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                  <CheckCircle2 size={24} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-emerald-950">
-                    Cập nhật danh sách nhóm thành công
-                  </h3>
-                  <p className="text-xs text-emerald-800 mt-0.5">
-                    Căn cứ Quy chế học phần đồ án: Sĩ số nhóm hợp lệ (dưới 5 thành viên), hệ thống đã xác thực và ghi nhận thành viên mới vào danh sách nhóm thành công.
-                  </p>
-                </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900">
+                  {serviceRequestResult.status === "AWAITING_CONFIRMATION"
+                    ? "Preview yêu cầu thêm thành viên"
+                    : serviceRequestResult.status === "AWAITING_APPROVAL"
+                    ? "Yêu cầu đã chuyển giảng viên phê duyệt"
+                    : serviceRequestResult.status === "WAITING_FOR_STAFF"
+                    ? "Yêu cầu đã chuyển đến đơn vị phụ trách"
+                    : serviceRequestResult.status === "COMPLETED"
+                    ? "Yêu cầu đã được xử lý"
+                    : serviceRequestResult.status === "ANSWERED"
+                    ? "Trả lời theo tài liệu của dịch vụ"
+                    : serviceRequestResult.status === "NEEDS_INFO"
+                    ? "Cần bạn bổ sung thông tin"
+                    : serviceRequestResult.status === "REJECTED"
+                    ? "Yêu cầu không thể tiếp tục"
+                    : "Trạng thái yêu cầu"}
+                </h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  Dịch vụ: {serviceRequestResult.service_id} · Mã hồ sơ: {serviceRequestResult.request_id}
+                </p>
               </div>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase">
-                HỢP LỆ · ĐÃ CẬP NHẬT
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                {serviceRequestResult.status}
               </span>
             </div>
 
-            {/* Thông tin nhóm sau khi tự thêm */}
-            <div className="p-4 rounded-2xl bg-white border border-emerald-200 space-y-2.5">
-              <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
-                Danh sách thành viên nhóm sau khi cập nhật:
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-between">
-                  <span className="font-semibold text-stone-800">1. User (Sinh viên)</span>
-                  <span className="text-[10px] bg-stone-200 text-stone-700 px-2 py-0.5 rounded font-bold">Trưởng nhóm</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-                  <span className="font-bold text-emerald-900 font-mono">2. {autoAddSuccess.memberRef}</span>
-                  <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">Mới tiếp nhận</span>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-stone-50 border border-stone-200">
+                <span className="text-stone-400 block text-[10px] uppercase font-bold">Học phần</span>
+                <span className="font-semibold text-stone-900">{serviceRequestResult.slots.course_code || selectedCourse?.code || selectedCourseId}</span>
               </div>
-
-              <div className="text-[11px] text-stone-500 pt-1 flex items-center gap-2">
-                <span>Học phần: <strong>{autoAddSuccess.courseCode}</strong></span>
-                <span>•</span>
-                <span>Nhóm: <strong>{autoAddSuccess.groupName}</strong></span>
-                <span>•</span>
-                <span>Trạng thái hệ thống: <strong className="text-emerald-700 font-mono">verified: true</strong></span>
+              <div className="p-3 rounded-xl bg-stone-50 border border-stone-200">
+                <span className="text-stone-400 block text-[10px] uppercase font-bold">Nhóm</span>
+                <span className="font-semibold text-stone-900">{selectedGroup?.name || serviceRequestResult.slots.group_id || "Chưa xác định"}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-stone-50 border border-stone-200">
+                <span className="text-stone-400 block text-[10px] uppercase font-bold">Thành viên xin thêm</span>
+                <span className="font-semibold font-mono text-stone-900">{serviceRequestResult.slots.member_ref || "Chưa cung cấp"}</span>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TRƯỜNG HỢP 3: VƯỢT ĐỊNH MỨC -> CHUYỂN GIẢNG VIÊN DUYỆT */}
-        {escalateToLecturer && (
-          <div className="bg-rose-50/90 border-2 border-rose-300 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                  <ShieldAlert size={22} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-stone-900">
-                    Yêu cầu vượt định mức quy chế (Chuyển Giảng viên phê duyệt ngoại lệ)
-                  </h3>
-                  <p className="text-xs text-rose-800 mt-0.5">
-                    Quy chế quy định nhóm đồ án tối đa 5 sinh viên. Nhóm đã đạt sĩ số tối đa nên yêu cầu bổ sung thành viên đã được chuyển tiếp đến Giảng viên xem xét ngoại lệ.
-                  </p>
-                </div>
+            {typeof serviceRequestResult.result.next_step === "string" && (
+              <p className="text-sm text-stone-700">{serviceRequestResult.result.next_step}</p>
+            )}
+            {typeof serviceRequestResult.result.clarifying_question === "string" && (
+              <p className="text-sm font-medium text-amber-900">{serviceRequestResult.result.clarifying_question}</p>
+            )}
+            {typeof serviceRequestResult.result.answer === "string" && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-relaxed text-emerald-950">
+                {serviceRequestResult.result.answer}
               </div>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300 uppercase">
-                AWAITING_APPROVAL
-              </span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-rose-200 space-y-2 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-2 rounded-xl bg-stone-50 border border-stone-200">
-                  <span className="text-stone-400 block text-[10px] uppercase font-bold">Học phần & Nhóm</span>
-                  <span className="font-bold text-stone-900">{escalateToLecturer.courseCode} · {escalateToLecturer.groupName}</span>
-                </div>
-                <div className="p-2 rounded-xl bg-stone-50 border border-stone-200">
-                  <span className="text-stone-400 block text-[10px] uppercase font-bold">Thành viên xin thêm</span>
-                  <span className="font-bold text-rose-800 font-mono">{escalateToLecturer.memberRef}</span>
-                </div>
-                <div className="p-2 rounded-xl bg-stone-50 border border-stone-200">
-                  <span className="text-stone-400 block text-[10px] uppercase font-bold">Giảng viên phụ trách</span>
-                  <span className="font-bold text-stone-900">TS. Trần Minh Tuấn</span>
-                </div>
-              </div>
-              <p className="text-stone-600 pt-1 leading-relaxed">
-                <strong>Lý do phân luồng: </strong>{escalateToLecturer.reason}
+            )}
+            {typeof serviceRequestResult.result.message === "string" && (
+              <p className="text-sm text-stone-700">{serviceRequestResult.result.message}</p>
+            )}
+            {(serviceRequestResult.policy_source || serviceRequestResult.policy_version) && (
+              <p className="text-xs text-stone-500">
+                Nguồn: {serviceRequestResult.policy_source || "—"} · Phiên bản: {serviceRequestResult.policy_version || "—"}
               </p>
-            </div>
+            )}
+            {serviceRequestResult.reason_code && (
+              <p className="text-xs text-stone-500">Lý do: <code>{serviceRequestResult.reason_code}</code></p>
+            )}
 
-            <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-xs text-blue-950 flex items-center gap-2">
-              <UserCheck size={16} className="text-blue-700 shrink-0" />
-              <span>Hồ sơ đã được gửi đến <strong>TS. Trần Minh Tuấn</strong>. Đổi sang tài khoản Giảng viên ở góc trên để phê duyệt.</span>
-            </div>
+            {serviceRequestResult.status === "NEEDS_INFO" && serviceRequestResult.missing_fields.includes("member_ref") && (
+              <div>
+                <label className="mb-1 block text-xs font-bold text-stone-700" htmlFor="service-member-ref">
+                  Mã sinh viên cần thêm vào nhóm
+                </label>
+                <input
+                  id="service-member-ref"
+                  type="text"
+                  value={memberRefInput}
+                  onChange={(event) => setMemberRefInput(event.target.value)}
+                  placeholder="Ví dụ: demo-student-02"
+                  className="w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs focus:border-ruby-600 focus:outline-none"
+                />
+              </div>
+            )}
+            {serviceRequestResult.status === "NEEDS_INFO" && !serviceRequestResult.missing_fields.includes("member_ref") && (
+              <textarea
+                value={serviceClarificationText}
+                onChange={(event) => setServiceClarificationText(event.target.value)}
+                rows={2}
+                placeholder="Trả lời câu hỏi làm rõ"
+                className="w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-sm focus:border-ruby-600 focus:outline-none"
+              />
+            )}
+            {serviceRequestResult.status === "NEEDS_INFO" && (
+              <button
+                type="button"
+                onClick={() => void handleClarifyServiceRequest()}
+                disabled={serviceConfirmBusy}
+                className="inline-flex items-center gap-2 rounded-full bg-ruby-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-ruby-800 disabled:opacity-50"
+              >
+                {serviceConfirmBusy ? "Đang gửi…" : "Gửi thông tin bổ sung"}
+              </button>
+            )}
+
+            {serviceRequestResult.status === "AWAITING_CONFIRMATION" && (
+              <button
+                type="button"
+                onClick={() => void handleConfirmServiceRequest()}
+                disabled={serviceConfirmBusy}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-ruby-700 hover:bg-ruby-800 text-white font-bold text-sm disabled:opacity-50"
+              >
+                {serviceConfirmBusy ? "Đang xác nhận…" : "Xác nhận preview và gửi giảng viên"}
+              </button>
+            )}
+            {(serviceRequestResult.status === "AWAITING_APPROVAL" || serviceRequestResult.status === "WAITING_FOR_STAFF") && (
+              <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">
+                Hồ sơ đã được lưu ở backend. {serviceRequestResult.service_id === "faculty_cs"
+                  ? <>Chuyển sang tài khoản Giảng viên, mở mục <strong>Yêu cầu dịch vụ</strong> để xem hồ sơ này.</>
+                  : <>Hồ sơ được chuyển đến bộ phận điều phối theo Service Catalog.</>}
+              </p>
+            )}
           </div>
         )}
 

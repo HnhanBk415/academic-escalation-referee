@@ -40,6 +40,7 @@ class ServiceRequestResponse(BaseModel):
     id: str
     request_id: str
     actor_id: str
+    text: str
     service_id: str
     organization_id: str
     intent: str

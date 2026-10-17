@@ -110,10 +110,19 @@ export function ServiceRequestsInboxView({ actorId, onUpdated }: { actorId: stri
               <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">{STATUS_NAMES[item.status] ?? item.status}</span>
             </div>
             <div className="rounded-xl bg-stone-50 p-4 text-sm text-stone-800">
-              <p><span className="font-semibold">Nội dung đã tiếp nhận:</span> {item.result.message ? getText(item.result.message) : "Yêu cầu đang chờ nhân viên xem xét."}</p>
+              <p><span className="font-semibold">Yêu cầu của sinh viên:</span> {item.text}</p>
+              {typeof item.result.message === "string" && <p className="mt-2"><span className="font-semibold">Kết quả phân loại:</span> {item.result.message}</p>}
               {typeof item.result.next_step === "string" && <p className="mt-2 text-stone-600">{item.result.next_step}</p>}
               {item.reason_code && <p className="mt-2 text-xs text-stone-500">Lý do: <code>{item.reason_code}</code></p>}
             </div>
+
+            {Object.keys(item.slots).length > 0 && (
+              <dl className="grid grid-cols-1 gap-2 rounded-xl border border-stone-200 p-4 text-xs sm:grid-cols-3">
+                {item.slots.course_code && <div><dt className="text-stone-500">Học phần</dt><dd className="mt-1 font-semibold text-stone-900">{item.slots.course_code}</dd></div>}
+                {item.slots.group_id && <div><dt className="text-stone-500">Nhóm</dt><dd className="mt-1 font-semibold text-stone-900">{item.slots.group_id}</dd></div>}
+                {item.slots.member_ref && <div><dt className="text-stone-500">Thành viên xin thêm</dt><dd className="mt-1 font-semibold font-mono text-stone-900">{item.slots.member_ref}</dd></div>}
+              </dl>
+            )}
 
             {facultyApproval && (
               <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4">

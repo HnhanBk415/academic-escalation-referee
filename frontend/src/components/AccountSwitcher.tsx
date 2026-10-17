@@ -78,6 +78,19 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   },
 ];
 
+// Keep service and DADN demo actors available to existing workflows, but don't
+// expose them in the account picker used for the presentation UI.
+const HIDDEN_ACCOUNT_IDS = new Set([
+  "demo-student-01",
+  "academic-affairs-01",
+  "clinic-staff-01",
+  "student-affairs-01",
+]);
+
+export const ACCOUNT_SWITCHER_ACCOUNTS = DEMO_ACCOUNTS.filter(
+  (account) => !HIDDEN_ACCOUNT_IDS.has(account.id)
+);
+
 interface AccountSwitcherProps {
   currentAccountId: string;
   aiOnline: boolean;
@@ -100,7 +113,7 @@ export function AccountSwitcher({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const currentAccount =
-    DEMO_ACCOUNTS.find((acc) => acc.id === currentAccountId) || DEMO_ACCOUNTS[0];
+    DEMO_ACCOUNTS.find((acc) => acc.id === currentAccountId) || ACCOUNT_SWITCHER_ACCOUNTS[0];
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -184,7 +197,7 @@ export function AccountSwitcher({
           </div>
 
           <div className="py-1">
-            {DEMO_ACCOUNTS.map((acc) => {
+            {ACCOUNT_SWITCHER_ACCOUNTS.map((acc) => {
               const isSelected = acc.id === currentAccount.id;
               return (
                 <button

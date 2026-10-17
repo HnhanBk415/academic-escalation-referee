@@ -306,6 +306,34 @@ async def test_group_member_approval_verify_idempotency_and_full_group(client):
 
 
 @pytest.mark.asyncio
+async def test_co3001_member_request_is_persisted_in_lecturer_service_inbox(client):
+    question = "Nhóm em hiện tại đã có 5 bạn, em muốn xin thêm bạn thứ 6 vào nhóm đồ án."
+    created = await client.post(
+        "/api/v1/service-requests",
+        headers={"X-Demo-Actor-ID": "student-b1"},
+        json={
+            "text": question,
+            "slots": {
+                "course_code": "CO3001",
+                "group_id": "group-b",
+                "member_ref": "demo-student-02",
+            },
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["service_id"] == "faculty_cs"
+    assert body["status"] == "WAITING_FOR_STAFF"
+
+    lecturer_queue = await client.get("/api/v1/service-requests?limit=100", headers=LECTURER)
+    assert lecturer_queue.status_code == 200, lecturer_queue.text
+    queued_item = next(item for item in lecturer_queue.json() if item["id"] == body["id"])
+    assert queued_item["text"] == question
+    assert queued_item["slots"]["group_id"] == "group-b"
+    assert queued_item["slots"]["member_ref"] == "demo-student-02"
+
+
+@pytest.mark.asyncio
 async def test_unauthorized_group_write_and_record_access(client):
     created = await client.post(
         "/api/v1/service-requests", headers={"X-Demo-Actor-ID": "demo-student-02"},

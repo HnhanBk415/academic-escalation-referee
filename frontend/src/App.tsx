@@ -3,7 +3,10 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-
 import { api, setDemoActorId } from "./api/client";
 import { AppHeader } from "./components/AppHeader";
 import { PageContainer } from "./components/ui";
-import { DEMO_ACCOUNTS, type DemoAccount } from "./components/AccountSwitcher";
+import {
+  ACCOUNT_SWITCHER_ACCOUNTS,
+  type DemoAccount,
+} from "./components/AccountSwitcher";
 import { HomePage } from "./pages/HomePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { AuditPage } from "./pages/AuditPage";
@@ -84,11 +87,11 @@ function resolveSelectedGroup(
 }
 
 function getInitialAccount(): DemoAccount {
-  let acc = DEMO_ACCOUNTS[0]; // DADN demo student by default
+  let acc = ACCOUNT_SWITCHER_ACCOUNTS[0]; // User (Sinh viên) by default
   try {
     const savedId = localStorage.getItem(ACCOUNT_STORAGE_KEY);
     if (savedId) {
-      const found = DEMO_ACCOUNTS.find((a) => a.id === savedId);
+      const found = ACCOUNT_SWITCHER_ACCOUNTS.find((a) => a.id === savedId);
       if (found) acc = found;
     }
   } catch {
@@ -100,7 +103,7 @@ function getInitialAccount(): DemoAccount {
 
 function getDefaultWorkspaceFeature(account: DemoAccount): string {
   if (account.role === "student") return "ask";
-  return account.serviceStaff ? "service-requests" : "inbox";
+  return "service-requests";
 }
 
 export function App() {
@@ -258,7 +261,7 @@ export function App() {
   const handleHomeNavigate = (destination: string) => {
     if (destination === "workspace") navigate("/workspace");
     else if (destination === "history") navigate("/workspace/history");
-    else if (destination === "inbox") navigate(currentAccount.serviceStaff ? "/workspace/service-requests" : "/workspace/inbox");
+    else if (destination === "inbox") navigate("/workspace/service-requests");
     else if (destination === "exceptions") navigate("/workspace/exceptions");
     else if (destination === "audit") navigate("/audit");
     else if (destination === "operations") navigate("/workspace/inbox");

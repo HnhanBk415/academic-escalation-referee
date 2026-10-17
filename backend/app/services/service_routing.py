@@ -20,7 +20,17 @@ from app.schemas.service_routing import ServiceRequestCreate, ServiceRequestResp
 from app.services.audit import add_audit_event
 from app.services.ids import new_id
 
-DATA_ROOT = Path(__file__).resolve().parents[3] / "data"
+
+def _resolve_data_root() -> Path:
+    module_path = Path(__file__).resolve()
+    candidates = (module_path.parents[2] / "data", module_path.parents[3] / "data")
+    return next(
+        (candidate for candidate in candidates if (candidate / "service-catalog.json").is_file()),
+        candidates[0],
+    )
+
+
+DATA_ROOT = _resolve_data_root()
 SLOT_KEYS = {"group_id", "member_ref", "record_id", "time_slot", "course_code", "semester", "topic"}
 CLINIC_SAFETY_MESSAGE = (
     "Nếu bạn cần hỗ trợ y tế khẩn cấp, hãy liên hệ ngay cơ sở y tế "
@@ -47,6 +57,7 @@ def _response(item: ServiceRequest) -> ServiceRequestResponse:
         id=item.id,
         request_id=item.request_id,
         actor_id=item.actor_id,
+        text=item.text,
         service_id=item.service_id,
         organization_id=service["organization_id"] if service else "academic_affairs",
         intent=item.intent,
