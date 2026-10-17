@@ -119,9 +119,10 @@ def test_migration_chain_upgrades_cleanly_and_preserves_flow_one():
             all_tables = set(sa.inspect(connection).get_table_names())
             assert not {t for t in all_tables if t.startswith("format_")}
             assert all_tables == {
-                *Base.metadata.tables,
-                "alembic_version",
-            }
+    *Base.metadata.tables,
+    "alembic_version",
+    "service_requests",
+}
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
 
             for table in flow_one_tables:
