@@ -1,181 +1,102 @@
-# Academic Escalation Referee
+ 
 
-Academic Escalation Referee hỗ trợ sinh viên về các yêu cầu học vụ. Hệ thống tìm thông tin trong tài liệu môn học, trả lời kèm trích dẫn, yêu cầu bổ sung dữ kiện hoặc chuyển câu hỏi đến giảng viên. 
-## Link demo
-https://aersystem.vercel.app/
+# Academic Escalation Referee (AER)
 
-## Tính năng
+> Hệ thống AI hỗ trợ phân tích và xử lý yêu cầu học vụ của sinh viên
 
-- Hệ thống phân tích và xử lý yêu cầu từ sinh viên.
-- Phân loại câu hỏi: trả lời, hỏi làm rõ, chuyển người có thẩm quyền hoặc từ chối.
-- Quản lý hồ sơ chuyển cấp, quyết định và ngoại lệ chính sách.
-- Nạp tài liệu PDF, Markdown và TXT.
-- Theo dõi hoạt động qua Audit Trail.
-- Chế độ AI giả lập để chạy demo không cần API key Gemini.
+## Giới thiệu
 
-## Công nghệ
+**Academic Escalation Referee** là hệ thống ứng dụng AI kết hợp **Retrieval-Augmented Generation** nhằm hỗ trợ sinh viên tra cứu quy định học vụ, đồng thời tự động phân loại, định tuyến yêu cầu đến đúng đơn vị phụ trách và xử lý các yêu cầu của sinh viên.
 
-- **Backend:** Python, FastAPI, SQLAlchemy, Alembic
-- **Database:** PostgreSQL và pgvector
-- **Frontend:** React, TypeScript, Vite
-- **AI:** Google Gemini hoặc provider giả lập
-- **Triển khai:** Docker Compose; Render và Vercel
+Điểm nổi bật của AER là khả năng **xác định khi nào AI có thể tự xử lý và khi nào cần chuyển quyền quyết định cho con người**, giúp hạn chế xử lý thiếu căn cứ hoặc vượt thẩm quyền.
 
-## Yêu cầu
+> Phạm vi MVP: Phiên bản hiện tại tập trung vào hỏi đáp quy chế, làm rõ yêu cầu, chuyển cấp xử lý và lưu lại lịch sử. Đây chưa phải hệ thống tích hợp với các phòng ban hoặc hệ thống quản lý của trường.
 
-Để chạy bằng Docker:
+**Live Demo:** https://aersystem.vercel.app/
 
-- Docker
-- Docker Compose
+## Thành viên thực hiện
+| Thành viên | GitHub |
+|---|---|
+| Nguyễn Hoàng Nhân - Leader | HCMUT, VNU |
+| Bùi Quang Nhân | HCMUT, VNU |
+| Nguyễn Thanh Bình | HCMUT, VNU |
+| Võ Chí Thành | HCMUTE |
 
-Để chạy môi trường phát triển cục bộ:
+## Công nghệ sử dụng
 
-- Python 3.11 trở lên
-- Node.js 22 trở lên
-- npm
-- Docker, để chạy PostgreSQL và pgvector
+| Thành phần | Công nghệ |
+|---|---|
+| Frontend | React, TypeScript, Vite |
+| Backend | Python, FastAPI |
+| AI & RAG | Google Gemini, Hybrid Retrieval |
+| Database | PostgreSQL, pgvector |
+| Deployment | Docker, Docker Compose |
 
-## Chạy nhanh bằng Docker
+## Cài đặt và chạy hệ thống
 
-Tại thư mục gốc dự án, tạo file cấu hình môi trường và khởi động các dịch vụ:
+**Yêu cầu:** Git và Docker Desktop.
+
+**Bước 1 — Clone repository**
+
+```bash
+git clone https://github.com/HnhanBk415/academic-escalation-referee.git
+cd academic-escalation-referee
+```
+
+**Bước 2 — Cấu hình môi trường**
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+Mặc định, hệ thống sử dụng chế độ AI giả lập (`AI_MODE=fake`). Để sử dụng Gemini, cập nhật `AI_MODE=gemini` và `GEMINI_API_KEY` trong `.env`.
+
+**Bước 3 — Build và khởi động bằng Docker**
+
+```bash
 docker compose up -d --build
 ```
 
-Mặc định, `.env.example` dùng `AI_MODE=fake`, nên có thể chạy demo mà không cần API key.
+**Bước 4 — Truy cập hệ thống**
 
-Các địa chỉ sau sẽ khả dụng khi các dịch vụ đã khởi động:
+- **Web Application:** http://localhost
+- **Backend API:** http://localhost:8000
+- **Swagger API Docs:** http://localhost:8000/docs
 
-- Ứng dụng: <http://localhost>
-- API: <http://localhost:8000>
-- Tài liệu API Swagger: <http://localhost:8000/docs>
-- Health check: <http://localhost:8000/health>
+Dừng hệ thống:
 
-Khi khởi động, API tự chạy migration cơ sở dữ liệu và nạp dữ liệu demo. Để xem trạng thái hoặc log:
-
-```powershell
-docker compose ps
-docker compose logs -f api
-docker compose logs -f web
+```bash
+docker compose down
 ```
+## Kiến trúc thư mục
 
-## Chạy phát triển trên Windows
-
-Tạo `.env`, cài đặt backend, khởi động PostgreSQL và chạy migration/seed:
-
-```powershell
-Copy-Item .env.example .env
-docker compose up -d postgres
-
-Push-Location backend
-py -3.13 -m pip install -e ".[dev]"
-py -3.13 -m alembic upgrade head
-py -3.13 -m app.db.seed
-Pop-Location
 ```
-
-Mở một terminal để chạy backend:
-
-```powershell
-.\scripts\dev-api.ps1
-```
-
-Mở terminal khác để chạy frontend:
-
-```powershell
-.\scripts\dev-frontend.ps1
-```
-
-Frontend chạy tại <http://localhost:5173> và chuyển tiếp API đến `http://localhost:8000`.
-
-Các script tiện ích khác:
-
-```powershell
-.\scripts\setup.ps1       # Cài dependency, migration và dữ liệu demo
-.\scripts\seed.ps1        # Chạy lại migration và seed
-.\scripts\reindex.ps1     # Re-index dữ liệu demo
-.\scripts\build.ps1       # Kiểm tra backend và build frontend
-.\scripts\verify.ps1      # Chạy bộ kịch bản kiểm tra qua API
-```
-
-## Cấu hình
-
-Các biến môi trường nằm trong `.env.example`. Sao chép file này thành `.env` trước khi chạy.
-
-| Biến | Mô tả |
-|---|---|
-| `DATABASE_URL` | URL kết nối database |
-| `AUTH_MODE` | `demo` để chạy role switch khi phát triển; production cần dùng `password` |
-| `AI_MODE` | `fake` hoặc `gemini` |
-| `GEMINI_API_KEY` | API key dùng cho câu trả lời và embedding khi chọn Gemini |
-| `GEMINI_VISION_API_KEY` | API key riêng cho OCR ảnh và PDF scan |
-| `GEMINI_CHAT_MODEL` | Model Gemini dùng để xử lý câu hỏi |
-| `GEMINI_EMBED_MODEL` | Model Gemini dùng để tạo embedding |
-| `RAG_TOP_K` | Số đoạn tài liệu tối đa đưa vào bước truy xuất |
-| `RAG_CONTEXT_CHUNKS` | Số đoạn tài liệu đưa vào ngữ cảnh AI |
-| `CORS_ORIGINS` | Danh sách origin được phép gọi API |
-| `PUBLIC_BASE_URL` | URL công khai của API |
-
-Để bật Gemini, đặt `AI_MODE=gemini` và điền `GEMINI_API_KEY`. OCR cho tài liệu scan cần thêm `GEMINI_VISION_API_KEY`.
-
-## API chính
-
-API được cung cấp dưới tiền tố `/api/v1` (cũng hỗ trợ `/api`).
-
-| Nhóm | Đường dẫn |
-|---|---|
-| Đăng nhập | `/api/v1/auth` |
-| Câu hỏi và làm rõ | `/api/v1/questions` |
-| Hồ sơ chuyển cấp và quyết định | `/api/v1/cases` |
-| Tài liệu và xử lý tài liệu | `/api/v1/documents` |
-| Ngoại lệ chính sách | `/api/v1/exceptions` |
-| Nhật ký kiểm toán | `/api/v1/audit` |
-| Trạng thái hệ thống | `/health`, `/health/ai` |
-
-Xem chi tiết endpoint tại <http://localhost:8000/docs> khi backend đang chạy.
-
-## Kiểm tra chất lượng
-
-Chạy từ thư mục gốc của dự án:
-
-```powershell
-Push-Location backend
-py -3.13 -m ruff check .
-py -3.13 -m pytest tests -q
-Pop-Location
-
-Push-Location frontend
-npm ci
-npm test
-npm run build
-Pop-Location
-```
-
-Build Docker Compose:
-
-```powershell
-docker compose build
-```
-
-## Cấu trúc dự án
-
-```text
-.
-├── backend/                 # FastAPI, nghiệp vụ, RAG và migration
-├── frontend/                # Ứng dụng React và TypeScript
+academic-escalation-referee/
+├── backend/
+│   ├── app/
+│   │   ├── ai/              # Gemini/fake providers
+│   │   ├── api/             # FastAPI routes and dependencies
+│   │   ├── core/            # Configuration, enums, errors
+│   │   ├── db/              # Database session and seed
+│   │   ├── ingestion/       # Extract, chunk, embed, index
+│   │   ├── models/          # SQLAlchemy entities
+│   │   ├── rag/             # Hybrid retrieval
+│   │   ├── schemas/         # Request/response contracts
+│   │   └── services/        # Business workflows
+│   ├── migrations/          # Alembic revisions
+│   └── tests/               # Backend tests
+├── frontend/                # React application
 ├── data/
-│   ├── demo-config.json     # Cấu hình môn học và dữ liệu demo
-│   └── sample-documents/    # Tài liệu mẫu theo học phần
-├── harness/                 # Bộ kịch bản đánh giá qua API
-├── scripts/                 # Script phát triển và vận hành
-├── docker-compose.yml
-├── DEPLOYMENT.md             # Hướng dẫn triển khai production
-└── PROJECT_OVERVIEW.md       # Mô tả kiến trúc và luồng nghiệp vụ
+│   ├── demo-config.json     # Demo actors/courses/groups
+│   └── sample-documents/    # Course policy fixtures
+├── harness/                 # AI evaluation scenarios and datasets
+├── scripts/                 # Development and verification scripts
+├── .github/workflows/       # CI quality checks
+├── .env.example             # Configuration template
+├── docker-compose.yml       # Local container stack
+├── render.yaml              # Render deployment blueprint
+├── DEPLOYMENT.md            # Production configuration guide
+└── PROJECT_OVERVIEW.md      # Detailed technical reference
 ```
 
 
-## Giấy phép
-
-Dự án được phân phối theo giấy phép [MIT](LICENSE).
